@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-arabic: var(--font-naskh), var(--font-amiri), "Noto Naskh Arabic", "Amiri", serif;
+
+  --color-bg: oklch(0.99 0.005 95);
+  --color-bg-muted: oklch(0.97 0.008 95);
+  --color-fg: oklch(0.18 0.02 250);
+  --color-fg-muted: oklch(0.45 0.02 250);
+  --color-border: oklch(0.9 0.01 95);
+
+  --color-brand: oklch(0.66 0.15 145);          /* Duolingo-green */
+  --color-brand-dark: oklch(0.56 0.16 145);
+  --color-brand-fg: oklch(0.99 0.01 145);
+
+  --color-accent: oklch(0.78 0.14 75);          /* warm gold for XP/streak */
+  --color-locked: oklch(0.7 0.01 250);
+  --color-danger: oklch(0.6 0.2 25);
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+  html {
+    background: var(--color-bg);
+    color: var(--color-fg);
+  }
+  body {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  .font-arabic {
+    font-family: var(--font-arabic);
+    line-height: 1.9;
+  }
+  [dir="rtl"] {
+    text-align: right;
+  }
+}
