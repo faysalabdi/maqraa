@@ -2,10 +2,8 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getBookBySlug, getUserBook } from "@/lib/db/queries/path";
-import { db, schema } from "@/lib/db";
-import { eq, and, desc } from "drizzle-orm";
 import { ArrowLeft, Sparkles } from "lucide-react";
-import LogSessionDialog from "@/components/book/LogSessionDialog";
+import MarkFinishedButton from "@/components/book/MarkFinishedButton";
 
 export const dynamic = "force-dynamic";
 
@@ -20,19 +18,18 @@ export default async function BookPage({ params }: { params: Promise<{ slug: str
   } = await supabase.auth.getUser();
 
   const userBook = user ? await getUserBook(user.id, book.id) : null;
-  const sessions = user
-    ? await db
-        .select()
-        .from(schema.readingSessions)
-        .where(
-          and(
-            eq(schema.readingSessions.userId, user.id),
-            eq(schema.readingSessions.bookId, book.id),
-          ),
-        )
-        .orderBy(desc(schema.readingSessions.readAt))
-        .limit(5)
-    : [];
+
+  const canMarkFinished =
+    !!user &&
+    (!userBook ||
+      (userBook.status !== "reading_done" &&
+        userBook.status !== "testing" &&
+        userBook.status !== "completed"));
+
+  const canTest =
+    userBook?.status === "reading_done" ||
+    userBook?.status === "testing" ||
+    userBook?.status === "failed_retry";
 
   return (
     <main className="mx-auto max-w-2xl px-4 pb-24 pt-6">
@@ -67,30 +64,19 @@ export default async function BookPage({ params }: { params: Promise<{ slug: str
 
         {book.recommendedPages && (
           <p className="mt-4 text-sm text-fg-muted">
-            Recommended pages: ~{book.recommendedPages.toLocaleString()}
+            ~{book.recommendedPages.toLocaleString()} pages
           </p>
         )}
 
         <div className="mt-8 flex flex-wrap gap-3">
-          {user ? (
-            <LogSessionDialog
-              bookId={book.id}
-              bookSlug={book.slug}
-              canMarkDone={
-                !userBook ||
-                (userBook.status !== "reading_done" &&
-                  userBook.status !== "testing" &&
-                  userBook.status !== "completed")
-              }
-            />
-          ) : null}
+          {canMarkFinished && (
+            <MarkFinishedButton bookId={book.id} bookSlug={book.slug} />
+          )}
 
-          {userBook?.status === "reading_done" ||
-          userBook?.status === "testing" ||
-          userBook?.status === "failed_retry" ? (
+          {canTest ? (
             <a
               href={`/book/${book.slug}/test`}
-              className="inline-flex items-center gap-2 rounded-xl border border-border px-5 py-3 font-semibold transition hover:bg-bg-muted"
+              className="inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-3 font-semibold text-brand-fg shadow-sm transition hover:bg-brand-dark"
             >
               <Sparkles className="h-4 w-4" /> Take comprehension test
             </a>
@@ -107,44 +93,21 @@ export default async function BookPage({ params }: { params: Promise<{ slug: str
 
         {userBook && (
           <p className="mt-4 text-sm text-fg-muted">
-            Status: <span className="font-semibold text-fg">{userBook.status}</span> ·{" "}
-            {userBook.pagesRead} pages logged · {userBook.minutesRead} minutes
+            Status: <span className="font-semibold capitalize text-fg">{userBook.status.replace(/_/g, " ")}</span>
           </p>
         )}
       </div>
-
-      {sessions.length > 0 && (
-        <div className="mt-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-border">
-          <h2 className="text-lg font-bold">Recent sessions</h2>
-          <ul className="mt-3 space-y-2 text-sm">
-            {sessions.map((s) => (
-              <li key={s.id} className="flex justify-between text-fg-muted">
-                <span>{new Date(s.readAt).toLocaleString()}</span>
-                <span>
-                  {s.pages}pp · {s.minutes}min
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
     </main>
   );
 }
 
 function labelForGenre(g: string) {
   switch (g) {
-    case "islamic":
-      return "Islamic";
-    case "arabic_literature":
-      return "Arabic Literature";
-    case "translated":
-      return "Translated";
-    case "graded_reader":
-      return "Graded Reader";
-    case "classical":
-      return "Classical";
-    default:
-      return g;
+    case "islamic": return "Islamic";
+    case "arabic_literature": return "Arabic Literature";
+    case "translated": return "Translated";
+    case "graded_reader": return "Graded Reader";
+    case "classical": return "Classical";
+    default: return g;
   }
 }
