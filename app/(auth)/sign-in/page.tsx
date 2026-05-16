@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Mail, Loader2, KeyRound } from "lucide-react";
 
@@ -9,7 +8,6 @@ type Step = "email" | "otp";
 type Status = "idle" | "loading" | "error";
 
 export default function SignInPage() {
-  const router = useRouter();
   const [step, setStep] = useState<Step>("email");
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
@@ -41,19 +39,24 @@ export default function SignInPage() {
     setStatus("loading");
     setError(null);
 
-    const supabase = createClient();
-    const { error: err } = await supabase.auth.verifyOtp({
-      email,
-      token: otp.trim(),
-      type: "email",
-    });
+    try {
+      const supabase = createClient();
+      const { error: err } = await supabase.auth.verifyOtp({
+        email,
+        token: otp.trim(),
+        type: "email",
+      });
 
-    if (err) {
-      setError(err.message);
+      if (err) {
+        setError(err.message);
+        setStatus("error");
+      } else {
+        // Full navigation so middleware reads the new session cookie cleanly.
+        window.location.href = "/path";
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Verification failed");
       setStatus("error");
-    } else {
-      router.push("/path");
-      router.refresh();
     }
   }
 
