@@ -30,17 +30,17 @@ export const BOOKS: SeedBook[] = [
     recommendedPages: 300,
   },
   {
-    slug: "madinah-reader-1",
+    slug: "hikayat-juha",
     level: 1,
     orderInLevel: 2,
-    titleAr: "كتاب المدينة - الجزء الأول",
-    titleEn: "Madinah Arabic Reader, Book 1",
-    authorEn: "V. Abdur Rahim",
+    titleAr: "حكايات جحا للأطفال",
+    titleEn: "Tales of Juha for Children",
+    authorEn: "Various",
     blurb:
-      "Pedagogically ordered reading practice with explicit grammar scaffolding. The textbook half of your path.",
+      "Short, funny stories of the famous trickster Juha. A staple of every Arab child's bookshelf. Fully diacritized.",
     difficulty: 1,
     genre: "graded_reader",
-    recommendedPages: 100,
+    recommendedPages: 120,
   },
   {
     slug: "hikayat-aesop-ar",
