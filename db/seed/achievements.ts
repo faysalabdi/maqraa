@@ -84,10 +84,10 @@ export const ACHIEVEMENTS = [
     slug: "classical-reader",
     nameEn: "Classical Reader",
     nameAr: "قارئ التراث",
-    description: "Complete your first Level 5 book.",
+    description: "Complete your first Level 6 book.",
     icon: "scroll",
     xpReward: 250,
-    criteria: { type: "level_book_completed", level: 5 },
+    criteria: { type: "level_book_completed", level: 6 },
   },
   {
     slug: "ibn-qayyim-reader",

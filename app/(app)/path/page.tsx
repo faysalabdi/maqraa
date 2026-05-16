@@ -119,14 +119,29 @@ export default async function PathPage() {
       }),
   }));
 
-  const currentLevelData = path.find((l) => l.level === userLevel) ?? path[0];
-  const booksCompletedInLevel = currentLevelData.books.filter(
-    (b) => b.status === "completed",
-  ).length;
+  const currentLevelData = path.find((l) => l.level === userLevel) ?? path[0] ?? null;
+  const booksCompletedInLevel =
+    currentLevelData?.books.filter((b) => b.status === "completed").length ?? 0;
+
+  if (path.length === 0) {
+    return (
+      <main className="mx-auto max-w-2xl px-4 pb-24 pt-12 text-center">
+        <div className="rounded-3xl bg-white p-8 shadow-soft ring-1 ring-border">
+          <p className="font-arabic text-3xl text-brand" dir="rtl">
+            اِقْرَأْ
+          </p>
+          <h1 className="mt-2 text-2xl font-extrabold">Catalogue empty</h1>
+          <p className="mt-2 text-sm text-fg-muted">
+            No levels in the database yet. Run <code className="rounded bg-bg-muted px-1.5 py-0.5 font-mono text-xs">pnpm db:seed</code> to populate stages and books.
+          </p>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-2xl px-4 pb-24 pt-6">
-      {user ? (
+      {user && currentLevelData ? (
         <ProgressHero
           currentLevel={currentLevelData.level}
           levelNameEn={currentLevelData.nameEn}

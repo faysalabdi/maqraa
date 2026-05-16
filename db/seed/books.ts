@@ -14,7 +14,7 @@ export type SeedBook = {
 };
 
 export const BOOKS: SeedBook[] = [
-  /* ─────────────────────────── Level 1 ─────────────────────────── */
+  /* ─────────────────── Level 1 · Beginner / المبتدئ ─────────────────── */
   {
     slug: "qasas-al-nabiyeen-lil-atfal",
     level: 1,
@@ -30,9 +30,64 @@ export const BOOKS: SeedBook[] = [
     recommendedPages: 300,
   },
   {
-    slug: "diary-wimpy-kid-1-ar",
+    slug: "madinah-reader-1",
     level: 1,
     orderInLevel: 2,
+    titleAr: "كتاب المدينة - الجزء الأول",
+    titleEn: "Madinah Arabic Reader, Book 1",
+    authorEn: "V. Abdur Rahim",
+    blurb:
+      "Pedagogically ordered reading practice with explicit grammar scaffolding. The textbook half of your path.",
+    difficulty: 1,
+    genre: "graded_reader",
+    recommendedPages: 100,
+  },
+  {
+    slug: "hikayat-aesop-ar",
+    level: 1,
+    orderInLevel: 3,
+    titleAr: "حكايات إيسوب",
+    titleEn: "Aesop's Fables",
+    authorEn: "Aesop",
+    blurb:
+      "Short, fully diacritized fables with animals and morals. One per sitting — the smallest possible 'I read a story in Arabic today' win.",
+    difficulty: 1,
+    genre: "translated",
+    recommendedPages: 120,
+  },
+  {
+    slug: "kalila-wa-dimna-lil-nashia",
+    level: 1,
+    orderInLevel: 4,
+    titleAr: "كليلة ودمنة للناشئة",
+    titleEn: "Kalila wa Dimna (Adapted for Young Readers)",
+    authorAr: "ابن المقفع",
+    authorEn: "Ibn al-Muqaffa (adapted)",
+    blurb:
+      "The classical fables of Kalila wa Dimna, rewritten with harakat and simpler vocabulary. A bridge from kids' books to classical Arabic.",
+    difficulty: 2,
+    genre: "classical",
+    recommendedPages: 160,
+  },
+  {
+    slug: "silsila-dhahabiyya",
+    level: 1,
+    orderInLevel: 5,
+    titleAr: "السلسلة الذهبية للأطفال",
+    titleEn: "The Golden Series for Children",
+    authorEn: "Various",
+    blurb:
+      "A long-running Arabic kids' series with short, fully diacritized stories. Pick any volume — each is self-contained.",
+    difficulty: 1,
+    genre: "graded_reader",
+    recommendedPages: 100,
+  },
+
+  /* ─────────────────── Level 2 · Starter / البادئ ─────────────────── */
+  {
+    slug: "diary-wimpy-kid-1-ar",
+    level: 2,
+    orderInLevel: 1,
     titleAr: "يوميات طالب جبان",
     titleEn: "Diary of a Wimpy Kid",
     authorEn: "Jeff Kinney",
@@ -44,8 +99,8 @@ export const BOOKS: SeedBook[] = [
   },
   {
     slug: "suwar-sahabiyat",
-    level: 1,
-    orderInLevel: 3,
+    level: 2,
+    orderInLevel: 2,
     titleAr: "صور من حياة الصحابيات",
     titleEn: "Portraits from the Lives of the Female Companions",
     authorAr: "عبد الرحمن رأفت الباشا",
@@ -58,8 +113,8 @@ export const BOOKS: SeedBook[] = [
   },
   {
     slug: "matilda-ar",
-    level: 1,
-    orderInLevel: 4,
+    level: 2,
+    orderInLevel: 3,
     titleAr: "ماتيلدا",
     titleEn: "Matilda",
     authorEn: "Roald Dahl",
@@ -71,8 +126,8 @@ export const BOOKS: SeedBook[] = [
   },
   {
     slug: "little-prince-ar",
-    level: 1,
-    orderInLevel: 5,
+    level: 2,
+    orderInLevel: 4,
     titleAr: "الأمير الصغير",
     titleEn: "The Little Prince",
     authorEn: "Antoine de Saint-Exupéry",
@@ -82,24 +137,11 @@ export const BOOKS: SeedBook[] = [
     genre: "translated",
     recommendedPages: 100,
   },
-  {
-    slug: "madinah-reader-1",
-    level: 1,
-    orderInLevel: 6,
-    titleAr: "كتاب المدينة - الجزء الأول",
-    titleEn: "Madinah Arabic Reader, Book 1",
-    authorEn: "V. Abdur Rahim",
-    blurb:
-      "Pedagogically ordered reading practice with explicit grammar scaffolding. The textbook half of your path.",
-    difficulty: 1,
-    genre: "graded_reader",
-    recommendedPages: 100,
-  },
 
-  /* ─────────────────────────── Level 2 ─────────────────────────── */
+  /* ─────────────────── Level 3 · Walker / السائر ─────────────────── */
   {
     slug: "qiraa-rashida-1",
-    level: 2,
+    level: 3,
     orderInLevel: 1,
     titleAr: "القراءة الراشدة - الجزء الأول",
     titleEn: "The Guided Reader, Vol. 1",
@@ -113,7 +155,7 @@ export const BOOKS: SeedBook[] = [
   },
   {
     slug: "animal-farm-ar",
-    level: 2,
+    level: 3,
     orderInLevel: 2,
     titleAr: "مزرعة الحيوان",
     titleEn: "Animal Farm",
@@ -126,7 +168,7 @@ export const BOOKS: SeedBook[] = [
   },
   {
     slug: "kitab-al-tawhid",
-    level: 2,
+    level: 3,
     orderInLevel: 3,
     titleAr: "كتاب التوحيد",
     titleEn: "The Book of Tawhid",
@@ -140,7 +182,7 @@ export const BOOKS: SeedBook[] = [
   },
   {
     slug: "arba'in-nawawi",
-    level: 2,
+    level: 3,
     orderInLevel: 4,
     titleAr: "الأربعون النووية",
     titleEn: "The 40 Hadith of al-Nawawi",
@@ -154,7 +196,7 @@ export const BOOKS: SeedBook[] = [
   },
   {
     slug: "old-man-sea-ar",
-    level: 2,
+    level: 3,
     orderInLevel: 5,
     titleAr: "الشيخ والبحر",
     titleEn: "The Old Man and the Sea",
@@ -167,7 +209,7 @@ export const BOOKS: SeedBook[] = [
   },
   {
     slug: "qasas-al-arab",
-    level: 2,
+    level: 3,
     orderInLevel: 6,
     titleAr: "قصص العرب",
     titleEn: "Tales of the Arabs",
@@ -180,7 +222,7 @@ export const BOOKS: SeedBook[] = [
   },
   {
     slug: "usool-thalatha",
-    level: 2,
+    level: 3,
     orderInLevel: 7,
     titleAr: "الأصول الثلاثة والقواعد الأربع",
     titleEn: "The Three Fundamentals & Four Principles",
@@ -193,10 +235,10 @@ export const BOOKS: SeedBook[] = [
     recommendedPages: 60,
   },
 
-  /* ─────────────────────────── Level 3 ─────────────────────────── */
+  /* ─────────────────── Level 4 · Crosser / العابر ─────────────────── */
   {
     slug: "kitab-al-ilm",
-    level: 3,
+    level: 4,
     orderInLevel: 1,
     titleAr: "كتاب العلم",
     titleEn: "The Book of Knowledge",
@@ -210,7 +252,7 @@ export const BOOKS: SeedBook[] = [
   },
   {
     slug: "harry-potter-1-ar",
-    level: 3,
+    level: 4,
     orderInLevel: 2,
     titleAr: "هاري بوتر وحجر الفيلسوف",
     titleEn: "Harry Potter and the Philosopher's Stone",
@@ -223,7 +265,7 @@ export const BOOKS: SeedBook[] = [
   },
   {
     slug: "riyad-as-salihin",
-    level: 3,
+    level: 4,
     orderInLevel: 3,
     titleAr: "رياض الصالحين",
     titleEn: "Gardens of the Righteous",
@@ -237,7 +279,7 @@ export const BOOKS: SeedBook[] = [
   },
   {
     slug: "ayyam-1",
-    level: 3,
+    level: 4,
     orderInLevel: 4,
     titleAr: "الأيام - الجزء الأول",
     titleEn: "The Days, Vol. 1",
@@ -251,7 +293,7 @@ export const BOOKS: SeedBook[] = [
   },
   {
     slug: "tafsir-saadi-selections",
-    level: 3,
+    level: 4,
     orderInLevel: 5,
     titleAr: "تيسير الكريم الرحمن - مختارات",
     titleEn: "Tafsir al-Saadi (Selections)",
@@ -266,7 +308,7 @@ export const BOOKS: SeedBook[] = [
   },
   {
     slug: "fiqh-sunnah-1",
-    level: 3,
+    level: 4,
     orderInLevel: 6,
     titleAr: "فقه السنة - المجلد الأول",
     titleEn: "Fiqh of the Sunnah, Vol. 1",
@@ -280,7 +322,7 @@ export const BOOKS: SeedBook[] = [
   },
   {
     slug: "sherlock-holmes-ar",
-    level: 3,
+    level: 4,
     orderInLevel: 7,
     titleAr: "مغامرات شيرلوك هولمز",
     titleEn: "The Adventures of Sherlock Holmes",
@@ -293,7 +335,7 @@ export const BOOKS: SeedBook[] = [
   },
   {
     slug: "bulugh-al-maram",
-    level: 3,
+    level: 4,
     orderInLevel: 8,
     titleAr: "بلوغ المرام من أدلة الأحكام",
     titleEn: "Attainment of the Objective",
@@ -306,10 +348,10 @@ export const BOOKS: SeedBook[] = [
     recommendedPages: 350,
   },
 
-  /* ─────────────────────────── Level 4 ─────────────────────────── */
+  /* ─────────────────── Level 5 · Patient / الصابر ─────────────────── */
   {
     slug: "zad-al-maad-selections",
-    level: 4,
+    level: 5,
     orderInLevel: 1,
     titleAr: "زاد المعاد - مختارات",
     titleEn: "Provisions of the Hereafter (Selections)",
@@ -324,7 +366,7 @@ export const BOOKS: SeedBook[] = [
   },
   {
     slug: "ighathat-al-lahfan",
-    level: 4,
+    level: 5,
     orderInLevel: 2,
     titleAr: "إغاثة اللهفان من مصايد الشيطان",
     titleEn: "Rescue of the Distressed from the Snares of Satan",
@@ -338,7 +380,7 @@ export const BOOKS: SeedBook[] = [
   },
   {
     slug: "zuqaq-al-midaq",
-    level: 4,
+    level: 5,
     orderInLevel: 3,
     titleAr: "زقاق المدق",
     titleEn: "Midaq Alley",
@@ -352,7 +394,7 @@ export const BOOKS: SeedBook[] = [
   },
   {
     slug: "1984-ar",
-    level: 4,
+    level: 5,
     orderInLevel: 4,
     titleAr: "1984",
     titleEn: "1984",
@@ -365,7 +407,7 @@ export const BOOKS: SeedBook[] = [
   },
   {
     slug: "aqida-wasitiyyah-sharh",
-    level: 4,
+    level: 5,
     orderInLevel: 5,
     titleAr: "العقيدة الواسطية وشرحها",
     titleEn: "Al-Aqidah al-Wasitiyyah with Commentary",
@@ -379,7 +421,7 @@ export const BOOKS: SeedBook[] = [
   },
   {
     slug: "ibn-kathir-tafsir-selections",
-    level: 4,
+    level: 5,
     orderInLevel: 6,
     titleAr: "تفسير ابن كثير - مختارات",
     titleEn: "Tafsir Ibn Kathir (Selections)",
@@ -394,7 +436,7 @@ export const BOOKS: SeedBook[] = [
   },
   {
     slug: "rijal-fi-al-shams",
-    level: 4,
+    level: 5,
     orderInLevel: 7,
     titleAr: "رجال في الشمس",
     titleEn: "Men in the Sun",
@@ -408,7 +450,7 @@ export const BOOKS: SeedBook[] = [
   },
   {
     slug: "bidaya-wal-nihaya-selections",
-    level: 4,
+    level: 5,
     orderInLevel: 8,
     titleAr: "البداية والنهاية - مختارات",
     titleEn: "The Beginning and the End (Selections)",
@@ -422,10 +464,10 @@ export const BOOKS: SeedBook[] = [
     recommendedPages: 400,
   },
 
-  /* ─────────────────────────── Level 5 ─────────────────────────── */
+  /* ─────────────────── Level 6 · Steadfast / المداوم ─────────────────── */
   {
     slug: "madarij-salikin-selections",
-    level: 5,
+    level: 6,
     orderInLevel: 1,
     titleAr: "مدارج السالكين - مختارات",
     titleEn: "Steps of the Wayfarers (Selections)",
@@ -440,7 +482,7 @@ export const BOOKS: SeedBook[] = [
   },
   {
     slug: "cairo-trilogy-1",
-    level: 5,
+    level: 6,
     orderInLevel: 2,
     titleAr: "بين القصرين",
     titleEn: "Palace Walk (Cairo Trilogy 1)",
@@ -454,7 +496,7 @@ export const BOOKS: SeedBook[] = [
   },
   {
     slug: "mawsim-al-hijra",
-    level: 5,
+    level: 6,
     orderInLevel: 3,
     titleAr: "موسم الهجرة إلى الشمال",
     titleEn: "Season of Migration to the North",
@@ -468,7 +510,7 @@ export const BOOKS: SeedBook[] = [
   },
   {
     slug: "mukhtasar-minhaj-sunna",
-    level: 5,
+    level: 6,
     orderInLevel: 4,
     titleAr: "مختصر منهاج السنة النبوية",
     titleEn: "Abridged Way of the Prophetic Sunnah",
@@ -482,7 +524,7 @@ export const BOOKS: SeedBook[] = [
   },
   {
     slug: "muwafaqat-1",
-    level: 5,
+    level: 6,
     orderInLevel: 5,
     titleAr: "الموافقات - الجزء الأول",
     titleEn: "Al-Muwafaqat, Vol. 1",
@@ -496,7 +538,7 @@ export const BOOKS: SeedBook[] = [
   },
   {
     slug: "brothers-karamazov-ar",
-    level: 5,
+    level: 6,
     orderInLevel: 6,
     titleAr: "الإخوة كرامازوف",
     titleEn: "The Brothers Karamazov",
@@ -508,10 +550,10 @@ export const BOOKS: SeedBook[] = [
     recommendedPages: 900,
   },
 
-  /* ─────────────────────────── Level 6 ─────────────────────────── */
+  /* ─────────────────── Level 7 · Rooted / الراسخ ─────────────────── */
   {
     slug: "madarij-salikin-full",
-    level: 6,
+    level: 7,
     orderInLevel: 1,
     titleAr: "مدارج السالكين كاملاً",
     titleEn: "Steps of the Wayfarers (Complete)",
@@ -525,7 +567,7 @@ export const BOOKS: SeedBook[] = [
   },
   {
     slug: "majmu-fatawa-selections-1",
-    level: 6,
+    level: 7,
     orderInLevel: 2,
     titleAr: "مجموع الفتاوى - المجلدات 1-5 مختارات",
     titleEn: "Majmu' al-Fatawa, Vols. 1–5 (Selections)",
@@ -540,7 +582,7 @@ export const BOOKS: SeedBook[] = [
   },
   {
     slug: "bukhala-jahiz",
-    level: 6,
+    level: 7,
     orderInLevel: 3,
     titleAr: "البخلاء",
     titleEn: "The Misers",
@@ -554,7 +596,7 @@ export const BOOKS: SeedBook[] = [
   },
   {
     slug: "tafsir-ibn-kathir-full",
-    level: 6,
+    level: 7,
     orderInLevel: 4,
     titleAr: "تفسير ابن كثير كاملاً",
     titleEn: "Tafsir Ibn Kathir (Complete)",
@@ -568,7 +610,7 @@ export const BOOKS: SeedBook[] = [
   },
   {
     slug: "darwish-diwan",
-    level: 6,
+    level: 7,
     orderInLevel: 5,
     titleAr: "ديوان محمود درويش",
     titleEn: "The Collected Poems of Mahmoud Darwish",
@@ -581,10 +623,10 @@ export const BOOKS: SeedBook[] = [
     recommendedPages: 600,
   },
 
-  /* ─────────────────────────── Level 7 ─────────────────────────── */
+  /* ─────────────────── Level 8 · Established / المتمكن ─────────────────── */
   {
     slug: "majmu-fatawa-full",
-    level: 7,
+    level: 8,
     orderInLevel: 1,
     titleAr: "مجموع الفتاوى كاملاً",
     titleEn: "Majmu' al-Fatawa (Complete)",
@@ -598,7 +640,7 @@ export const BOOKS: SeedBook[] = [
   },
   {
     slug: "tafsir-tabari-full",
-    level: 7,
+    level: 8,
     orderInLevel: 2,
     titleAr: "تفسير الطبري كاملاً",
     titleEn: "Tafsir al-Tabari (Complete)",
@@ -612,7 +654,7 @@ export const BOOKS: SeedBook[] = [
   },
   {
     slug: "diwan-mutanabbi",
-    level: 7,
+    level: 8,
     orderInLevel: 3,
     titleAr: "ديوان المتنبي",
     titleEn: "The Diwan of al-Mutanabbi",
@@ -626,7 +668,7 @@ export const BOOKS: SeedBook[] = [
   },
   {
     slug: "maqamat-hariri",
-    level: 7,
+    level: 8,
     orderInLevel: 4,
     titleAr: "مقامات الحريري",
     titleEn: "The Maqamat of al-Hariri",
@@ -640,7 +682,7 @@ export const BOOKS: SeedBook[] = [
   },
   {
     slug: "alf-layla-full",
-    level: 7,
+    level: 8,
     orderInLevel: 5,
     titleAr: "ألف ليلة وليلة",
     titleEn: "One Thousand and One Nights",
@@ -651,10 +693,10 @@ export const BOOKS: SeedBook[] = [
     recommendedPages: 3000,
   },
 
-  /* ─────────────────────────── Level 8 ─────────────────────────── */
+  /* ─────────────────── Level 9 · Seeker of Knowledge / طالب العلم ─────────────────── */
   {
-    slug: "imam-parallel-tafsir",
-    level: 8,
+    slug: "seeker-parallel-tafsir",
+    level: 9,
     orderInLevel: 1,
     titleAr: "تفاسير القرآن متوازية",
     titleEn: "Parallel Tafsir Study",
@@ -664,8 +706,8 @@ export const BOOKS: SeedBook[] = [
     genre: "islamic",
   },
   {
-    slug: "imam-sibawayh",
-    level: 8,
+    slug: "seeker-sibawayh",
+    level: 9,
     orderInLevel: 2,
     titleAr: "الكتاب",
     titleEn: "Al-Kitab",
@@ -677,8 +719,8 @@ export const BOOKS: SeedBook[] = [
     genre: "classical",
   },
   {
-    slug: "imam-classical-corpus",
-    level: 8,
+    slug: "seeker-classical-corpus",
+    level: 9,
     orderInLevel: 3,
     titleAr: "أمهات الكتب",
     titleEn: "The Mother Books",
