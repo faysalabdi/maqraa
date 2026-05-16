@@ -4,7 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getBookBySlug, getUserBook } from "@/lib/db/queries/path";
 import { db, schema } from "@/lib/db";
 import { eq, and, desc } from "drizzle-orm";
-import { ArrowLeft, BookOpen, Sparkles } from "lucide-react";
+import { ArrowLeft, Sparkles } from "lucide-react";
+import LogSessionDialog from "@/components/book/LogSessionDialog";
 
 export const dynamic = "force-dynamic";
 
@@ -71,20 +72,37 @@ export default async function BookPage({ params }: { params: Promise<{ slug: str
         )}
 
         <div className="mt-8 flex flex-wrap gap-3">
-          <button
-            disabled
-            className="inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-3 font-semibold text-brand-fg shadow-sm transition hover:bg-brand-dark disabled:opacity-60"
-            title="Coming next milestone"
-          >
-            <BookOpen className="h-4 w-4" /> Log a reading session
-          </button>
-          <button
-            disabled
-            className="inline-flex items-center gap-2 rounded-xl border border-border px-5 py-3 font-semibold transition hover:bg-bg-muted disabled:opacity-60"
-            title="Available after you mark this book finished"
-          >
-            <Sparkles className="h-4 w-4" /> Take comprehension test
-          </button>
+          {user ? (
+            <LogSessionDialog
+              bookId={book.id}
+              bookSlug={book.slug}
+              canMarkDone={
+                !userBook ||
+                (userBook.status !== "reading_done" &&
+                  userBook.status !== "testing" &&
+                  userBook.status !== "completed")
+              }
+            />
+          ) : null}
+
+          {userBook?.status === "reading_done" ||
+          userBook?.status === "testing" ||
+          userBook?.status === "failed_retry" ? (
+            <a
+              href={`/book/${book.slug}/test`}
+              className="inline-flex items-center gap-2 rounded-xl border border-border px-5 py-3 font-semibold transition hover:bg-bg-muted"
+            >
+              <Sparkles className="h-4 w-4" /> Take comprehension test
+            </a>
+          ) : (
+            <button
+              disabled
+              title="Mark the book finished first"
+              className="inline-flex items-center gap-2 rounded-xl border border-border px-5 py-3 font-semibold opacity-40"
+            >
+              <Sparkles className="h-4 w-4" /> Take comprehension test
+            </button>
+          )}
         </div>
 
         {userBook && (
