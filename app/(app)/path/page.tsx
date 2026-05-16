@@ -1,28 +1,67 @@
 import { createClient } from "@/lib/supabase/server";
-import { getPathForUser } from "@/lib/db/queries/path";
 import { db, schema } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { eq, asc } from "drizzle-orm";
 import { PathSection } from "@/components/path/PathSection";
 
 export const dynamic = "force-dynamic";
 
 export default async function PathPage() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
+  // Fetch auth + catalogue in parallel
+  const [{ data: { user } }, levels, books] = await Promise.all([
+    supabase.auth.getUser(),
+    db.select().from(schema.levels).orderBy(asc(schema.levels.level)),
+    db.select().from(schema.books).orderBy(asc(schema.books.level), asc(schema.books.orderInLevel)),
+  ]);
+
+  // Fetch profile + user_books in parallel (both need userId)
   let userLevel = 1;
+  const userBookMap = new Map<string, string>();
+
   if (user) {
-    const rows = await db
-      .select({ currentLevel: schema.profiles.currentLevel })
-      .from(schema.profiles)
-      .where(eq(schema.profiles.id, user.id))
-      .limit(1);
-    userLevel = rows[0]?.currentLevel ?? 1;
+    const [profileRows, userBookRows] = await Promise.all([
+      db.select({ currentLevel: schema.profiles.currentLevel })
+        .from(schema.profiles)
+        .where(eq(schema.profiles.id, user.id))
+        .limit(1),
+      db.select().from(schema.userBooks).where(eq(schema.userBooks.userId, user.id)),
+    ]);
+    userLevel = profileRows[0]?.currentLevel ?? 1;
+    for (const r of userBookRows) userBookMap.set(r.bookId, r.status);
   }
 
-  const path = await getPathForUser(user?.id ?? null, userLevel);
+  const path = levels.map((lv) => ({
+    level: lv.level,
+    slug: lv.slug,
+    nameEn: lv.nameEn,
+    nameAr: lv.nameAr,
+    description: lv.description,
+    booksRequiredToClear: lv.booksRequiredToClear,
+    books: books
+      .filter((b) => b.level === lv.level)
+      .map((b) => {
+        const stored = userBookMap.get(b.id);
+        const status = stored
+          ? (stored as "locked" | "unlocked" | "in_progress" | "reading_done" | "testing" | "completed")
+          : b.level <= userLevel
+          ? "unlocked"
+          : "locked";
+        return {
+          id: b.id,
+          slug: b.slug,
+          titleAr: b.titleAr,
+          titleEn: b.titleEn,
+          authorEn: b.authorEn,
+          level: b.level,
+          orderInLevel: b.orderInLevel,
+          genre: b.genre,
+          difficulty: b.difficulty,
+          recommendedPages: b.recommendedPages,
+          status,
+        };
+      }),
+  }));
 
   return (
     <main className="mx-auto max-w-2xl px-4 pb-24 pt-8">
