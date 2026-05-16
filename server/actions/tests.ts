@@ -8,6 +8,7 @@ import { type GeneratedTest } from "@/lib/ai/test-generator";
 import { anthropic, FALLBACK_MODEL } from "@/lib/ai/anthropic";
 import { grantXp, recordActivity } from "@/lib/xp/grant";
 import { XP_REWARDS, testPassedXp } from "@/lib/xp/rewards";
+import { checkAndGrantAchievements } from "@/lib/achievements/check";
 import { z } from "zod";
 import type { PerQuestionResult, SubmitResult } from "./test-types";
 
@@ -175,22 +176,34 @@ export async function submitAttempt(
     perQuestion,
   });
 
+  const [currentUserBook] = await db
+    .select()
+    .from(schema.userBooks)
+    .where(and(eq(schema.userBooks.userId, user.id), eq(schema.userBooks.bookId, bookId)))
+    .limit(1);
+
+  const prevBest = currentUserBook?.bestScore ? Number(currentUserBook.bestScore) : 0;
+  const newBest = Math.max(prevBest, scorePercent);
+  const nextAttempts = (currentUserBook?.attempts ?? 0) + 1;
+
   if (passed) {
     await db
       .update(schema.userBooks)
-      .set({ status: "completed", completedAt: new Date(), updatedAt: new Date() })
+      .set({
+        status: "completed",
+        completedAt: currentUserBook?.completedAt ?? new Date(),
+        bestScore: newBest.toString(),
+        attempts: nextAttempts,
+        updatedAt: new Date(),
+      })
       .where(and(eq(schema.userBooks.userId, user.id), eq(schema.userBooks.bookId, bookId)));
   } else {
-    const [current] = await db
-      .select()
-      .from(schema.userBooks)
-      .where(and(eq(schema.userBooks.userId, user.id), eq(schema.userBooks.bookId, bookId)))
-      .limit(1);
     await db
       .update(schema.userBooks)
       .set({
         status: "failed_retry",
-        attempts: (current?.attempts ?? 0) + 1,
+        bestScore: newBest.toString(),
+        attempts: nextAttempts,
         updatedAt: new Date(),
       })
       .where(and(eq(schema.userBooks.userId, user.id), eq(schema.userBooks.bookId, bookId)));
@@ -232,6 +245,7 @@ export async function submitAttempt(
 
   await seedWrongVocab(user.id, perQuestion, bookId);
   await recordActivity(user.id);
+  await checkAndGrantAchievements(user.id);
   revalidatePath(`/book/${bookSlug}`);
   revalidatePath("/path");
 

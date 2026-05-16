@@ -61,10 +61,17 @@ export default function SignInPage() {
   }
 
   return (
-    <main className="grid min-h-screen place-items-center bg-bg px-6">
-      <div className="w-full max-w-sm rounded-3xl border border-border bg-white p-8 shadow-sm">
+    <main className="grid min-h-screen place-items-center px-6">
+      <div className="absolute inset-0 -z-10 overflow-hidden">
+        <div className="absolute -top-32 left-1/2 h-96 w-96 -translate-x-1/2 rounded-full bg-brand/15 blur-3xl" />
+        <div className="absolute bottom-0 right-0 h-96 w-96 rounded-full bg-accent/15 blur-3xl" />
+      </div>
+      <div className="w-full max-w-sm rounded-3xl bg-white p-8 shadow-lift ring-1 ring-border">
         <div className="mb-6 text-center">
-          <p className="font-arabic text-4xl text-brand" dir="rtl">
+          <span className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-2xl bg-brand text-brand-fg shadow-glow-brand">
+            <span className="font-arabic text-3xl" dir="rtl">ق</span>
+          </span>
+          <p className="font-arabic text-3xl text-brand" dir="rtl">
             اِقْرَأْ
           </p>
           <h1 className="mt-2 text-2xl font-extrabold">Sign in</h1>

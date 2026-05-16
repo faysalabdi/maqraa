@@ -1,5 +1,14 @@
 import Link from "next/link";
-import { BookOpen, Lock, Check, Sparkles, BookMarked } from "lucide-react";
+import {
+  BookOpen,
+  Lock,
+  Check,
+  Sparkles,
+  BookMarked,
+  AlertTriangle,
+  Hourglass,
+  Loader2,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { BookNodeData } from "@/lib/db/queries/path";
 
@@ -12,11 +21,36 @@ const GENRE_TINT: Record<string, string> = {
 };
 
 export function BookNode({ book, side }: { book: BookNodeData; side: "left" | "right" }) {
-  const locked = book.status === "locked";
-  const completed = book.status === "completed";
-  const inProgress = ["in_progress", "reading_done", "testing"].includes(book.status);
+  const status = book.status;
+  const locked = status === "locked";
+  const completed = status === "completed";
+  const failed = status === "failed_retry";
+  const readingDone = status === "reading_done";
+  const testing = status === "testing";
+  const inProgress = status === "in_progress";
 
-  const Icon = locked ? Lock : completed ? Check : inProgress ? Sparkles : BookOpen;
+  let Icon = BookOpen;
+  if (locked) Icon = Lock;
+  else if (completed) Icon = Check;
+  else if (failed) Icon = AlertTriangle;
+  else if (testing) Icon = Loader2;
+  else if (readingDone) Icon = Sparkles;
+  else if (inProgress) Icon = Hourglass;
+
+  const statusChip = (() => {
+    if (completed && book.bestScore !== null)
+      return { label: `${Math.round(book.bestScore)}% passed`, tone: "success" as const };
+    if (completed) return { label: "Completed", tone: "success" as const };
+    if (failed)
+      return {
+        label: book.bestScore !== null ? `${Math.round(book.bestScore)}% · retry` : "Retry",
+        tone: "danger" as const,
+      };
+    if (testing) return { label: "Testing…", tone: "warn" as const };
+    if (readingDone) return { label: "Ready to test", tone: "warn" as const };
+    if (inProgress) return { label: "Reading", tone: "warn" as const };
+    return null;
+  })();
 
   return (
     <div
@@ -28,26 +62,41 @@ export function BookNode({ book, side }: { book: BookNodeData; side: "left" | "r
       <Link
         href={locked ? "#" : `/book/${book.slug}`}
         aria-disabled={locked}
+        tabIndex={locked ? -1 : 0}
         className={cn(
           "group relative grid h-20 w-20 shrink-0 place-items-center rounded-full ring-4 transition",
           locked && "cursor-not-allowed bg-zinc-200 text-zinc-400 ring-zinc-300",
-          completed && "bg-brand text-brand-fg ring-emerald-300 shadow-lg shadow-emerald-200",
-          inProgress && "bg-accent text-fg ring-amber-300 shadow-lg shadow-amber-200 animate-pulse",
+          completed && "bg-brand text-brand-fg ring-emerald-300 shadow-glow-brand",
+          failed && "bg-red-500 text-white ring-red-300 shadow-glow-danger",
+          testing && "bg-accent text-accent-fg ring-amber-300 shadow-glow-amber",
+          readingDone && "bg-accent text-accent-fg ring-amber-300 shadow-glow-amber animate-pulse",
+          inProgress && "bg-white text-accent-fg ring-amber-300 shadow-soft",
           !locked &&
             !completed &&
+            !failed &&
+            !readingDone &&
+            !testing &&
             !inProgress &&
-            "bg-white text-fg ring-border hover:scale-105 hover:ring-brand",
+            "bg-white text-fg ring-border shadow-soft hover:scale-105 hover:ring-brand hover:shadow-glow-brand",
         )}
       >
-        <Icon className="h-8 w-8" strokeWidth={2.5} />
+        <Icon
+          className={cn("h-8 w-8", testing && "animate-spin")}
+          strokeWidth={2.5}
+        />
         {completed && (
           <span className="absolute -bottom-1 -right-1 grid h-7 w-7 place-items-center rounded-full bg-amber-400 text-xs font-bold text-amber-950 ring-2 ring-white">
             <BookMarked className="h-4 w-4" />
           </span>
         )}
+        {book.attempts > 0 && !completed && (
+          <span className="absolute -top-1 -right-1 grid h-6 w-6 place-items-center rounded-full bg-fg text-[10px] font-bold text-white ring-2 ring-white">
+            {book.attempts}
+          </span>
+        )}
       </Link>
 
-      <div className={cn("max-w-[180px]", side === "left" && "text-right")}>
+      <div className={cn("max-w-[200px]", side === "left" && "text-right")}>
         {locked ? (
           <p className="text-sm font-semibold text-zinc-400">Locked</p>
         ) : (
@@ -56,14 +105,36 @@ export function BookNode({ book, side }: { book: BookNodeData; side: "left" | "r
               {book.titleAr}
             </p>
             <p className="text-xs text-fg-muted">{book.titleEn}</p>
-            <span
+            <div
               className={cn(
-                "mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1",
-                GENRE_TINT[book.genre] ?? "bg-zinc-100 text-zinc-900 ring-zinc-200",
+                "mt-1.5 flex flex-wrap gap-1",
+                side === "left" && "justify-end",
               )}
             >
-              {labelForGenre(book.genre)}
-            </span>
+              <span
+                className={cn(
+                  "inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1",
+                  GENRE_TINT[book.genre] ?? "bg-zinc-100 text-zinc-900 ring-zinc-200",
+                )}
+              >
+                {labelForGenre(book.genre)}
+              </span>
+              {statusChip && (
+                <span
+                  className={cn(
+                    "inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1",
+                    statusChip.tone === "success" &&
+                      "bg-emerald-100 text-emerald-900 ring-emerald-200",
+                    statusChip.tone === "warn" &&
+                      "bg-amber-100 text-amber-900 ring-amber-200",
+                    statusChip.tone === "danger" &&
+                      "bg-red-100 text-red-900 ring-red-200",
+                  )}
+                >
+                  {statusChip.label}
+                </span>
+              )}
+            </div>
           </>
         )}
       </div>

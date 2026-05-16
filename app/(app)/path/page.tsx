@@ -1,34 +1,88 @@
 import { createClient } from "@/lib/supabase/server";
 import { db, schema } from "@/lib/db";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, gte, sql, and } from "drizzle-orm";
 import { PathSection } from "@/components/path/PathSection";
+import { ProgressHero } from "@/components/path/ProgressHero";
+import type { BookNodeData, BookStatus } from "@/lib/db/queries/path";
 
 export const dynamic = "force-dynamic";
 
 export default async function PathPage() {
   const supabase = await createClient();
 
-  // Fetch auth + catalogue in parallel
-  const [{ data: { user } }, levels, books] = await Promise.all([
+  const [
+    {
+      data: { user },
+    },
+    levels,
+    books,
+  ] = await Promise.all([
     supabase.auth.getUser(),
     db.select().from(schema.levels).orderBy(asc(schema.levels.level)),
-    db.select().from(schema.books).orderBy(asc(schema.books.level), asc(schema.books.orderInLevel)),
+    db
+      .select()
+      .from(schema.books)
+      .orderBy(asc(schema.books.level), asc(schema.books.orderInLevel)),
   ]);
 
-  // Fetch profile + user_books in parallel (both need userId)
   let userLevel = 1;
-  const userBookMap = new Map<string, string>();
+  let dailyGoal = 50;
+  let xpToday = 0;
+  let streakDays = 0;
+  let longestStreak = 0;
+  const userBookMap = new Map<
+    string,
+    { status: string; bestScore: string | null; attempts: number }
+  >();
 
   if (user) {
-    const [profileRows, userBookRows] = await Promise.all([
-      db.select({ currentLevel: schema.profiles.currentLevel })
+    const midnight = new Date();
+    midnight.setHours(0, 0, 0, 0);
+
+    const [profileRows, userBookRows, streakRows, xpRows] = await Promise.all([
+      db
+        .select({
+          currentLevel: schema.profiles.currentLevel,
+          dailyXpGoal: schema.profiles.dailyXpGoal,
+        })
         .from(schema.profiles)
         .where(eq(schema.profiles.id, user.id))
         .limit(1),
       db.select().from(schema.userBooks).where(eq(schema.userBooks.userId, user.id)),
+      db
+        .select({
+          currentDays: schema.streaks.currentDays,
+          longestDays: schema.streaks.longestDays,
+        })
+        .from(schema.streaks)
+        .where(eq(schema.streaks.userId, user.id))
+        .limit(1),
+      db
+        .select({
+          total: sql<number>`coalesce(sum(${schema.xpEvents.delta}), 0)`,
+        })
+        .from(schema.xpEvents)
+        .where(
+          and(
+            eq(schema.xpEvents.userId, user.id),
+            gte(schema.xpEvents.occurredAt, midnight),
+          ),
+        ),
     ]);
+
     userLevel = profileRows[0]?.currentLevel ?? 1;
-    for (const r of userBookRows) userBookMap.set(r.bookId, r.status);
+    dailyGoal = profileRows[0]?.dailyXpGoal ?? 50;
+    streakDays = streakRows[0]?.currentDays ?? 0;
+    longestStreak = streakRows[0]?.longestDays ?? 0;
+    xpToday = Number(xpRows[0]?.total ?? 0);
+
+    for (const r of userBookRows) {
+      userBookMap.set(r.bookId, {
+        status: r.status,
+        bestScore: r.bestScore,
+        attempts: r.attempts,
+      });
+    }
   }
 
   const path = levels.map((lv) => ({
@@ -40,13 +94,13 @@ export default async function PathPage() {
     booksRequiredToClear: lv.booksRequiredToClear,
     books: books
       .filter((b) => b.level === lv.level)
-      .map((b) => {
-        const stored = userBookMap.get(b.id);
-        const status = stored
-          ? (stored as "locked" | "unlocked" | "in_progress" | "reading_done" | "testing" | "completed")
+      .map<BookNodeData>((b) => {
+        const ub = userBookMap.get(b.id);
+        const status: BookStatus = ub
+          ? (ub.status as BookStatus)
           : b.level <= userLevel
-          ? "unlocked"
-          : "locked";
+            ? "unlocked"
+            : "locked";
         return {
           id: b.id,
           slug: b.slug,
@@ -59,23 +113,42 @@ export default async function PathPage() {
           difficulty: b.difficulty,
           recommendedPages: b.recommendedPages,
           status,
+          bestScore: ub?.bestScore ? Number(ub.bestScore) : null,
+          attempts: ub?.attempts ?? 0,
         };
       }),
   }));
 
-  return (
-    <main className="mx-auto max-w-2xl px-4 pb-24 pt-8">
-      <div className="mb-4 text-center">
-        <p className="font-arabic text-3xl text-brand" dir="rtl">
-          اِقْرَأْ
-        </p>
-        <h1 className="mt-1 text-3xl font-extrabold">Your reading path</h1>
-        <p className="mt-1 text-fg-muted">
-          From children&apos;s stories to Ibn al-Qayyim. Pick a book and start.
-        </p>
-      </div>
+  const currentLevelData = path.find((l) => l.level === userLevel) ?? path[0];
+  const booksCompletedInLevel = currentLevelData.books.filter(
+    (b) => b.status === "completed",
+  ).length;
 
-      <div className="space-y-4">
+  return (
+    <main className="mx-auto max-w-2xl px-4 pb-24 pt-6">
+      {user ? (
+        <ProgressHero
+          currentLevel={currentLevelData.level}
+          levelNameEn={currentLevelData.nameEn}
+          levelNameAr={currentLevelData.nameAr}
+          booksInLevel={booksCompletedInLevel}
+          booksRequired={currentLevelData.booksRequiredToClear}
+          xpToday={xpToday}
+          dailyGoal={dailyGoal}
+          streakDays={streakDays}
+          longestStreak={longestStreak}
+        />
+      ) : (
+        <div className="rounded-3xl bg-white p-6 text-center shadow-soft ring-1 ring-border">
+          <p className="font-arabic text-3xl text-brand" dir="rtl">
+            اِقْرَأْ
+          </p>
+          <h1 className="mt-1 text-3xl font-extrabold">Your reading path</h1>
+          <p className="mt-1 text-fg-muted">Sign in to track progress.</p>
+        </div>
+      )}
+
+      <div className="mt-6 space-y-4">
         {path.map((level) => (
           <PathSection
             key={level.level}

@@ -6,6 +6,7 @@ import { db, schema } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import { grantXp, todayXp, recordActivity } from "@/lib/xp/grant";
 import { XP_REWARDS, DAILY_CAPS } from "@/lib/xp/rewards";
+import { checkAndGrantAchievements } from "@/lib/achievements/check";
 
 export type LogSessionInput = {
   bookId: string;
@@ -88,6 +89,7 @@ export async function logSession(input: LogSessionInput) {
   }
 
   await recordActivity(user.id);
+  await checkAndGrantAchievements(user.id);
 
   revalidatePath(`/book/${bookSlug}`);
   revalidatePath("/path");

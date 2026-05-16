@@ -1,0 +1,33 @@
+# Migrations
+
+These SQL files are versioned production migrations. Apply in order.
+
+## Applying a migration
+
+**Option A · Supabase dashboard**
+1. Open your project at supabase.com → SQL editor → New query
+2. Paste the file contents
+3. Run
+
+**Option B · psql**
+```sh
+psql "$DATABASE_URL" -f db/migrations/0001_rls_and_triggers.sql
+```
+
+All migrations are written idempotent — re-running is safe.
+
+## Current migrations
+
+| # | File | What it does |
+|---|---|---|
+| 0001 | `0001_rls_and_triggers.sql` | Adds `handle_new_user` trigger to auto-create profile + streak rows on signup. Enables RLS on every table with proper select/insert/update/delete policies. Backfills profile + streak rows for users that signed up before the trigger existed. |
+
+## Verification after applying 0001
+
+In the Supabase dashboard:
+
+1. **Database → Tables**: every user-scoped table shows the RLS shield as **enabled**.
+2. **Database → Functions**: `handle_new_user` is listed.
+3. **Database → Triggers**: `on_auth_user_created` on `auth.users` is listed.
+4. Create a new test user via **Authentication → Users → Invite user**.
+5. Open SQL editor and run `select * from profiles where id = '<new-id>'` — should return one row immediately.

@@ -1,11 +1,31 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { getBookBySlug, getUserBook } from "@/lib/db/queries/path";
+import { getBookBySlug, getUserBook, type BookStatus } from "@/lib/db/queries/path";
+import { db, schema } from "@/lib/db";
+import { and, desc, eq } from "drizzle-orm";
 import { ArrowLeft, Sparkles } from "lucide-react";
 import MarkFinishedButton from "@/components/book/MarkFinishedButton";
+import { BookStatusBanner } from "@/components/book/BookStatusBanner";
+import { AttemptHistory, type AttemptRow } from "@/components/book/AttemptHistory";
 
 export const dynamic = "force-dynamic";
+
+const GENRE_LABEL: Record<string, string> = {
+  islamic: "Islamic",
+  arabic_literature: "Arabic Literature",
+  translated: "Translated",
+  graded_reader: "Graded Reader",
+  classical: "Classical",
+};
+
+const GENRE_TINT: Record<string, string> = {
+  islamic: "bg-emerald-50 text-emerald-800 ring-emerald-200",
+  arabic_literature: "bg-amber-50 text-amber-800 ring-amber-200",
+  translated: "bg-sky-50 text-sky-800 ring-sky-200",
+  graded_reader: "bg-violet-50 text-violet-800 ring-violet-200",
+  classical: "bg-rose-50 text-rose-800 ring-rose-200",
+};
 
 export default async function BookPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -19,6 +39,32 @@ export default async function BookPage({ params }: { params: Promise<{ slug: str
 
   const userBook = user ? await getUserBook(user.id, book.id) : null;
 
+  let attempts: AttemptRow[] = [];
+  if (user) {
+    const rows = await db
+      .select({
+        id: schema.comprehensionAttempts.id,
+        score: schema.comprehensionAttempts.score,
+        passed: schema.comprehensionAttempts.passed,
+        submittedAt: schema.comprehensionAttempts.submittedAt,
+      })
+      .from(schema.comprehensionAttempts)
+      .where(
+        and(
+          eq(schema.comprehensionAttempts.userId, user.id),
+          eq(schema.comprehensionAttempts.bookId, book.id),
+        ),
+      )
+      .orderBy(desc(schema.comprehensionAttempts.submittedAt))
+      .limit(10);
+    attempts = rows.map((r) => ({
+      id: r.id,
+      score: Number(r.score),
+      passed: r.passed,
+      submittedAt: r.submittedAt,
+    }));
+  }
+
   const canMarkFinished =
     !!user &&
     (!userBook ||
@@ -31,20 +77,38 @@ export default async function BookPage({ params }: { params: Promise<{ slug: str
     userBook?.status === "testing" ||
     userBook?.status === "failed_retry";
 
+  const status: BookStatus | null = userBook ? (userBook.status as BookStatus) : null;
+  const bestScore = userBook?.bestScore ? Number(userBook.bestScore) : null;
+  const attemptCount = userBook?.attempts ?? 0;
+
   return (
-    <main className="mx-auto max-w-2xl px-4 pb-24 pt-6">
+    <main className="mx-auto max-w-2xl space-y-5 px-4 pb-24 pt-6">
       <Link
         href="/path"
-        className="mb-6 inline-flex items-center gap-1 text-sm text-fg-muted hover:text-fg"
+        className="inline-flex items-center gap-1 text-sm font-medium text-fg-muted transition hover:text-fg"
       >
         <ArrowLeft className="h-4 w-4" /> Back to path
       </Link>
 
-      <div className="rounded-3xl bg-white p-8 shadow-sm ring-1 ring-border">
-        <p className="text-xs font-semibold uppercase tracking-widest text-fg-muted">
-          Level {book.level} · {labelForGenre(book.genre)}
-        </p>
-        <h1 className="font-arabic mt-3 text-4xl font-bold leading-tight" dir="rtl">
+      <div className="rounded-3xl bg-white p-8 shadow-lift ring-1 ring-border">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-full bg-bg-muted px-2.5 py-1 text-xs font-bold uppercase tracking-widest text-fg-muted ring-1 ring-border">
+            Stage {book.level}
+          </span>
+          <span
+            className={`rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-widest ring-1 ${GENRE_TINT[book.genre] ?? "bg-zinc-100 text-zinc-800 ring-zinc-200"}`}
+          >
+            {GENRE_LABEL[book.genre] ?? book.genre}
+          </span>
+          {book.difficulty > 0 && (
+            <span className="rounded-full bg-bg-muted px-2.5 py-1 text-xs font-bold text-fg-muted ring-1 ring-border">
+              {"★".repeat(book.difficulty)}
+              <span className="opacity-30">{"★".repeat(Math.max(0, 5 - book.difficulty))}</span>
+            </span>
+          )}
+        </div>
+
+        <h1 className="font-arabic mt-4 text-4xl font-bold leading-tight" dir="rtl">
           {book.titleAr}
         </h1>
         <p className="mt-1 text-lg text-fg-muted">{book.titleEn}</p>
@@ -69,17 +133,22 @@ export default async function BookPage({ params }: { params: Promise<{ slug: str
         )}
 
         <div className="mt-8 flex flex-wrap gap-3">
-          {canMarkFinished && (
-            <MarkFinishedButton bookId={book.id} bookSlug={book.slug} />
-          )}
+          {canMarkFinished && <MarkFinishedButton bookId={book.id} bookSlug={book.slug} />}
 
           {canTest ? (
-            <a
+            <Link
               href={`/book/${book.slug}/test`}
-              className="inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-3 font-semibold text-brand-fg shadow-sm transition hover:bg-brand-dark"
+              className="inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-3 font-semibold text-brand-fg shadow-glow-brand transition hover:bg-brand-dark"
             >
               <Sparkles className="h-4 w-4" /> Take comprehension test
-            </a>
+            </Link>
+          ) : status === "completed" ? (
+            <Link
+              href={`/book/${book.slug}/test`}
+              className="inline-flex items-center gap-2 rounded-xl border border-border px-5 py-3 font-semibold transition hover:bg-bg-muted"
+            >
+              <Sparkles className="h-4 w-4" /> Retake test
+            </Link>
           ) : (
             <button
               disabled
@@ -90,24 +159,11 @@ export default async function BookPage({ params }: { params: Promise<{ slug: str
             </button>
           )}
         </div>
-
-        {userBook && (
-          <p className="mt-4 text-sm text-fg-muted">
-            Status: <span className="font-semibold capitalize text-fg">{userBook.status.replace(/_/g, " ")}</span>
-          </p>
-        )}
       </div>
+
+      <BookStatusBanner status={status} bestScore={bestScore} attempts={attemptCount} />
+
+      <AttemptHistory attempts={attempts} />
     </main>
   );
-}
-
-function labelForGenre(g: string) {
-  switch (g) {
-    case "islamic": return "Islamic";
-    case "arabic_literature": return "Arabic Literature";
-    case "translated": return "Translated";
-    case "graded_reader": return "Graded Reader";
-    case "classical": return "Classical";
-    default: return g;
-  }
 }
