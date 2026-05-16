@@ -21,6 +21,7 @@ All migrations are written idempotent — re-running is safe.
 | # | File | What it does |
 |---|---|---|
 | 0001 | `0001_rls_and_triggers.sql` | Adds `handle_new_user` trigger to auto-create profile + streak rows on signup. Enables RLS on every table with proper select/insert/update/delete policies. Backfills profile + streak rows for users that signed up before the trigger existed. |
+| 0002 | `0002_achievement_cleanup.sql` | Removes orphan achievements (`page-turner`, `night-owl`) whose criteria types (`pages_logged`, `session_time_window`) are no longer tracked. Run before `pnpm db:seed` to re-seed the replacement achievements (`test-champion`, `vocab-collector`). |
 
 ## Verification after applying 0001
 

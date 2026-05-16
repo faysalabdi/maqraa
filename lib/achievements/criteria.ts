@@ -1,17 +1,17 @@
 import { db, schema } from "@/lib/db";
-import { and, count, eq, gte, sql } from "drizzle-orm";
+import { and, count, eq, gte } from "drizzle-orm";
 
 export type Criteria =
   | { type: "books_completed"; count: number }
-  | { type: "pages_logged"; count: number }
+  | { type: "tests_passed"; count: number }
   | { type: "vocab_graduated"; count: number }
+  | { type: "vocab_count"; count: number }
   | { type: "perfect_tests"; count: number }
   | { type: "streak_days"; count: number }
   | { type: "freeze_used"; count: number }
   | { type: "genre_variety" }
   | { type: "level_book_completed"; level: number }
-  | { type: "author_completed"; author_en: string }
-  | { type: "session_time_window"; from: number; to: number };
+  | { type: "author_completed"; author_en: string };
 
 const STREAK_INITIAL_FREEZES = 2;
 
@@ -33,14 +33,25 @@ export async function evaluateCriteria(
       return Number(row?.cnt ?? 0) >= criteria.count;
     }
 
-    case "pages_logged": {
+    case "tests_passed": {
       const [row] = await db
-        .select({
-          total: sql<number>`coalesce(sum(${schema.readingSessions.pages}), 0)`,
-        })
-        .from(schema.readingSessions)
-        .where(eq(schema.readingSessions.userId, userId));
-      return Number(row?.total ?? 0) >= criteria.count;
+        .select({ cnt: count() })
+        .from(schema.comprehensionAttempts)
+        .where(
+          and(
+            eq(schema.comprehensionAttempts.userId, userId),
+            eq(schema.comprehensionAttempts.passed, true),
+          ),
+        );
+      return Number(row?.cnt ?? 0) >= criteria.count;
+    }
+
+    case "vocab_count": {
+      const [row] = await db
+        .select({ cnt: count() })
+        .from(schema.vocabItems)
+        .where(eq(schema.vocabItems.userId, userId));
+      return Number(row?.cnt ?? 0) >= criteria.count;
     }
 
     case "vocab_graduated": {
@@ -135,9 +146,5 @@ export async function evaluateCriteria(
         .limit(1);
       return rows.length > 0;
     }
-
-    case "session_time_window":
-      // No session-time logging in current UI — always false.
-      return false;
   }
 }
