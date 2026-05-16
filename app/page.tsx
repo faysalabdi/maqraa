@@ -24,7 +24,7 @@ export default function Home() {
           Start your path
         </Link>
         <Link
-          href="/path"
+          href="/preview"
           className="rounded-2xl border border-border px-6 py-3 font-semibold text-fg transition hover:bg-bg-muted"
         >
           See the path
