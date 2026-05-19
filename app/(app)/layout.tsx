@@ -9,6 +9,7 @@ import {
   Settings as SettingsIcon,
   BarChart3,
   Award,
+  Trophy,
   Zap,
 } from "lucide-react";
 import { StatPill } from "@/components/chrome/StatPill";
@@ -105,6 +106,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </NavLink>
             <NavLink href="/achievements" icon={<Award className="h-4 w-4" />}>
               Awards
+            </NavLink>
+            <NavLink href="/leaderboard" icon={<Trophy className="h-4 w-4" />}>
+              Ranks
             </NavLink>
             <NavLink href="/settings" icon={<SettingsIcon className="h-4 w-4" />}>
               Settings

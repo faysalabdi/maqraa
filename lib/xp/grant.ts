@@ -3,6 +3,7 @@
 import { db, schema } from "@/lib/db";
 import { eq, and, gte, sql } from "drizzle-orm";
 import type { InferSelectModel } from "drizzle-orm";
+import { streakDayXp } from "./rewards";
 
 type XpReason = InferSelectModel<typeof schema.xpEvents>["reason"];
 
@@ -74,6 +75,8 @@ export async function recordActivity(userId: string): Promise<void> {
     .where(eq(schema.streaks.userId, userId))
     .limit(1);
 
+  let newCurrent: number;
+
   if (rows.length === 0) {
     await db.insert(schema.streaks).values({
       userId,
@@ -82,39 +85,47 @@ export async function recordActivity(userId: string): Promise<void> {
       lastActiveDate: today,
       freezesRemaining: 2,
     });
-    return;
-  }
-
-  const streak = rows[0];
-  if (streak.lastActiveDate === today) return; // already counted
-
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  const yStr = yesterday.toISOString().slice(0, 10);
-
-  let newCurrent: number;
-  let freezes = streak.freezesRemaining;
-
-  if (streak.lastActiveDate === yStr) {
-    newCurrent = streak.currentDays + 1;
+    newCurrent = 1;
   } else {
-    // missed day(s)
-    if (freezes > 0) {
+    const streak = rows[0];
+    if (streak.lastActiveDate === today) return; // already counted
+
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yStr = yesterday.toISOString().slice(0, 10);
+
+    let freezes = streak.freezesRemaining;
+
+    if (streak.lastActiveDate === yStr) {
       newCurrent = streak.currentDays + 1;
-      freezes -= 1;
     } else {
-      newCurrent = 1;
+      // missed day(s)
+      if (freezes > 0) {
+        newCurrent = streak.currentDays + 1;
+        freezes -= 1;
+      } else {
+        newCurrent = 1;
+      }
     }
+
+    await db
+      .update(schema.streaks)
+      .set({
+        currentDays: newCurrent,
+        longestDays: Math.max(newCurrent, streak.longestDays),
+        lastActiveDate: today,
+        freezesRemaining: freezes,
+      })
+      .where(eq(schema.streaks.userId, userId));
   }
 
-  await db
-    .update(schema.streaks)
-    .set({
-      currentDays: newCurrent,
-      longestDays: Math.max(newCurrent, streak.longestDays),
-      lastActiveDate: today,
-      freezesRemaining: freezes,
-    })
-    .where(eq(schema.streaks.userId, userId));
+  // Streak day XP — idempotent per (user, date)
+  await grantXp({
+    userId,
+    delta: streakDayXp(newCurrent),
+    reason: "streak_day",
+    ref: { streakDay: newCurrent, date: today },
+    refHash: `streak_day:${today}`,
+  });
 }
 

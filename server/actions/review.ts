@@ -57,15 +57,17 @@ export async function gradeCard(itemId: string, quality: number): Promise<GradeR
 
   let xpEarned = 0;
 
-  // SRS review XP (capped daily)
+  // SRS review XP (capped daily, idempotent per item per day)
   const todayReviews = await todayXp(user.id, "srs_review");
   const reviewXpAvailable = Math.max(0, DAILY_CAPS.srsReview - todayReviews);
   if (reviewXpAvailable > 0) {
+    const today = new Date().toISOString().slice(0, 10);
     xpEarned += await grantXp({
       userId: user.id,
       delta: Math.min(XP_REWARDS.srsReview, reviewXpAvailable),
       reason: "srs_review",
       ref: { itemId },
+      refHash: `srs_review:${itemId}:${today}`,
     });
   }
 
