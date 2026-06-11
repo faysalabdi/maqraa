@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { and, asc, eq, lte } from "drizzle-orm";
 import { createClient } from "@/lib/supabase/server";
 import { db, schema } from "@/lib/db";
-import { ReviewSession } from "@/components/srs/ReviewSession";
-import { BookOpen } from "lucide-react";
+import { and, asc, eq, lte } from "drizzle-orm";
+import ReviewSession, { type ReviewCard } from "@/components/review/ReviewSession";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -12,10 +12,16 @@ export default async function ReviewPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return null;
+  if (!user) redirect("/sign-in?redirect=/review");
 
-  const due = await db
-    .select()
+  const dueRows = await db
+    .select({
+      id: schema.vocabItems.id,
+      lemmaAr: schema.vocabItems.lemmaAr,
+      glossEn: schema.vocabItems.glossEn,
+      exampleAr: schema.vocabItems.exampleAr,
+      intervalDays: schema.vocabItems.intervalDays,
+    })
     .from(schema.vocabItems)
     .where(
       and(
@@ -25,49 +31,42 @@ export default async function ReviewPage() {
       ),
     )
     .orderBy(asc(schema.vocabItems.dueAt))
-    .limit(20);
+    .limit(50);
 
-  if (due.length === 0) {
-    return (
-      <main className="mx-auto max-w-xl px-4 py-20 text-center">
-        <p className="font-arabic text-4xl text-brand" dir="rtl">
-          أَحْسَنْتَ
-        </p>
-        <h1 className="mt-3 text-2xl font-extrabold">Nothing due right now</h1>
-        <p className="mt-2 text-fg-muted">
-          Read a chapter and tap words you don&apos;t know — they&apos;ll show up here as
-          flashcards when it&apos;s time to review.
-        </p>
-        <div className="mt-8 flex justify-center gap-3">
-          <Link
-            href="/path"
-            className="inline-flex items-center gap-2 rounded-2xl bg-brand px-6 py-3 font-semibold text-brand-fg transition hover:bg-brand-dark"
-          >
-            <BookOpen className="h-4 w-4" /> Go read
-          </Link>
-          <Link
-            href="/words"
-            className="rounded-2xl border border-border px-6 py-3 font-semibold transition hover:bg-bg-muted"
-          >
-            Browse my words
-          </Link>
-        </div>
-      </main>
-    );
+  const deck: ReviewCard[] = dueRows.map((r) => ({
+    id: r.id,
+    lemmaAr: r.lemmaAr,
+    glossEn: r.glossEn,
+    exampleAr: r.exampleAr,
+    intervalDays: r.intervalDays,
+  }));
+
+  if (deck.length === 0) {
+    return <EmptyDeck />;
   }
 
+  return <ReviewSession initialDeck={deck} />;
+}
+
+function EmptyDeck() {
   return (
-    <ReviewSession
-      cards={due.map((c) => ({
-        id: c.id,
-        lemmaAr: c.lemmaAr,
-        glossEn: c.glossEn,
-        exampleAr: c.exampleAr,
-        repetitions: c.repetitions,
-        intervalDays: c.intervalDays,
-        lapses: c.lapses,
-        ease: Number(c.ease),
-      }))}
-    />
+    <main className="mx-auto max-w-md px-4 pb-24 pt-12 text-center">
+      <div className="rounded-3xl bg-white p-10 shadow-lift ring-1 ring-border">
+        <span className="font-arabic mx-auto block text-5xl text-brand" dir="rtl">
+          فارغ
+        </span>
+        <h1 className="mt-3 text-2xl font-extrabold">No cards due</h1>
+        <p className="mt-2 text-sm text-fg-muted">
+          Your spaced-repetition deck is empty right now. Words you tap while
+          reading and vocab from wrong test answers show up here when due.
+        </p>
+        <Link
+          href="/path"
+          className="mt-6 inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-3 font-semibold text-brand-fg transition hover:bg-brand-dark"
+        >
+          Back to path
+        </Link>
+      </div>
+    </main>
   );
 }

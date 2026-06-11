@@ -1,11 +1,13 @@
-import Link from "next/link";
-import { eq, desc } from "drizzle-orm";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { db, schema } from "@/lib/db";
-import { strengthFor, STRENGTH_META, STRENGTH_ORDER, type Strength } from "@/lib/srs/strength";
-import { rankForXp } from "@/lib/xp/curve";
+import { and, count, eq, gte, sql } from "drizzle-orm";
+import { Award, BookOpen, Flame, Languages, Sparkles, Target, Trophy, Zap } from "lucide-react";
+import { XpChart, type XpDay } from "@/components/stats/XpChart";
+import { StatGrid, type StatTile } from "@/components/stats/StatGrid";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { Flame, Star, BookOpen, Brain } from "lucide-react";
+import { strengthFor, STRENGTH_META, STRENGTH_ORDER, type Strength } from "@/lib/srs/strength";
 
 export const dynamic = "force-dynamic";
 
@@ -14,97 +16,186 @@ export default async function StatsPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return null;
+  if (!user) redirect("/sign-in?redirect=/stats");
 
-  const [profile] = await db
-    .select()
-    .from(schema.profiles)
-    .where(eq(schema.profiles.id, user.id))
-    .limit(1);
-  const [streak] = await db
-    .select()
-    .from(schema.streaks)
-    .where(eq(schema.streaks.userId, user.id))
-    .limit(1);
-  const words = await db
+  const fourteenDaysAgo = new Date();
+  fourteenDaysAgo.setHours(0, 0, 0, 0);
+  fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 13);
+
+  const [
+    profileRows,
+    streakRows,
+    xpByDayRows,
+    booksRows,
+    attemptsRows,
+    vocabRows,
+    achievementsRows,
+  ] = await Promise.all([
+    db
+      .select()
+      .from(schema.profiles)
+      .where(eq(schema.profiles.id, user.id))
+      .limit(1),
+    db
+      .select()
+      .from(schema.streaks)
+      .where(eq(schema.streaks.userId, user.id))
+      .limit(1),
+    db
+      .select({
+        date: sql<string>`to_char(${schema.xpEvents.occurredAt}, 'YYYY-MM-DD')`,
+        total: sql<number>`coalesce(sum(${schema.xpEvents.delta}), 0)`,
+      })
+      .from(schema.xpEvents)
+      .where(
+        and(
+          eq(schema.xpEvents.userId, user.id),
+          gte(schema.xpEvents.occurredAt, fourteenDaysAgo),
+        ),
+      )
+      .groupBy(sql`to_char(${schema.xpEvents.occurredAt}, 'YYYY-MM-DD')`),
+    db
+      .select({ status: schema.userBooks.status, cnt: count() })
+      .from(schema.userBooks)
+      .where(eq(schema.userBooks.userId, user.id))
+      .groupBy(schema.userBooks.status),
+    db
+      .select({ passed: schema.comprehensionAttempts.passed, cnt: count() })
+      .from(schema.comprehensionAttempts)
+      .where(eq(schema.comprehensionAttempts.userId, user.id))
+      .groupBy(schema.comprehensionAttempts.passed),
+    db
+      .select({
+        total: sql<number>`count(*)`,
+        due: sql<number>`count(*) filter (where ${schema.vocabItems.dueAt} <= now() and ${schema.vocabItems.suspended} = false)`,
+        graduated: sql<number>`count(*) filter (where ${schema.vocabItems.intervalDays} >= 21 and ${schema.vocabItems.lapses} = 0)`,
+      })
+      .from(schema.vocabItems)
+      .where(eq(schema.vocabItems.userId, user.id)),
+    db
+      .select({ cnt: count() })
+      .from(schema.userAchievements)
+      .where(eq(schema.userAchievements.userId, user.id)),
+  ]);
+
+  const profile = profileRows[0];
+  const streak = streakRows[0];
+
+  // Build a 14-day series with zero fill
+  const dayMap = new Map(xpByDayRows.map((r) => [r.date, Number(r.total)]));
+  const days: XpDay[] = [];
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(fourteenDaysAgo);
+    d.setDate(d.getDate() + i);
+    const key = d.toISOString().slice(0, 10);
+    days.push({ date: key, total: dayMap.get(key) ?? 0 });
+  }
+
+  const booksByStatus = new Map(booksRows.map((r) => [r.status, Number(r.cnt)]));
+  const totalCompleted = booksByStatus.get("completed") ?? 0;
+  const inProgress =
+    (booksByStatus.get("in_progress") ?? 0) +
+    (booksByStatus.get("reading_done") ?? 0) +
+    (booksByStatus.get("testing") ?? 0) +
+    (booksByStatus.get("failed_retry") ?? 0);
+
+  const passedTests =
+    attemptsRows.find((r) => r.passed === true)?.cnt ?? 0;
+  const failedTests =
+    attemptsRows.find((r) => r.passed === false)?.cnt ?? 0;
+
+  const vocab = vocabRows[0];
+  const earnedAchievements = Number(achievementsRows[0]?.cnt ?? 0);
+
+  const tiles: StatTile[] = [
+    {
+      label: "Total XP",
+      value: (profile?.xpTotal ?? 0).toLocaleString(),
+      icon: <Zap className="h-3.5 w-3.5" />,
+      tone: "amber",
+    },
+    {
+      label: "Level",
+      value: profile?.currentLevel ?? 1,
+      sub: "Current stage",
+      icon: <Sparkles className="h-3.5 w-3.5" />,
+      tone: "brand",
+    },
+    {
+      label: "Streak",
+      value: streak?.currentDays ?? 0,
+      sub: `Best ${streak?.longestDays ?? 0} day${(streak?.longestDays ?? 0) === 1 ? "" : "s"}`,
+      icon: <Flame className="h-3.5 w-3.5" />,
+      tone: "flame",
+    },
+    {
+      label: "Daily goal",
+      value: `${profile?.dailyXpGoal ?? 50} XP`,
+      sub: "Per day",
+      icon: <Target className="h-3.5 w-3.5" />,
+      tone: "neutral",
+    },
+    {
+      label: "Books done",
+      value: totalCompleted,
+      sub: `${inProgress} in progress`,
+      icon: <BookOpen className="h-3.5 w-3.5" />,
+      tone: "brand",
+    },
+    {
+      label: "Tests",
+      value: `${Number(passedTests)}/${Number(passedTests) + Number(failedTests)}`,
+      sub: "Passed / taken",
+      icon: <Trophy className="h-3.5 w-3.5" />,
+      tone: "amber",
+    },
+    {
+      label: "Vocab",
+      value: Number(vocab?.total ?? 0),
+      sub: `${Number(vocab?.due ?? 0)} due · ${Number(vocab?.graduated ?? 0)} mature`,
+      icon: <Languages className="h-3.5 w-3.5" />,
+      tone: "neutral",
+    },
+    {
+      label: "Awards",
+      value: earnedAchievements,
+      sub: "Earned",
+      icon: <Award className="h-3.5 w-3.5" />,
+      tone: "amber",
+    },
+  ];
+
+  const allWords = await db
     .select()
     .from(schema.vocabItems)
     .where(eq(schema.vocabItems.userId, user.id));
-  const chaptersDone = await db
-    .select()
-    .from(schema.userChapterProgress)
-    .where(eq(schema.userChapterProgress.userId, user.id));
-  const recentXp = await db
-    .select()
-    .from(schema.xpEvents)
-    .where(eq(schema.xpEvents.userId, user.id))
-    .orderBy(desc(schema.xpEvents.occurredAt))
-    .limit(10);
-
-  const xpTotal = profile?.xpTotal ?? 0;
-  const rank = rankForXp(xpTotal);
-  const completedChapters = chaptersDone.filter((c) => c.status === "completed").length;
-
   const strengthCounts = new Map<Strength, number>();
-  for (const s of STRENGTH_ORDER) strengthCounts.set(s, 0);
-  for (const w of words) {
-    const s = strengthFor({ ...w, ease: Number(w.ease) });
-    strengthCounts.set(s, (strengthCounts.get(s) ?? 0) + 1);
+  for (const st of STRENGTH_ORDER) strengthCounts.set(st, 0);
+  for (const w of allWords) {
+    const st = strengthFor({ ...w, ease: Number(w.ease) });
+    strengthCounts.set(st, (strengthCounts.get(st) ?? 0) + 1);
   }
 
   return (
-    <main className="mx-auto max-w-2xl px-4 pb-24 pt-8">
-      <h1 className="mb-8 text-center text-3xl font-extrabold">Your stats</h1>
+    <main className="mx-auto max-w-3xl space-y-6 px-4 pb-24 pt-6">
+      <header>
+        <h1 className="text-3xl font-extrabold">Your stats</h1>
+        <p className="mt-1 text-sm text-fg-muted">
+          Everything you&apos;ve earned, read, and reviewed.
+        </p>
+      </header>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard
-          icon={<Star className="h-5 w-5" />}
-          label="Total XP"
-          value={xpTotal.toLocaleString()}
-          tint="bg-amber-100 text-amber-800"
-        />
-        <StatCard
-          icon={<Flame className="h-5 w-5" />}
-          label="Streak"
-          value={`${streak?.currentDays ?? 0}d`}
-          tint="bg-orange-100 text-orange-800"
-        />
-        <StatCard
-          icon={<Brain className="h-5 w-5" />}
-          label="Words"
-          value={String(words.length)}
-          tint="bg-sky-100 text-sky-800"
-        />
-        <StatCard
-          icon={<BookOpen className="h-5 w-5" />}
-          label="Chapters"
-          value={String(completedChapters)}
-          tint="bg-emerald-100 text-emerald-800"
-        />
-      </div>
+      <StatGrid tiles={tiles} />
 
-      <div className="mt-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-border">
-        <div className="flex items-baseline justify-between">
-          <h2 className="text-lg font-bold">Rank {rank.rank}</h2>
-          <span className="text-sm text-fg-muted">
-            {rank.xpInRank} / {rank.xpToNext} XP to rank {rank.rank + 1}
-          </span>
-        </div>
-        <div className="mt-3 h-3 overflow-hidden rounded-full bg-bg-muted">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-brand to-emerald-400"
-            style={{ width: `${Math.min(100, (rank.xpInRank / rank.xpToNext) * 100)}%` }}
-          />
-        </div>
-      </div>
+      <XpChart days={days} />
 
-      <div className="mt-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-border">
+      <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-border">
         <h2 className="mb-4 text-lg font-bold">Vocabulary strength</h2>
         <div className="grid grid-cols-5 gap-2 text-center">
-          {STRENGTH_ORDER.map((s) => (
-            <div key={s} className={cn("rounded-2xl p-3 ring-1", STRENGTH_META[s].color)}>
-              <p className="text-2xl font-extrabold">{strengthCounts.get(s)}</p>
-              <p className="text-[11px] font-semibold">{STRENGTH_META[s].labelEn}</p>
+          {STRENGTH_ORDER.map((st) => (
+            <div key={st} className={cn("rounded-2xl p-3 ring-1", STRENGTH_META[st].color)}>
+              <p className="text-2xl font-extrabold">{strengthCounts.get(st)}</p>
+              <p className="text-[11px] font-semibold">{STRENGTH_META[st].labelEn}</p>
             </div>
           ))}
         </div>
@@ -114,43 +205,7 @@ export default async function StatsPage() {
         >
           See all words →
         </Link>
-      </div>
-
-      {recentXp.length > 0 && (
-        <div className="mt-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-border">
-          <h2 className="mb-3 text-lg font-bold">Recent XP</h2>
-          <ul className="space-y-2 text-sm">
-            {recentXp.map((e) => (
-              <li key={e.id} className="flex justify-between">
-                <span className="text-fg-muted">{e.reason.replaceAll("_", " ")}</span>
-                <span className="font-bold text-brand">+{e.delta}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      </section>
     </main>
-  );
-}
-
-function StatCard({
-  icon,
-  label,
-  value,
-  tint,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  tint: string;
-}) {
-  return (
-    <div className="rounded-3xl bg-white p-4 text-center shadow-sm ring-1 ring-border">
-      <span className={cn("mx-auto mb-2 grid h-10 w-10 place-items-center rounded-full", tint)}>
-        {icon}
-      </span>
-      <p className="text-2xl font-extrabold">{value}</p>
-      <p className="text-xs font-semibold text-fg-muted">{label}</p>
-    </div>
   );
 }

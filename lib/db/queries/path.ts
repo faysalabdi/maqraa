@@ -1,6 +1,15 @@
 import { db, schema } from "@/lib/db";
 import { asc, eq, and } from "drizzle-orm";
 
+export type BookStatus =
+  | "locked"
+  | "unlocked"
+  | "in_progress"
+  | "reading_done"
+  | "testing"
+  | "completed"
+  | "failed_retry";
+
 export type BookNodeData = {
   id: string;
   slug: string;
@@ -13,7 +22,9 @@ export type BookNodeData = {
   difficulty: number;
   recommendedPages: number | null;
   hasFullText: boolean;
-  status: "locked" | "unlocked" | "in_progress" | "reading_done" | "testing" | "completed";
+  status: BookStatus;
+  bestScore: number | null;
+  attempts: number;
 };
 
 export type LevelData = {
@@ -36,13 +47,22 @@ export async function getPathForUser(
     .from(schema.books)
     .orderBy(asc(schema.books.level), asc(schema.books.orderInLevel));
 
-  const userBookMap = new Map<string, string>(); // bookId -> status
+  const userBookMap = new Map<
+    string,
+    { status: string; bestScore: string | null; attempts: number }
+  >();
   if (userId) {
     const rows = await db
       .select()
       .from(schema.userBooks)
       .where(eq(schema.userBooks.userId, userId));
-    for (const r of rows) userBookMap.set(r.bookId, r.status);
+    for (const r of rows) {
+      userBookMap.set(r.bookId, {
+        status: r.status,
+        bestScore: r.bestScore,
+        attempts: r.attempts,
+      });
+    }
   }
 
   return levels.map((lv) => ({
@@ -54,16 +74,13 @@ export async function getPathForUser(
     booksRequiredToClear: lv.booksRequiredToClear,
     books: books
       .filter((b) => b.level === lv.level)
-      .map((b) => {
-        const stored = userBookMap.get(b.id);
-        let status: BookNodeData["status"];
-        if (stored) {
-          status = stored as BookNodeData["status"];
-        } else if (b.level <= userLevel) {
-          status = "unlocked";
-        } else {
-          status = "locked";
-        }
+      .map<BookNodeData>((b) => {
+        const ub = userBookMap.get(b.id);
+        const status: BookStatus = ub
+          ? (ub.status as BookStatus)
+          : b.level <= userLevel
+            ? "unlocked"
+            : "locked";
         return {
           id: b.id,
           slug: b.slug,
@@ -77,6 +94,8 @@ export async function getPathForUser(
           recommendedPages: b.recommendedPages,
           hasFullText: b.hasFullText,
           status,
+          bestScore: ub?.bestScore ? Number(ub.bestScore) : null,
+          attempts: ub?.attempts ?? 0,
         };
       }),
   }));

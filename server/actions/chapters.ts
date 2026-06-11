@@ -4,7 +4,7 @@ import { eq, and } from "drizzle-orm";
 import { createClient } from "@/lib/supabase/server";
 import { db, schema } from "@/lib/db";
 import { getOrGenerateChapterQuiz, type ChapterQuiz } from "@/lib/ai/chapter-quiz";
-import { grantXp } from "@/lib/xp/grant";
+import { grantXp, recordActivity } from "@/lib/xp/grant";
 
 async function requireUser() {
   const supabase = await createClient();
@@ -89,10 +89,23 @@ export async function submitChapterQuiz(
       set: { status: "completed", quizScore: score.toFixed(2), completedAt: new Date() },
     });
 
-  await grantXp(user.id, 15, "page_logged", `chapter_done:${chapterId}`, { chapterId });
+  await grantXp({
+    userId: user.id,
+    delta: 15,
+    reason: "page_logged",
+    refHash: `chapter_done:${chapterId}`,
+    ref: { chapterId },
+  });
   if (correctCount === quiz.questions.length) {
-    await grantXp(user.id, 10, "perfect_score", `chapter_perfect:${chapterId}`, { chapterId });
+    await grantXp({
+      userId: user.id,
+      delta: 10,
+      reason: "perfect_score",
+      refHash: `chapter_perfect:${chapterId}`,
+      ref: { chapterId },
+    });
   }
+  await recordActivity(user.id);
 
   return { score, correctCount, total: quiz.questions.length, perQuestion };
 }

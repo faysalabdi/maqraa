@@ -1,13 +1,32 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { getBookBySlug, getUserBook } from "@/lib/db/queries/path";
+import { getBookBySlug, getUserBook, type BookStatus } from "@/lib/db/queries/path";
 import { db, schema } from "@/lib/db";
-import { eq, and, desc, asc, inArray } from "drizzle-orm";
-import { ArrowLeft, BookOpen, Check, CircleDot, Sparkles, Lock } from "lucide-react";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { ArrowLeft, BookOpen, Check, CircleDot, Lock, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import MarkFinishedButton from "@/components/book/MarkFinishedButton";
+import { BookStatusBanner } from "@/components/book/BookStatusBanner";
+import { AttemptHistory, type AttemptRow } from "@/components/book/AttemptHistory";
 
 export const dynamic = "force-dynamic";
+
+const GENRE_LABEL: Record<string, string> = {
+  islamic: "Islamic",
+  arabic_literature: "Arabic Literature",
+  translated: "Translated",
+  graded_reader: "Graded Reader",
+  classical: "Classical",
+};
+
+const GENRE_TINT: Record<string, string> = {
+  islamic: "bg-emerald-50 text-emerald-800 ring-emerald-200",
+  arabic_literature: "bg-amber-50 text-amber-800 ring-amber-200",
+  translated: "bg-sky-50 text-sky-800 ring-sky-200",
+  graded_reader: "bg-violet-50 text-violet-800 ring-violet-200",
+  classical: "bg-rose-50 text-rose-800 ring-rose-200",
+};
 
 export default async function BookPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -46,45 +65,87 @@ export default async function BookPage({ params }: { params: Promise<{ slug: str
     for (const r of rows) progressMap.set(r.chapterId, r);
   }
 
-  const completedCount = chapters.filter(
+  const completedChapters = chapters.filter(
     (c) => progressMap.get(c.id)?.status === "completed",
   ).length;
   const firstUnfinished =
     chapters.find((c) => progressMap.get(c.id)?.status !== "completed") ?? chapters[0];
 
-  const sessions = user
-    ? await db
-        .select()
-        .from(schema.readingSessions)
-        .where(
-          and(
-            eq(schema.readingSessions.userId, user.id),
-            eq(schema.readingSessions.bookId, book.id),
-          ),
-        )
-        .orderBy(desc(schema.readingSessions.readAt))
-        .limit(5)
-    : [];
+  let attempts: AttemptRow[] = [];
+  if (user) {
+    const rows = await db
+      .select({
+        id: schema.comprehensionAttempts.id,
+        score: schema.comprehensionAttempts.score,
+        passed: schema.comprehensionAttempts.passed,
+        submittedAt: schema.comprehensionAttempts.submittedAt,
+      })
+      .from(schema.comprehensionAttempts)
+      .where(
+        and(
+          eq(schema.comprehensionAttempts.userId, user.id),
+          eq(schema.comprehensionAttempts.bookId, book.id),
+        ),
+      )
+      .orderBy(desc(schema.comprehensionAttempts.submittedAt))
+      .limit(10);
+    attempts = rows.map((r) => ({
+      id: r.id,
+      score: Number(r.score),
+      passed: r.passed,
+      submittedAt: r.submittedAt,
+    }));
+  }
+
+  const canMarkFinished =
+    !!user &&
+    (!userBook ||
+      (userBook.status !== "reading_done" &&
+        userBook.status !== "testing" &&
+        userBook.status !== "completed"));
+
+  const canTest =
+    userBook?.status === "reading_done" ||
+    userBook?.status === "testing" ||
+    userBook?.status === "failed_retry";
+
+  const status: BookStatus | null = userBook ? (userBook.status as BookStatus) : null;
+  const bestScore = userBook?.bestScore ? Number(userBook.bestScore) : null;
+  const attemptCount = userBook?.attempts ?? 0;
 
   return (
-    <main className="mx-auto max-w-2xl px-4 pb-24 pt-6">
+    <main className="mx-auto max-w-2xl space-y-5 px-4 pb-24 pt-6">
       <Link
         href="/path"
-        className="mb-6 inline-flex items-center gap-1 text-sm text-fg-muted hover:text-fg"
+        className="inline-flex items-center gap-1 text-sm font-medium text-fg-muted transition hover:text-fg"
       >
         <ArrowLeft className="h-4 w-4" /> Back to path
       </Link>
 
-      <div className="rounded-3xl bg-white p-8 shadow-sm ring-1 ring-border">
-        <p className="text-xs font-semibold uppercase tracking-widest text-fg-muted">
-          Level {book.level} · {labelForGenre(book.genre)}
+      <div className="rounded-3xl bg-white p-8 shadow-lift ring-1 ring-border">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-full bg-bg-muted px-2.5 py-1 text-xs font-bold uppercase tracking-widest text-fg-muted ring-1 ring-border">
+            Stage {book.level}
+          </span>
+          <span
+            className={`rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-widest ring-1 ${GENRE_TINT[book.genre] ?? "bg-zinc-100 text-zinc-800 ring-zinc-200"}`}
+          >
+            {GENRE_LABEL[book.genre] ?? book.genre}
+          </span>
           {book.hasFullText && (
-            <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold normal-case tracking-normal text-emerald-800">
+            <span className="rounded-full bg-brand px-2.5 py-1 text-xs font-bold uppercase tracking-widest text-brand-fg">
               Readable in app
             </span>
           )}
-        </p>
-        <h1 className="font-arabic mt-3 text-4xl font-bold leading-tight" dir="rtl">
+          {book.difficulty > 0 && (
+            <span className="rounded-full bg-bg-muted px-2.5 py-1 text-xs font-bold text-fg-muted ring-1 ring-border">
+              {"★".repeat(book.difficulty)}
+              <span className="opacity-30">{"★".repeat(Math.max(0, 5 - book.difficulty))}</span>
+            </span>
+          )}
+        </div>
+
+        <h1 className="font-arabic mt-4 text-4xl font-bold leading-tight" dir="rtl">
           {book.titleAr}
         </h1>
         <p className="mt-1 text-lg text-fg-muted">{book.titleEn}</p>
@@ -102,47 +163,72 @@ export default async function BookPage({ params }: { params: Promise<{ slug: str
 
         <p className="mt-6 text-base leading-relaxed">{book.blurb}</p>
 
-        {book.hasFullText && chapters.length > 0 && firstUnfinished && (
-          <Link
-            href={`/book/${slug}/read/${firstUnfinished.chapterNumber}`}
-            className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-brand px-6 py-4 text-lg font-bold text-brand-fg shadow-lg shadow-emerald-200 transition hover:scale-105 hover:bg-brand-dark"
-          >
-            <BookOpen className="h-5 w-5" />
-            {completedCount === 0
-              ? "Start reading"
-              : completedCount === chapters.length
-                ? "Read again"
-                : `Continue — chapter ${firstUnfinished.chapterNumber}`}
-          </Link>
-        )}
-
-        {!book.hasFullText && (
-          <div className="mt-8 rounded-2xl bg-bg-muted p-4 text-sm text-fg-muted">
-            Read this one offline or in your own copy, then come back to log sessions and take
-            the whole-book comprehension test. (In-app reading is available for public-domain
-            and original books.)
-          </div>
-        )}
-
-        {userBook && (
+        {book.recommendedPages && (
           <p className="mt-4 text-sm text-fg-muted">
-            Status: <span className="font-semibold text-fg">{userBook.status}</span>
+            ~{book.recommendedPages.toLocaleString()} pages
           </p>
         )}
+
+        <div className="mt-8 flex flex-wrap gap-3">
+          {book.hasFullText && chapters.length > 0 && firstUnfinished && (
+            <Link
+              href={`/book/${slug}/read/${firstUnfinished.chapterNumber}`}
+              className="inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-3 font-semibold text-brand-fg shadow-glow-brand transition hover:bg-brand-dark"
+            >
+              <BookOpen className="h-4 w-4" />
+              {completedChapters === 0
+                ? "Start reading"
+                : completedChapters === chapters.length
+                  ? "Read again"
+                  : `Continue — chapter ${firstUnfinished.chapterNumber}`}
+            </Link>
+          )}
+
+          {canMarkFinished && <MarkFinishedButton bookId={book.id} bookSlug={book.slug} />}
+
+          {canTest ? (
+            <Link
+              href={`/book/${book.slug}/test`}
+              className={cn(
+                "inline-flex items-center gap-2 rounded-xl px-5 py-3 font-semibold transition",
+                book.hasFullText
+                  ? "border border-border hover:bg-bg-muted"
+                  : "bg-brand text-brand-fg shadow-glow-brand hover:bg-brand-dark",
+              )}
+            >
+              <Sparkles className="h-4 w-4" /> Take comprehension test
+            </Link>
+          ) : status === "completed" ? (
+            <Link
+              href={`/book/${book.slug}/test`}
+              className="inline-flex items-center gap-2 rounded-xl border border-border px-5 py-3 font-semibold transition hover:bg-bg-muted"
+            >
+              <Sparkles className="h-4 w-4" /> Retake test
+            </Link>
+          ) : (
+            <button
+              disabled
+              title="Mark the book finished first"
+              className="inline-flex items-center gap-2 rounded-xl border border-border px-5 py-3 font-semibold opacity-40"
+            >
+              <Sparkles className="h-4 w-4" /> Take comprehension test
+            </button>
+          )}
+        </div>
       </div>
 
       {chapters.length > 0 && (
-        <div className="mt-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-border">
+        <div className="rounded-3xl bg-white p-6 shadow-soft ring-1 ring-border">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-bold">Chapters</h2>
             <span className="rounded-full bg-bg-muted px-3 py-1 text-xs font-semibold text-fg-muted">
-              {completedCount} / {chapters.length} complete
+              {completedChapters} / {chapters.length} complete
             </span>
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-bg-muted">
             <div
               className="h-full rounded-full bg-brand transition-all"
-              style={{ width: `${(completedCount / chapters.length) * 100}%` }}
+              style={{ width: `${(completedChapters / chapters.length) * 100}%` }}
             />
           </div>
           <ul className="mt-4 space-y-2">
@@ -151,8 +237,7 @@ export default async function BookPage({ params }: { params: Promise<{ slug: str
               const isCompleted = p?.status === "completed";
               const isReading = p?.status === "reading";
               const prevDone =
-                idx === 0 ||
-                progressMap.get(chapters[idx - 1].id)?.status === "completed";
+                idx === 0 || progressMap.get(chapters[idx - 1].id)?.status === "completed";
               const isLocked = !isCompleted && !isReading && !prevDone;
 
               return (
@@ -208,50 +293,9 @@ export default async function BookPage({ params }: { params: Promise<{ slug: str
         </div>
       )}
 
-      {sessions.length > 0 && (
-        <div className="mt-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-border">
-          <h2 className="text-lg font-bold">Recent sessions</h2>
-          <ul className="mt-3 space-y-2 text-sm">
-            {sessions.map((s) => (
-              <li key={s.id} className="flex justify-between text-fg-muted">
-                <span>{new Date(s.readAt).toLocaleString()}</span>
-                <span>
-                  {s.pages}pp · {s.minutes}min
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <BookStatusBanner status={status} bestScore={bestScore} attempts={attemptCount} />
 
-      {!book.hasFullText && (
-        <div className="mt-6 flex flex-wrap gap-3">
-          <button
-            disabled
-            className="inline-flex items-center gap-2 rounded-xl border border-border px-5 py-3 font-semibold transition disabled:opacity-60"
-            title="Coming soon"
-          >
-            <Sparkles className="h-4 w-4" /> Whole-book comprehension test (soon)
-          </button>
-        </div>
-      )}
+      <AttemptHistory attempts={attempts} />
     </main>
   );
-}
-
-function labelForGenre(g: string) {
-  switch (g) {
-    case "islamic":
-      return "Islamic";
-    case "arabic_literature":
-      return "Arabic Literature";
-    case "translated":
-      return "Translated";
-    case "graded_reader":
-      return "Graded Reader";
-    case "classical":
-      return "Classical";
-    default:
-      return g;
-  }
 }
