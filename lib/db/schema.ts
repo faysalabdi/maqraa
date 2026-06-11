@@ -51,6 +51,8 @@ export const bookGenre = pgEnum("book_genre", [
   "classical",
 ]);
 
+export const chapterStatus = pgEnum("chapter_status", ["unread", "reading", "completed"]);
+
 /* ────────────────────────────── catalogue ────────────────────────────── */
 
 export const levels = pgTable("levels", {
@@ -84,6 +86,7 @@ export const books = pgTable(
     isSelection: boolean("is_selection").notNull().default(false),
     parentBookId: uuid("parent_book_id"),
     recommendedPages: integer("recommended_pages"),
+    hasFullText: boolean("has_full_text").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
@@ -267,6 +270,69 @@ export const userAchievements = pgTable(
   }),
 );
 
+export const bookChapters = pgTable(
+  "book_chapters",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    bookId: uuid("book_id")
+      .notNull()
+      .references(() => books.id),
+    chapterNumber: integer("chapter_number").notNull(),
+    titleAr: text("title_ar").notNull(),
+    titleEn: text("title_en").notNull(),
+    contentAr: text("content_ar").notNull(),
+    source: text("source").notNull().default("public_domain"), // public_domain | original
+  },
+  (t) => ({
+    bookChapterIdx: uniqueIndex("chapters_book_number_idx").on(t.bookId, t.chapterNumber),
+  }),
+);
+
+export const userChapterProgress = pgTable(
+  "user_chapter_progress",
+  {
+    userId: uuid("user_id").notNull(),
+    chapterId: uuid("chapter_id")
+      .notNull()
+      .references(() => bookChapters.id),
+    status: chapterStatus("status").notNull().default("unread"),
+    quizScore: numeric("quiz_score", { precision: 5, scale: 2 }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.userId, t.chapterId] }),
+  }),
+);
+
+export const chapterQuizzes = pgTable("chapter_quizzes", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  chapterId: uuid("chapter_id")
+    .notNull()
+    .unique()
+    .references(() => bookChapters.id),
+  model: text("model").notNull(),
+  questions: jsonb("questions").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Global (not per-user) cache of Claude word lookups, keyed by diacritic-stripped surface.
+export const wordLookups = pgTable("word_lookups", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  key: text("key").notNull().unique(),
+  surface: text("surface").notNull(),
+  lemmaAr: text("lemma_ar").notNull(),
+  glossEn: text("gloss_en").notNull(),
+  pos: text("pos"),
+  exampleAr: text("example_ar"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const streaks = pgTable("streaks", {
   userId: uuid("user_id").primaryKey(),
   currentDays: integer("current_days").notNull().default(0),
@@ -274,3 +340,28 @@ export const streaks = pgTable("streaks", {
   lastActiveDate: date("last_active_date"),
   freezesRemaining: integer("freezes_remaining").notNull().default(2),
 });
+
+/* ────────────────────────────── analytics ──────────────────────────────
+ * Lightweight first-party usage tracking. One row per event. Aggregations
+ * are done at read time in /admin/analytics or via raw SQL.
+ */
+
+export const usageEvents = pgTable(
+  "usage_events",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: uuid("user_id"), // null = anonymous (pre-auth pages)
+    sessionId: text("session_id"), // browser-stable opaque id (set in middleware)
+    event: text("event").notNull(), // e.g. "page_view", "word_lookup", "quiz_submit"
+    path: text("path"), // normalized URL path
+    props: jsonb("props"), // arbitrary structured payload
+    userAgent: text("user_agent"),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    userOccurredIdx: index("usage_user_occurred_idx").on(t.userId, t.occurredAt),
+    eventOccurredIdx: index("usage_event_occurred_idx").on(t.event, t.occurredAt),
+  }),
+);

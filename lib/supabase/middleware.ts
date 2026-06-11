@@ -2,7 +2,22 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { env } from "@/lib/env";
 
-const PUBLIC_PATHS = ["/", "/sign-in", "/auth/callback"];
+const PUBLIC_PATHS = ["/", "/sign-in", "/auth/callback", "/preview"];
+
+const SID_COOKIE = "axp_sid";
+
+function ensureSessionId(request: NextRequest, response: NextResponse): string {
+  const existing = request.cookies.get(SID_COOKIE)?.value;
+  if (existing) return existing;
+  const sid = crypto.randomUUID();
+  response.cookies.set(SID_COOKIE, sid, {
+    httpOnly: false,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365,
+  });
+  return sid;
+}
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -42,6 +57,9 @@ export async function updateSession(request: NextRequest) {
     url.searchParams.set("redirect", pathname);
     return NextResponse.redirect(url);
   }
+
+  const sid = ensureSessionId(request, response);
+  response.headers.set("x-axp-sid", sid);
 
   return response;
 }

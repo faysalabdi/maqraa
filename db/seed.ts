@@ -1,4 +1,5 @@
-import "dotenv/config";
+import { config } from "dotenv";
+config({ path: ".env.local" });
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { sql } from "drizzle-orm";
@@ -6,6 +7,8 @@ import * as schema from "@/lib/db/schema";
 import { LEVELS } from "./seed/levels";
 import { BOOKS } from "./seed/books";
 import { ACHIEVEMENTS } from "./seed/achievements";
+import { CHAPTERS } from "./seed/chapters";
+import { eq } from "drizzle-orm";
 
 async function main() {
   const url = process.env.DIRECT_URL || process.env.DATABASE_URL;
@@ -51,6 +54,7 @@ async function main() {
         genre: b.genre,
         isSelection: b.isSelection ?? false,
         recommendedPages: b.recommendedPages,
+        hasFullText: b.hasFullText ?? false,
       })
       .onConflictDoUpdate({
         target: schema.books.slug,
@@ -66,6 +70,40 @@ async function main() {
           genre: b.genre,
           isSelection: b.isSelection ?? false,
           recommendedPages: b.recommendedPages,
+          hasFullText: b.hasFullText ?? false,
+        },
+      });
+  }
+
+  console.log("seeding chapters...");
+  for (const c of CHAPTERS) {
+    const bookRows = await db
+      .select({ id: schema.books.id })
+      .from(schema.books)
+      .where(eq(schema.books.slug, c.bookSlug))
+      .limit(1);
+    const book = bookRows[0];
+    if (!book) {
+      console.warn(`skipping chapter for unknown book slug: ${c.bookSlug}`);
+      continue;
+    }
+    await db
+      .insert(schema.bookChapters)
+      .values({
+        bookId: book.id,
+        chapterNumber: c.chapterNumber,
+        titleAr: c.titleAr,
+        titleEn: c.titleEn,
+        contentAr: c.contentAr,
+        source: c.source,
+      })
+      .onConflictDoUpdate({
+        target: [schema.bookChapters.bookId, schema.bookChapters.chapterNumber],
+        set: {
+          titleAr: c.titleAr,
+          titleEn: c.titleEn,
+          contentAr: c.contentAr,
+          source: c.source,
         },
       });
   }

@@ -29,11 +29,13 @@ pnpm dev                             # open http://localhost:3000
 - M2 ✅ Supabase auth (magic link) + middleware + Drizzle schema with RLS-ready tables
 - M3 ✅ Seed data: 8 levels, ~50 books across Islamic, Arabic literature, translated novels, and classical works
 - M4 ✅ Duolingo-style winding path with stage banners + book nodes (locked / unlocked / in-progress / completed states)
-- M5 🚧 Reading log dialog + session XP grants
-- M6 🚧 Claude comprehension test generation (scaffold present in `lib/ai/test-generator.ts`)
-- M7 🚧 SM-2 SRS review queue (algorithm complete + tested in `lib/srs/sm2.ts`)
-- M8 🚧 XP / streaks / achievements engine
-- M9 🚧 Polish: stats, settings, onboarding/placement, Framer animations
+- M5 ✅ **In-app reader**: chapter-based reading with tap-to-translate on every word (Claude-powered, globally cached lookups), save-word-to-flashcards, per-chapter comprehension quizzes generated from the actual chapter text, sequential chapter unlocking. Seeded with الأربعون النووية (10 hadith chapters) and an original beginner series رحلة سامر. In-app text is public-domain or original content only.
+- M6 ✅ Flashcard review (`/review`): SM-2 scheduling, flip animation, Again/Hard/Good/Easy with keyboard shortcuts, XP per review
+- M7 ✅ Word collection (`/words`): every saved word grouped by strength (New / Weak / Learning / Strong / Mastered) derived from SRS state
+- M8 ✅ Stats page: XP, rank progress bar, streak, vocab strength distribution, recent XP feed. Streak tracking on every XP grant.
+- 🚧 Whole-book comprehension tests for non-readable books (scaffold in `lib/ai/test-generator.ts`)
+- 🚧 Achievements engine, onboarding/placement quiz
+- 🚧 Listening & speaking practice (future: audio, conversation drills)
 
 See `docs/` and the in-app `/path` for the visual progression.
 
