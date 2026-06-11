@@ -14,6 +14,7 @@ import {
   Zap,
 } from "lucide-react";
 import { StatPill } from "@/components/chrome/StatPill";
+import { PageViewTracker } from "@/components/analytics/PageViewTracker";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -148,6 +149,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
         )}
       </header>
+      <PageViewTracker />
       {children}
     </div>
   );

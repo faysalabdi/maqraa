@@ -340,3 +340,28 @@ export const streaks = pgTable("streaks", {
   lastActiveDate: date("last_active_date"),
   freezesRemaining: integer("freezes_remaining").notNull().default(2),
 });
+
+/* ────────────────────────────── analytics ──────────────────────────────
+ * Lightweight first-party usage tracking. One row per event. Aggregations
+ * are done at read time in /admin/analytics or via raw SQL.
+ */
+
+export const usageEvents = pgTable(
+  "usage_events",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: uuid("user_id"), // null = anonymous (pre-auth pages)
+    sessionId: text("session_id"), // browser-stable opaque id (set in middleware)
+    event: text("event").notNull(), // e.g. "page_view", "word_lookup", "quiz_submit"
+    path: text("path"), // normalized URL path
+    props: jsonb("props"), // arbitrary structured payload
+    userAgent: text("user_agent"),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    userOccurredIdx: index("usage_user_occurred_idx").on(t.userId, t.occurredAt),
+    eventOccurredIdx: index("usage_event_occurred_idx").on(t.event, t.occurredAt),
+  }),
+);
