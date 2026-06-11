@@ -60,11 +60,43 @@ pnpm dev
 
 Sign in with your real inbox — Supabase will send a real email. Check spam if it doesn't arrive within ~30s.
 
+## OTP code length
+
+Supabase's default code is **6 digits**. The sign-in form accepts 6–8 digits. If you change the length under **Auth → Email → OTP length**, anything between 6 and 8 will work without code changes.
+
+## Email not arriving — the SMTP problem
+
+Supabase ships a built-in SMTP that exists only for testing. It is heavily rate-limited (a few sends per hour, sometimes per project per day), randomly drops emails when the destination is Gmail/Outlook/iCloud, and the rate limit is **per project**, not per user. Symptoms:
+
+- The first 1–2 sign-ins work, then nothing arrives.
+- It works on `localhost` but not on the Vercel URL.
+- You see `Email rate limit exceeded` in **Supabase → Logs → Auth**.
+
+**Fix: configure custom SMTP.** Resend is the easiest path.
+
+1. Sign up at <https://resend.com>. Free tier = 3k emails/month, 100/day.
+2. Add and verify your domain (or use their `onboarding@resend.dev` sandbox for testing).
+3. Create an API key.
+4. In Supabase → **Project Settings → Auth → SMTP Settings**:
+   - **Enable Custom SMTP**: on
+   - **Host**: `smtp.resend.com`
+   - **Port**: `465`
+   - **User**: `resend`
+   - **Pass**: your Resend API key
+   - **Sender email**: `auth@yourdomain.com` (must be a verified domain in Resend)
+   - **Sender name**: `Arabic XP`
+5. Save and click **Send test email**.
+
+After that, OTPs deliver in <5s and the per-hour cap disappears.
+
 ## Common pitfalls
 
 - **"Invalid OTP" right after sending one.** The default expiry is 60s. Bump it under Auth → Email if you need more.
+- **No email at all on Vercel, fine on localhost.** Almost always the built-in SMTP being rate-limited. Configure custom SMTP (above).
 - **Redirect loops at `/sign-in?redirect=/path`.** Your `SUPABASE_SERVICE_ROLE_KEY` or `DATABASE_URL` is wrong; `getUser()` is failing silently. Check the server logs.
 - **"failed to fetch" from the client.** `NEXT_PUBLIC_SUPABASE_URL` is missing in the environment Vercel uses for the running deployment. Re-deploy after adding the variable.
+- **`getaddrinfo ENOTFOUND db.<project>.supabase.co` in Vercel logs.** You put the direct connection string in `DATABASE_URL`. Vercel can't reach IPv6. Switch to the Transaction-mode pooler URL (`...pooler.supabase.com:6543`). See `docs/DEPLOY.md`.
+- **`column "<name>" does not exist` errors.** You merged a PR that touched `lib/db/schema.ts` and haven't run `pnpm db:push` against the hosted DB. Run it locally with `.env.local` pointing at production.
 - **RLS errors when a server action writes.** You imported `db` (Drizzle) instead of the auth-aware Supabase client. `db` uses the service role and bypasses RLS — that's fine for *trusted* server actions, but only after you've called `supabase.auth.getUser()` and checked the result. Every server action in this repo follows that pattern.
 
 ## How to add a sign-out button

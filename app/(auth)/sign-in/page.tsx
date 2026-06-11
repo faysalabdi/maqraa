@@ -111,23 +111,26 @@ export default function SignInPage() {
         ) : (
           <form onSubmit={verifyOtp} className="space-y-4">
             <label className="block">
-              <span className="mb-1 block text-sm font-medium">8-digit code</span>
+              <span className="mb-1 block text-sm font-medium">Verification code</span>
               <input
                 type="text"
                 inputMode="numeric"
-                pattern="\d{8}"
+                pattern="\d{6,8}"
                 maxLength={8}
                 required
                 autoFocus
                 value={otp}
                 onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
-                placeholder="00000000"
-                className="w-full rounded-xl border border-border bg-white px-4 py-3 text-center text-2xl font-bold tracking-[0.5em] outline-none focus:ring-2 focus:ring-brand"
+                placeholder="000000"
+                className="w-full rounded-xl border border-border bg-white px-4 py-3 text-center text-2xl font-bold tracking-[0.4em] outline-none focus:ring-2 focus:ring-brand"
               />
+              <span className="mt-1 block text-xs text-fg-muted">
+                The 6-digit code in the email Supabase just sent you.
+              </span>
             </label>
             <button
               type="submit"
-              disabled={status === "loading" || otp.length < 8}
+              disabled={status === "loading" || otp.length < 6}
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-3 font-semibold text-brand-fg transition hover:bg-brand-dark disabled:opacity-60"
             >
               {status === "loading" ? (

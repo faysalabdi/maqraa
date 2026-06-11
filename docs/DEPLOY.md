@@ -12,8 +12,8 @@ Step by step. If you do these in order you should be live in ~20 minutes.
 
 1. Create a project at <https://supabase.com>.
 2. In **Project Settings → Database → Connection string**, copy:
-   - the **Connection pooling** URL → that's `DATABASE_URL` (uses port `6543`).
-   - the **Connection string** (direct) → that's `DIRECT_URL` (port `5432`).
+   - the **Transaction pooler** URL (hostname ends in `.pooler.supabase.com`, port `6543`) → that's `DATABASE_URL`. **Do NOT use the direct host** (`db.<project>.supabase.co`); it's IPv6-only and Vercel's serverless runtime cannot reach it. Symptom if you get this wrong: `getaddrinfo ENOTFOUND db.<project>.supabase.co` and the page renders the generic "Application error" screen.
+   - the **direct** connection string (port `5432`) → that's `DIRECT_URL`, **used only locally** for migrations (`pnpm db:push`). Do not set `DIRECT_URL` on Vercel.
 3. In **Project Settings → API**, copy:
    - **Project URL** → `NEXT_PUBLIC_SUPABASE_URL`
    - **anon public** key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
@@ -38,8 +38,7 @@ Step by step. If you do these in order you should be live in ~20 minutes.
    | `NEXT_PUBLIC_SUPABASE_URL` | from Supabase API tab |
    | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | from Supabase API tab |
    | `SUPABASE_SERVICE_ROLE_KEY` | from Supabase API tab (server only) |
-   | `DATABASE_URL` | pooled connection string |
-   | `DIRECT_URL` | direct connection string |
+   | `DATABASE_URL` | **Transaction pooler URL** (`...pooler.supabase.com:6543`). Never the direct `db.<project>.supabase.co` host — Vercel can't reach IPv6 |
    | `ANTHROPIC_API_KEY` | from Anthropic console |
    | `ANTHROPIC_TEST_MODEL` | `claude-sonnet-4-6` |
    | `ANTHROPIC_FALLBACK_MODEL` | `claude-haiku-4-5-20251001` |
@@ -55,6 +54,18 @@ After Vercel gives you a URL, go back to Supabase and update:
 - **Redirect URLs**: add both `http://localhost:3000/auth/callback` and `https://YOUR-DEPLOYMENT.vercel.app/auth/callback`.
 
 Custom domain? After you add it in Vercel, update Site URL and Redirect URLs again.
+
+## 4b. When the DB has changed since last deploy
+
+The schema isn't migrated automatically. After merging a PR that touches `lib/db/schema.ts`:
+
+```bash
+# locally, with .env.local pointing at your hosted Supabase
+pnpm db:push        # applies schema changes
+pnpm db:seed        # re-seeds catalogue tables (idempotent)
+```
+
+If you skip this, you'll see errors like `column "<name>" does not exist` in Vercel logs.
 
 ## 5. Verify
 
