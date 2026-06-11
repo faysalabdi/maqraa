@@ -12,6 +12,7 @@ export type BookNodeData = {
   genre: string;
   difficulty: number;
   recommendedPages: number | null;
+  hasFullText: boolean;
   status: "locked" | "unlocked" | "in_progress" | "reading_done" | "testing" | "completed";
 };
 
@@ -74,6 +75,7 @@ export async function getPathForUser(
           genre: b.genre,
           difficulty: b.difficulty,
           recommendedPages: b.recommendedPages,
+          hasFullText: b.hasFullText,
           status,
         };
       }),

@@ -1,6 +1,13 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { Flame, BookOpen, Sparkles, Settings as SettingsIcon, BarChart3 } from "lucide-react";
+import {
+  Flame,
+  BookOpen,
+  Sparkles,
+  Settings as SettingsIcon,
+  BarChart3,
+  Brain,
+} from "lucide-react";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -25,6 +32,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </NavLink>
             <NavLink href="/review" icon={<Flame className="h-4 w-4" />}>
               Review
+            </NavLink>
+            <NavLink href="/words" icon={<Brain className="h-4 w-4" />}>
+              Words
             </NavLink>
             <NavLink href="/stats" icon={<BarChart3 className="h-4 w-4" />}>
               Stats

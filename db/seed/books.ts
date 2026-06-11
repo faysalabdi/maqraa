@@ -11,10 +11,25 @@ export type SeedBook = {
   genre: "islamic" | "arabic_literature" | "translated" | "graded_reader" | "classical";
   isSelection?: boolean;
   recommendedPages?: number;
+  hasFullText?: boolean;
 };
 
 export const BOOKS: SeedBook[] = [
   /* ─────────────────────────── Level 1 ─────────────────────────── */
+  {
+    slug: "rihlat-samir",
+    level: 1,
+    orderInLevel: 0,
+    titleAr: "رحلة سامر",
+    titleEn: "Samir's Journey (Arabic XP Original)",
+    authorEn: "Arabic XP Originals",
+    blurb:
+      "An original fully-diacritized beginner story written for this app. Read it right here — tap any word to translate and save it. Four short chapters about a boy who discovers that every book is a voyage.",
+    difficulty: 1,
+    genre: "graded_reader",
+    recommendedPages: 12,
+    hasFullText: true,
+  },
   {
     slug: "qasas-al-nabiyeen-lil-atfal",
     level: 1,
@@ -147,10 +162,11 @@ export const BOOKS: SeedBook[] = [
     authorAr: "الإمام النووي",
     authorEn: "al-Nawawi",
     blurb:
-      "Forty famous hadith. Short, memorizable, and your vocabulary for the rest of your Arabic life.",
+      "Forty famous hadith. Short, memorizable, and your vocabulary for the rest of your Arabic life. Readable in-app: each hadith is a chapter with tap-to-translate.",
     difficulty: 2,
     genre: "islamic",
     recommendedPages: 80,
+    hasFullText: true,
   },
   {
     slug: "old-man-sea-ar",

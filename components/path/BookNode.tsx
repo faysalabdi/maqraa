@@ -56,13 +56,20 @@ export function BookNode({ book, side }: { book: BookNodeData; side: "left" | "r
               {book.titleAr}
             </p>
             <p className="text-xs text-fg-muted">{book.titleEn}</p>
-            <span
-              className={cn(
-                "mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1",
-                GENRE_TINT[book.genre] ?? "bg-zinc-100 text-zinc-900 ring-zinc-200",
+            <span className={cn("mt-1 flex flex-wrap gap-1", side === "left" && "justify-end")}>
+              <span
+                className={cn(
+                  "inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1",
+                  GENRE_TINT[book.genre] ?? "bg-zinc-100 text-zinc-900 ring-zinc-200",
+                )}
+              >
+                {labelForGenre(book.genre)}
+              </span>
+              {book.hasFullText && (
+                <span className="inline-flex rounded-full bg-brand px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-fg">
+                  Read here
+                </span>
               )}
-            >
-              {labelForGenre(book.genre)}
             </span>
           </>
         )}

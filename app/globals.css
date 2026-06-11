@@ -4,17 +4,18 @@
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-arabic: var(--font-naskh), var(--font-amiri), "Noto Naskh Arabic", "Amiri", serif;
 
-  --color-bg: oklch(0.99 0.005 95);
-  --color-bg-muted: oklch(0.97 0.008 95);
-  --color-fg: oklch(0.18 0.02 250);
-  --color-fg-muted: oklch(0.45 0.02 250);
-  --color-border: oklch(0.9 0.01 95);
+  /* Brand: "midnight oasis" — warm parchment, deep emerald, saffron gold */
+  --color-bg: oklch(0.985 0.008 90);
+  --color-bg-muted: oklch(0.955 0.012 90);
+  --color-fg: oklch(0.22 0.03 160);
+  --color-fg-muted: oklch(0.48 0.02 160);
+  --color-border: oklch(0.9 0.012 90);
 
-  --color-brand: oklch(0.66 0.15 145);          /* Duolingo-green */
-  --color-brand-dark: oklch(0.56 0.16 145);
-  --color-brand-fg: oklch(0.99 0.01 145);
+  --color-brand: oklch(0.6 0.14 160);           /* deep emerald */
+  --color-brand-dark: oklch(0.5 0.14 160);
+  --color-brand-fg: oklch(0.99 0.01 160);
 
-  --color-accent: oklch(0.78 0.14 75);          /* warm gold for XP/streak */
+  --color-accent: oklch(0.78 0.15 80);          /* saffron gold for XP/streak */
   --color-locked: oklch(0.7 0.01 250);
   --color-danger: oklch(0.6 0.2 25);
 }
