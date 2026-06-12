@@ -12,8 +12,10 @@ import {
   Award,
   Trophy,
   Zap,
+  MessagesSquare,
 } from "lucide-react";
 import { StatPill } from "@/components/chrome/StatPill";
+import { Logo } from "@/components/brand/Logo";
 import { PageViewTracker } from "@/components/analytics/PageViewTracker";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -51,6 +53,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       currentLevel = profileRows[0].currentLevel;
       fontScale = Number(profileRows[0].fontScale);
       displayName = profileRows[0].displayName;
+    } else {
+      // First visit after password/OTP signup — provision the profile rows.
+      await db
+        .insert(schema.profiles)
+        .values({ id: user.id, displayName: user.email ?? null })
+        .onConflictDoNothing();
+      await db.insert(schema.streaks).values({ userId: user.id }).onConflictDoNothing();
+      displayName = user.email ?? null;
     }
     if (streakRows[0]) {
       streakDays = streakRows[0].currentDays;
@@ -67,14 +77,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     >
       <header className="sticky top-0 z-30 border-b border-border bg-white/80 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3">
-          <Link
-            href="/path"
-            className="flex shrink-0 items-center gap-2 font-bold"
-          >
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand text-brand-fg shadow-glow-brand">
-              <BookOpen className="h-5 w-5" strokeWidth={2.5} />
-            </span>
-            <span className="hidden sm:inline text-base">arabic-xp</span>
+          <Link href="/path" className="shrink-0">
+            <Logo />
           </Link>
 
           <div className="hidden flex-1 items-center justify-center gap-1.5 md:flex">
@@ -99,6 +103,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <nav className="ml-auto flex items-center gap-0.5 text-sm font-semibold">
             <NavLink href="/path" icon={<Sparkles className="h-4 w-4" />}>
               Path
+            </NavLink>
+            <NavLink href="/library" icon={<BookOpen className="h-4 w-4" />}>
+              Read
+            </NavLink>
+            <NavLink href="/practice" icon={<MessagesSquare className="h-4 w-4" />}>
+              Practice
             </NavLink>
             <NavLink href="/review" icon={<Flame className="h-4 w-4" />}>
               Review

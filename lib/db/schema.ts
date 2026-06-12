@@ -41,6 +41,8 @@ export const xpReason = pgEnum("xp_reason", [
   "book_completed",
   "level_up",
   "achievement",
+  "conversation_turn",
+  "listening_passed",
 ]);
 
 export const bookGenre = pgEnum("book_genre", [
@@ -363,5 +365,99 @@ export const usageEvents = pgTable(
   (t) => ({
     userOccurredIdx: index("usage_user_occurred_idx").on(t.userId, t.occurredAt),
     eventOccurredIdx: index("usage_event_occurred_idx").on(t.event, t.occurredAt),
+  }),
+);
+
+/* ──────────────────── personal texts (URL / paste imports) ────────────────────
+ * User-owned reading material imported from a link or pasted in. Private per
+ * user (RLS) — never shared into the public catalogue.
+ */
+
+export const textKind = pgEnum("text_kind", ["imported", "pasted", "pdf", "generated"]);
+
+export const userTexts = pgTable(
+  "user_texts",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: uuid("user_id").notNull(),
+    title: text("title").notNull(),
+    kind: textKind("kind").notNull().default("imported"),
+    level: integer("level"), // set for generated stories
+    sourceUrl: text("source_url"),
+    contentAr: text("content_ar").notNull(),
+    wordCount: integer("word_count").notNull().default(0),
+    currentSection: integer("current_section").notNull().default(0),
+    totalSections: integer("total_sections").notNull().default(1),
+    completedSections: jsonb("completed_sections").notNull().default(sql`'[]'::jsonb`),
+    lastReadAt: timestamp("last_read_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    userCreatedIdx: index("user_texts_user_created_idx").on(t.userId, t.createdAt),
+  }),
+);
+
+// Per-section comprehension quizzes for personal texts, cached per (text, section).
+export const textQuizzes = pgTable(
+  "text_quizzes",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    textId: uuid("text_id")
+      .notNull()
+      .references(() => userTexts.id, { onDelete: "cascade" }),
+    sectionNumber: integer("section_number").notNull(),
+    questions: jsonb("questions").notNull(),
+    model: text("model").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    textSectionIdx: uniqueIndex("text_quizzes_text_section_idx").on(t.textId, t.sectionNumber),
+  }),
+);
+
+/* ──────────────────────── practice: conversation ──────────────────────── */
+
+export const conversationSessions = pgTable(
+  "conversation_sessions",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    userId: uuid("user_id").notNull(),
+    scenario: text("scenario").notNull(), // slug, e.g. "market", "introductions"
+    level: integer("level").notNull().default(1),
+    // array of { role: "user" | "partner", content_ar, translation_en?, correction? }
+    messages: jsonb("messages").notNull().default(sql`'[]'::jsonb`),
+    turns: integer("turns").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    userUpdatedIdx: index("conversations_user_updated_idx").on(t.userId, t.updatedAt),
+  }),
+);
+
+/* ───────────────────────── practice: listening ───────────────────────── */
+
+// Global pool of generated listening exercises, shared across users per level.
+export const listeningExercises = pgTable(
+  "listening_exercises",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    level: integer("level").notNull(),
+    topic: text("topic").notNull(),
+    passageAr: text("passage_ar").notNull(),
+    questions: jsonb("questions").notNull(), // [{id, prompt_ar, choices[4], answer_index, rationale_ar}]
+    model: text("model").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    levelIdx: index("listening_level_idx").on(t.level),
   }),
 );

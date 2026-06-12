@@ -215,6 +215,18 @@ export default async function BookPage({ params }: { params: Promise<{ slug: str
             </button>
           )}
         </div>
+
+        {!book.hasFullText && (
+          <div className="mt-6 rounded-2xl bg-amber-50 p-4 text-sm leading-relaxed text-amber-900 ring-1 ring-amber-200">
+            <span className="font-bold">Own a copy of this book?</span> Import its PDF in{" "}
+            <Link href="/texts" className="font-bold underline">
+              My reading
+            </Link>{" "}
+            and read it right here with tap-to-translate, saved vocabulary, position tracking,
+            and per-section comprehension checks. Otherwise read it offline, then come back for
+            the whole-book test.
+          </div>
+        )}
       </div>
 
       {chapters.length > 0 && (

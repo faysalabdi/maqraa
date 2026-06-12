@@ -58,13 +58,28 @@ export async function getOrGenerateChapterQuiz(
     return ChapterQuizSchema.parse(cached[0].questions);
   }
 
+  const quiz = await generateQuizForContent(contentAr, level);
+
+  await db
+    .insert(schema.chapterQuizzes)
+    .values({ chapterId, model: FALLBACK_MODEL, questions: quiz })
+    .onConflictDoNothing();
+
+  return quiz;
+}
+
+/** Raw 4-question quiz generation for any Arabic passage. No caching. */
+export async function generateQuizForContent(
+  contentAr: string,
+  level: number,
+): Promise<ChapterQuiz> {
   const response = await anthropic.messages.create({
     model: FALLBACK_MODEL,
     max_tokens: 2500,
     system: [
       {
         type: "text",
-        text: "You are an Arabic comprehension examiner. You will receive the full Arabic text of a chapter the learner just read, plus their level (1-8). Generate exactly 4 multiple-choice questions in clear Modern Standard Arabic testing understanding of THIS chapter only: key events, meanings, and one vocabulary-in-context question. Add tashkeel to uncommon words. Each question has 4 distinct choices with exactly one correct. Calibrate wording to the learner's level. Submit only via the submit_quiz tool.",
+        text: "You are an Arabic comprehension examiner. You will receive the full Arabic text of a passage the learner just read, plus their level (1-8). Generate exactly 4 multiple-choice questions in clear Modern Standard Arabic testing understanding of THIS passage only: key events, meanings, and one vocabulary-in-context question. Add tashkeel to uncommon words. Each question has 4 distinct choices with exactly one correct. Calibrate wording to the learner's level. Submit only via the submit_quiz tool.",
         cache_control: { type: "ephemeral" },
       },
     ],
@@ -73,7 +88,7 @@ export async function getOrGenerateChapterQuiz(
     messages: [
       {
         role: "user",
-        content: `Learner level: ${level} of 8\n\nChapter text:\n${contentAr}`,
+        content: `Learner level: ${level} of 8\n\nPassage text:\n${contentAr.slice(0, 20000)}`,
       },
     ],
   });
@@ -81,12 +96,5 @@ export async function getOrGenerateChapterQuiz(
   const toolUse = response.content.find((c) => c.type === "tool_use");
   if (!toolUse || toolUse.type !== "tool_use") throw new Error("no tool_use in quiz response");
 
-  const quiz = ChapterQuizSchema.parse(toolUse.input);
-
-  await db
-    .insert(schema.chapterQuizzes)
-    .values({ chapterId, model: FALLBACK_MODEL, questions: quiz })
-    .onConflictDoNothing();
-
-  return quiz;
+  return ChapterQuizSchema.parse(toolUse.input);
 }
