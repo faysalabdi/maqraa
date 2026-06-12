@@ -19,24 +19,22 @@ import { sectionize } from "@/lib/reading/sections";
  * URLs (NEXT_PUBLIC_APP_URL / VERCEL_URL) are fallbacks only.
  */
 
-// Small chunks keep each Claude vision call fast and — crucially — well under
-// the model's output-token cap, so a chunk's Arabic is never truncated.
-export const PAGES_PER_CHUNK = 12;
+// Small chunks keep each Claude vision call short and — crucially — well under
+// the model's output-token cap, so a chunk's Arabic is never truncated. Dense
+// scanned pages read at roughly 10-20s/page, so 6 pages stays comfortably
+// inside the 240s per-chunk timeout.
+export const PAGES_PER_CHUNK = 6;
 export const MAX_PAGES = 1000;
 // Modest concurrency keeps us under the account's tokens/min tier so chunks
 // rarely hit a rate limit in the first place.
 const BATCH_SIZE = 3;
-// A chunk that keeps failing (after its in-call retry) is requeued up to this
-// many job-level passes before being marked terminally failed.
+// A chunk that keeps failing is requeued up to this many job-level passes
+// before being marked terminally failed.
 const MAX_CHUNK_ATTEMPTS = 5;
 // A 'working' chunk older than this was stranded by a killed invocation and is
-// safe to requeue.
-export const STALE_WORKING_MS = 120_000;
-// Stop starting new batches this long after the invocation began and hand off
-// instead. A batch is bounded by the 200s per-chunk API timeout, so starting
-// one later than this risks the platform killing the invocation mid-batch
-// (maxDuration 300s) — which strands chunks in 'working' with no error.
-const LOOP_BUDGET_MS = 60_000;
+// safe to requeue. Must exceed the worst-case batch duration (240s chunk
+// timeout + overhead) or live workers get falsely requeued.
+export const STALE_WORKING_MS = 360_000;
 
 function countWords(s: string): number {
   return s.split(/\s+/).filter(Boolean).length;
@@ -289,27 +287,24 @@ async function processOneBatch(textId: string): Promise<"stop" | number> {
 }
 
 /**
- * Drive extraction for as long as this invocation's time budget allows, then
- * hand the remainder to a fresh invocation via the extract route. `origin` is
- * the public URL of the original request, threaded through every hop so the
- * self-call never depends on env configuration.
+ * Process exactly ONE batch, then hand any remaining work to a fresh
+ * invocation via the extract route. One batch per invocation is what lets the
+ * generous 240s per-chunk timeout fit the 300s function budget — the batch
+ * starts immediately, never partway through an invocation's lifetime.
+ * `origin` is the public URL of the original request, threaded through every
+ * hop so the self-call never depends on env configuration.
  */
 export async function runExtractionLoop(textId: string, origin?: string): Promise<void> {
-  const startedAt = Date.now();
-  for (;;) {
-    let result: "stop" | number;
-    try {
-      result = await processOneBatch(textId);
-    } catch (e) {
-      const detail = e instanceof Error && e.message ? e.message.slice(0, 120) : "batch crashed";
-      console.error("[extract] batch failed", textId, e);
-      await markFailed(textId, detail);
-      return;
-    }
-    if (result === "stop") return;
-    if (Date.now() - startedAt > LOOP_BUDGET_MS) {
-      await triggerExtraction(textId, origin);
-      return;
-    }
+  let result: "stop" | number;
+  try {
+    result = await processOneBatch(textId);
+  } catch (e) {
+    const detail = e instanceof Error && e.message ? e.message.slice(0, 120) : "batch crashed";
+    console.error("[extract] batch failed", textId, e);
+    await markFailed(textId, detail);
+    return;
+  }
+  if (result !== "stop") {
+    await triggerExtraction(textId, origin);
   }
 }

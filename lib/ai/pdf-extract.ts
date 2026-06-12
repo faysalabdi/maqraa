@@ -113,11 +113,12 @@ export async function extractArabicPdf(pdf: Uint8Array): Promise<Extracted> {
         },
       ],
     },
-    // Bound each attempt so a slow call can't blow the invocation budget, but
-    // keep one SDK retry so a transient 429/5xx (with the SDK's retry-after
-    // backoff) doesn't drop the chunk. Worst case ~2x70s stays under the 300s
-    // function limit; chunks that still fail are requeued by the job.
-    { timeout: 70_000, maxRetries: 1 },
+    // A dense scanned chunk legitimately takes minutes to read, so the bound
+    // must be generous — 240s fits one batch inside the 300s function budget
+    // when the batch starts immediately. No SDK retries: the job's own requeue
+    // (with attempt counting) retries failed chunks across invocations, which
+    // doesn't blow this invocation's budget.
+    { timeout: 240_000, maxRetries: 0 },
   );
 
   const toolUse = response.content.find((c) => c.type === "tool_use");
