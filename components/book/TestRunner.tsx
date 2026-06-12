@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, CheckCircle, XCircle, Loader2, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, XCircle, Loader2, Sparkles, Trophy, Star } from "lucide-react";
+import { motion } from "framer-motion";
 import { submitAttempt } from "@/server/actions/tests";
 import type { PublicQuestion, PerQuestionResult } from "@/server/actions/test-types";
 
@@ -22,6 +23,7 @@ type ResultState = {
   passed: boolean;
   xpEarned: number;
   perQuestion: PerQuestionResult[];
+  newLevel: number | null;
 };
 
 export default function TestRunner({
@@ -55,7 +57,7 @@ export default function TestRunner({
       if ("error" in res) {
         setError(res.error);
       } else {
-        setResult(res);
+        setResult({ ...res, newLevel: res.newLevel ?? null });
       }
     });
   }
@@ -220,6 +222,40 @@ function labelType(type: string) {
   }
 }
 
+function Confetti() {
+  const particles = Array.from({ length: 28 });
+  const colors = [
+    "bg-emerald-400", "bg-brand", "bg-amber-400",
+    "bg-sky-400", "bg-violet-400", "bg-rose-400",
+  ];
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+      {particles.map((_, i) => (
+        <motion.span
+          key={i}
+          className={`absolute h-2 w-2 rounded-sm ${colors[i % colors.length]}`}
+          initial={{
+            x: `${20 + Math.random() * 60}%`,
+            y: "-8px",
+            rotate: 0,
+            opacity: 1,
+          }}
+          animate={{
+            y: "110%",
+            rotate: (i % 2 === 0 ? 1 : -1) * (180 + Math.random() * 360),
+            opacity: [1, 1, 0],
+          }}
+          transition={{
+            duration: 1.4 + Math.random() * 0.8,
+            delay: Math.random() * 0.6,
+            ease: "easeIn",
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 function ResultScreen({
   result,
   bookSlug,
@@ -233,46 +269,127 @@ function ResultScreen({
 
   return (
     <main className="mx-auto max-w-2xl px-4 pb-24 pt-6">
-      <div className="rounded-3xl bg-white p-8 shadow-sm ring-1 ring-border text-center">
-        {result.passed ? (
-          <CheckCircle className="mx-auto h-14 w-14 text-emerald-500" />
-        ) : (
-          <XCircle className="mx-auto h-14 w-14 text-danger" />
-        )}
+      {result.passed ? (
+        <motion.div
+          initial={{ scale: 0.85, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: "spring", stiffness: 260, damping: 20 }}
+          className="relative overflow-hidden rounded-3xl bg-gradient-to-b from-emerald-50 to-white p-8 shadow-lift ring-1 ring-emerald-200 text-center"
+        >
+          <Confetti />
 
-        <h1 className="mt-4 text-3xl font-extrabold">
-          {result.passed ? "Passed!" : "Not quite"}
-        </h1>
-        <p className="mt-1 text-fg-muted">{bookTitleEn}</p>
-
-        <p className="mt-6 text-6xl font-black">{result.score}%</p>
-        <p className="mt-1 text-sm text-fg-muted">
-          {result.passed ? "Needed 70% — you made it." : "Need 70% to pass."}
-        </p>
-
-        {result.xpEarned > 0 && (
-          <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-brand/10 px-4 py-2 text-sm font-semibold text-brand">
-            <Sparkles className="h-4 w-4" />+{result.xpEarned} XP earned
-          </div>
-        )}
-
-        <div className="mt-8 flex flex-wrap justify-center gap-3">
-          <Link
-            href={`/book/${bookSlug}`}
-            className="rounded-xl border border-border px-5 py-3 font-semibold transition hover:bg-bg-muted"
+          <motion.div
+            initial={{ scale: 0, rotate: -15 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ type: "spring", stiffness: 300, damping: 18, delay: 0.1 }}
+            className="mx-auto mb-2 grid h-20 w-20 place-items-center rounded-full bg-emerald-500 text-white shadow-lg"
           >
-            Back to book
-          </Link>
-          {!result.passed && (
+            <Trophy className="h-10 w-10" />
+          </motion.div>
+
+          <motion.h1
+            initial={{ y: 12, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.25 }}
+            className="mt-2 text-4xl font-black text-emerald-900"
+          >
+            Book finished!
+          </motion.h1>
+          <motion.p
+            initial={{ y: 8, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.35 }}
+            className="mt-1 text-fg-muted"
+          >
+            {bookTitleEn}
+          </motion.p>
+
+          <motion.p
+            initial={{ scale: 0.7, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: "spring", stiffness: 200, damping: 14, delay: 0.4 }}
+            className="mt-6 text-7xl font-black text-emerald-700"
+          >
+            {result.score}%
+          </motion.p>
+          <p className="mt-1 text-sm text-fg-muted">Needed 70% — you made it.</p>
+
+          {result.xpEarned > 0 && (
+            <motion.div
+              initial={{ y: 10, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.55 }}
+              className="mt-5 inline-flex items-center gap-2 rounded-full bg-brand px-5 py-2.5 text-sm font-bold text-brand-fg shadow-glow-brand"
+            >
+              <Star className="h-4 w-4 fill-current" />
+              +{result.xpEarned} XP earned
+            </motion.div>
+          )}
+
+          {result.newLevel && (
+            <motion.div
+              initial={{ y: 10, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.7 }}
+              className="mt-3 inline-flex items-center gap-2 rounded-full bg-amber-400 px-5 py-2.5 text-sm font-bold text-amber-950"
+            >
+              <Sparkles className="h-4 w-4" />
+              Stage {result.newLevel} unlocked!
+            </motion.div>
+          )}
+
+          <motion.div
+            initial={{ y: 10, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.65 }}
+            className="mt-8 flex flex-wrap justify-center gap-3"
+          >
+            <Link
+              href="/path"
+              className="rounded-xl bg-brand px-5 py-3 font-semibold text-brand-fg shadow-glow-brand transition hover:bg-brand-dark"
+            >
+              Back to path
+            </Link>
+            <Link
+              href={`/book/${bookSlug}`}
+              className="rounded-xl border border-border px-5 py-3 font-semibold transition hover:bg-bg-muted"
+            >
+              Back to book
+            </Link>
+          </motion.div>
+        </motion.div>
+      ) : (
+        <div className="rounded-3xl bg-white p-8 shadow-sm ring-1 ring-border text-center">
+          <XCircle className="mx-auto h-14 w-14 text-danger" />
+
+          <h1 className="mt-4 text-3xl font-extrabold">Not quite</h1>
+          <p className="mt-1 text-fg-muted">{bookTitleEn}</p>
+
+          <p className="mt-6 text-6xl font-black">{result.score}%</p>
+          <p className="mt-1 text-sm text-fg-muted">Need 70% to pass.</p>
+
+          {result.xpEarned > 0 && (
+            <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-brand/10 px-4 py-2 text-sm font-semibold text-brand">
+              <Sparkles className="h-4 w-4" />+{result.xpEarned} XP earned
+            </div>
+          )}
+
+          <div className="mt-8 flex flex-wrap justify-center gap-3">
+            <Link
+              href={`/book/${bookSlug}`}
+              className="rounded-xl border border-border px-5 py-3 font-semibold transition hover:bg-bg-muted"
+            >
+              Back to book
+            </Link>
             <Link
               href={`/book/${bookSlug}/test`}
               className="rounded-xl bg-brand px-5 py-3 font-semibold text-brand-fg transition hover:bg-brand-dark"
             >
               Try again
             </Link>
-          )}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="mt-4">
         <button

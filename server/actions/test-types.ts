@@ -37,5 +37,6 @@ export type SubmitResult =
       passed: boolean;
       xpEarned: number;
       perQuestion: PerQuestionResult[];
+      newLevel: number | null;
     }
   | { error: string };

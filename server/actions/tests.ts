@@ -7,7 +7,7 @@ import { eq, and, count } from "drizzle-orm";
 import { type GeneratedTest } from "@/lib/ai/test-generator";
 import { anthropic, FALLBACK_MODEL } from "@/lib/ai/anthropic";
 import { grantXp, recordActivity } from "@/lib/xp/grant";
-import { XP_REWARDS, testPassedXp } from "@/lib/xp/rewards";
+import { XP_REWARDS, testPassedXp, bookCompletionXp } from "@/lib/xp/rewards";
 import { checkAndGrantAchievements } from "@/lib/achievements/check";
 import { z } from "zod";
 import type { PerQuestionResult, SubmitResult } from "./test-types";
@@ -210,6 +210,7 @@ export async function submitAttempt(
   }
 
   let xpEarned = 0;
+  let newLevel: number | null = null;
   const attemptRef = { testId, bookId };
 
   if (passed) {
@@ -232,16 +233,20 @@ export async function submitAttempt(
       });
     }
 
-    xpEarned += await grantXp({
-      userId: user.id,
-      delta: XP_REWARDS.bookCompleted,
-      reason: "book_completed",
-      ref: { bookId },
-      refHash: `book_completed:${bookId}`,
-    });
+    const estimatedWords = (book.recommendedPages ?? 100) * 250;
+    const completionXp = bookCompletionXp(estimatedWords);
+    if (completionXp > 0) {
+      xpEarned += await grantXp({
+        userId: user.id,
+        delta: completionXp,
+        reason: "book_completed",
+        ref: { bookId },
+        refHash: `book_completed:${bookId}`,
+      });
+    }
 
     const { maybeLevelUp } = await import("@/lib/progression");
-    await maybeLevelUp(user.id, book.level);
+    newLevel = await maybeLevelUp(user.id, book.level);
   }
 
   await seedWrongVocab(user.id, perQuestion, bookId);
@@ -250,7 +255,14 @@ export async function submitAttempt(
   revalidatePath(`/book/${bookSlug}`);
   revalidatePath("/path");
 
-  return { ok: true, score: scorePercent, passed, xpEarned, perQuestion };
+  return {
+    ok: true,
+    score: scorePercent,
+    passed,
+    xpEarned,
+    perQuestion,
+    newLevel: passed ? (newLevel ?? null) : null,
+  };
 }
 
 async function seedWrongVocab(

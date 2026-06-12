@@ -337,17 +337,21 @@ export async function submitTextSectionQuiz(
   }
 
   // Finishing every section of a text counts like finishing a book: it earns
-  // book-completion XP and pushes the path forward at the text's level.
+  // book-completion XP (scaled to length) and pushes the path forward.
   let textFinished = false;
   if (text.totalSections > 0 && completed.size >= text.totalSections) {
     textFinished = true;
-    xpEarned += await grantXp({
-      userId: user.id,
-      delta: XP_TEXT_COMPLETED,
-      reason: "book_completed",
-      ref: { textId, kind: text.kind },
-      refHash: `text_completed:${textId}`,
-    });
+    const { bookCompletionXp } = await import("@/lib/xp/rewards");
+    const completionXp = bookCompletionXp(text.wordCount);
+    if (completionXp > 0) {
+      xpEarned += await grantXp({
+        userId: user.id,
+        delta: completionXp,
+        reason: "book_completed",
+        ref: { textId, kind: text.kind },
+        refHash: `text_completed:${textId}`,
+      });
+    }
     const { maybeLevelUp } = await import("@/lib/progression");
     const level = text.level ?? (await userLevel(user.id));
     await maybeLevelUp(user.id, level);
@@ -356,8 +360,6 @@ export async function submitTextSectionQuiz(
 
   return { correctCount, total: quiz.questions.length, perQuestion, xpEarned, textFinished };
 }
-
-const XP_TEXT_COMPLETED = 100;
 
 /** Manually re-assign a text's difficulty level (1-8). */
 export async function setTextLevel(

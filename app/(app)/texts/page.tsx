@@ -48,36 +48,59 @@ export default async function TextsPage() {
         <p className="rounded-3xl bg-white p-8 text-center text-sm text-fg-muted shadow-soft ring-1 ring-border">
           Nothing here yet — generate a story above to see how it works.
         </p>
-      ) : (
-        <section>
-          <h2 className="mb-3 text-lg font-bold">
-            Continue reading{" "}
-            <span className="text-sm font-normal text-fg-muted">({texts.length})</span>
-          </h2>
-          <div className="space-y-3">
-            {texts.map((t) => (
-              <TextCard
-                key={t.id}
-                text={{
-                  id: t.id,
-                  title: t.title,
-                  kind: t.kind,
-                  level: t.level,
-                  sourceUrl: t.sourceUrl,
-                  wordCount: t.wordCount,
-                  currentSection: t.currentSection,
-                  totalSections: t.totalSections,
-                  completedCount: Array.isArray(t.completedSections)
-                    ? (t.completedSections as number[]).length
-                    : 0,
-                  createdAt: t.createdAt.toISOString(),
-                  lastReadAt: t.lastReadAt?.toISOString() ?? null,
-                }}
-              />
-            ))}
-          </div>
-        </section>
-      )}
+      ) : (() => {
+        const mapped = texts.map((t) => {
+          const completedCount = Array.isArray(t.completedSections)
+            ? (t.completedSections as number[]).length
+            : 0;
+          const isFinished = t.totalSections > 0 && completedCount >= t.totalSections;
+          return { t, completedCount, isFinished };
+        });
+        const active = mapped.filter((x) => !x.isFinished);
+        const finished = mapped.filter((x) => x.isFinished);
+
+        const makeCard = ({ t, completedCount }: { t: (typeof texts)[number]; completedCount: number }) => (
+          <TextCard
+            key={t.id}
+            text={{
+              id: t.id,
+              title: t.title,
+              kind: t.kind,
+              level: t.level,
+              sourceUrl: t.sourceUrl,
+              wordCount: t.wordCount,
+              currentSection: t.currentSection,
+              totalSections: t.totalSections,
+              completedCount,
+              createdAt: t.createdAt.toISOString(),
+              lastReadAt: t.lastReadAt?.toISOString() ?? null,
+            }}
+          />
+        );
+
+        return (
+          <>
+            {active.length > 0 && (
+              <section>
+                <h2 className="mb-3 text-lg font-bold">
+                  Continue reading{" "}
+                  <span className="text-sm font-normal text-fg-muted">({active.length})</span>
+                </h2>
+                <div className="space-y-3">{active.map(makeCard)}</div>
+              </section>
+            )}
+            {finished.length > 0 && (
+              <section>
+                <h2 className="mb-3 text-lg font-bold">
+                  Completed{" "}
+                  <span className="text-sm font-normal text-fg-muted">({finished.length})</span>
+                </h2>
+                <div className="space-y-3">{finished.map(makeCard)}</div>
+              </section>
+            )}
+          </>
+        );
+      })()}
     </main>
   );
 }

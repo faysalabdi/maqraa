@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useTransition } from "react";
-import { BookOpen, ExternalLink, FileText, Trash2, Wand2 } from "lucide-react";
+import { BookOpen, CheckCircle2, ExternalLink, FileText, Trash2, Wand2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { deleteText, setTextLevel } from "@/server/actions/texts";
 
@@ -25,6 +25,7 @@ export function TextCard({
 }) {
   const [isPending, startTransition] = useTransition();
   const pct = Math.round((text.completedCount / Math.max(1, text.totalSections)) * 100);
+  const isFinished = text.totalSections > 0 && text.completedCount >= text.totalSections;
 
   const icon =
     text.kind === "generated" ? (
@@ -36,29 +37,40 @@ export function TextCard({
     );
 
   return (
-    <div className="rounded-2xl bg-white px-4 py-3 shadow-soft ring-1 ring-border transition hover:ring-brand">
+    <div
+      className={cn(
+        "rounded-2xl bg-white px-4 py-3 shadow-soft ring-1 transition",
+        isFinished ? "ring-emerald-300 hover:ring-emerald-400" : "ring-border hover:ring-brand",
+      )}
+    >
       <div className="flex items-center gap-3">
         <Link
           href={`/texts/${text.id}`}
           className={cn(
-            "grid h-10 w-10 shrink-0 place-items-center rounded-xl",
-            text.kind === "generated"
-              ? "bg-violet-100 text-violet-600"
-              : text.kind === "pdf"
-                ? "bg-amber-100 text-amber-700"
-                : "bg-emerald-100 text-brand",
+            "relative grid h-10 w-10 shrink-0 place-items-center rounded-xl",
+            isFinished
+              ? "bg-emerald-100 text-emerald-700"
+              : text.kind === "generated"
+                ? "bg-violet-100 text-violet-600"
+                : text.kind === "pdf"
+                  ? "bg-amber-100 text-amber-700"
+                  : "bg-emerald-100 text-brand",
           )}
         >
-          {icon}
+          {isFinished ? <CheckCircle2 className="h-5 w-5" /> : icon}
         </Link>
         <Link href={`/texts/${text.id}`} className="min-w-0 flex-1">
           <p className="font-arabic truncate text-lg font-semibold" dir="rtl">
             {text.title}
           </p>
           <p className="text-xs text-fg-muted">
-            {text.kind === "generated" && "AI story · "}
+            {isFinished ? (
+              <span className="font-semibold text-emerald-700">Finished · </span>
+            ) : (
+              text.kind === "generated" && "AI story · "
+            )}
             {text.wordCount.toLocaleString()} words
-            {text.totalSections > 1 && ` · section ${text.currentSection + 1}/${text.totalSections}`}
+            {!isFinished && text.totalSections > 1 && ` · section ${text.currentSection + 1}/${text.totalSections}`}
           </p>
         </Link>
         <select
@@ -105,7 +117,13 @@ export function TextCard({
       </div>
       {text.totalSections > 1 && (
         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-bg-muted">
-          <div className="h-full rounded-full bg-brand" style={{ width: `${pct}%` }} />
+          <div
+            className={cn(
+              "h-full rounded-full transition-all",
+              isFinished ? "bg-emerald-500" : "bg-brand",
+            )}
+            style={{ width: `${pct}%` }}
+          />
         </div>
       )}
     </div>
