@@ -32,9 +32,9 @@ export default async function TextsPage() {
       <header>
         <h1 className="text-3xl font-extrabold">My reading</h1>
         <p className="mt-1 text-sm text-fg-muted">
-          Generate stories at your level, import articles from a link, or bring the PDFs of
-          books you own. Everything is readable with tap-to-translate, saved words become
-          flashcards, your position is remembered, and every section has a comprehension check.
+          Generate stories at your level or bring the PDFs of books you own. Everything is
+          readable with tap-to-translate, saved words become flashcards, your position is
+          remembered, and every section has a comprehension check.
         </p>
       </header>
 

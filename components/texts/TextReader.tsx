@@ -12,10 +12,8 @@ import {
   Loader2,
   Pause,
   PartyPopper,
-  RefreshCw,
   Sparkles,
   Volume2,
-  Wand2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { sectionize, sectionText } from "@/lib/reading/sections";
@@ -24,7 +22,6 @@ import {
   updateTextProgress,
   getTextSectionQuiz,
   submitTextSectionQuiz,
-  reprocessText,
   type TextSectionQuiz,
   type TextSectionResult,
 } from "@/server/actions/texts";
@@ -63,8 +60,6 @@ export function TextReader({
   const [quizLoading, setQuizLoading] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [canSpeak, setCanSpeak] = useState(false);
-  const [reprocessing, setReprocessing] = useState(false);
-  const [reprocessError, setReprocessError] = useState<string | null>(null);
 
   const section = sections[sectionIdx];
   const isLast = sectionIdx === sections.length - 1;
@@ -111,19 +106,6 @@ export function TextReader({
         setPhase("result");
       })
       .finally(() => setQuizLoading(false));
-  }
-
-  async function handleReprocess() {
-    if (!confirm("Re-run the Arabic cleanup on this text? Section progress will reset.")) return;
-    setReprocessing(true);
-    setReprocessError(null);
-    const result = await reprocessText(text.id);
-    setReprocessing(false);
-    if ("error" in result) {
-      setReprocessError(result.error);
-    } else {
-      window.location.reload();
-    }
   }
 
   function toggleSpeak() {
@@ -176,36 +158,6 @@ export function TextReader({
           )}
         </div>
       </div>
-
-      {text.kind === "pdf" && (
-        <div className="mb-4 rounded-2xl bg-amber-50 p-4 ring-1 ring-amber-200">
-          <div className="flex items-start gap-3">
-            <Wand2 className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
-            <div className="flex-1 text-sm text-amber-900">
-              <p className="font-bold">Arabic looking jumbled?</p>
-              <p className="mt-0.5">
-                PDF extractors sometimes mangle Arabic letter order. Re-run the cleanup to fix
-                it — your saved words stay; section progress resets.
-              </p>
-              {reprocessError && (
-                <p className="mt-1 text-danger">{reprocessError}</p>
-              )}
-            </div>
-            <button
-              onClick={handleReprocess}
-              disabled={reprocessing}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-amber-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-amber-700 disabled:opacity-60"
-            >
-              {reprocessing ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <RefreshCw className="h-3.5 w-3.5" />
-              )}
-              {reprocessing ? "Cleaning…" : "Re-extract"}
-            </button>
-          </div>
-        </div>
-      )}
 
       <AnimatePresence mode="wait">
         {phase === "reading" && (
