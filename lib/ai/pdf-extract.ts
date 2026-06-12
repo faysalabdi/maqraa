@@ -113,10 +113,11 @@ export async function extractArabicPdf(pdf: Uint8Array): Promise<Extracted> {
         },
       ],
     },
-    // Hard-bound a chunk read so one slow call can never blow the serverless
-    // invocation budget — a timed-out chunk is marked failed and requeued on
-    // resume instead of silently killing the whole extraction chain.
-    { timeout: 200_000, maxRetries: 0 },
+    // Bound each attempt so a slow call can't blow the invocation budget, but
+    // keep one SDK retry so a transient 429/5xx (with the SDK's retry-after
+    // backoff) doesn't drop the chunk. Worst case ~2x70s stays under the 300s
+    // function limit; chunks that still fail are requeued by the job.
+    { timeout: 70_000, maxRetries: 1 },
   );
 
   const toolUse = response.content.find((c) => c.type === "tool_use");

@@ -315,10 +315,11 @@ export async function retryTextExtraction(
     return { error: "Nothing left to extract — please re-import this PDF." };
   }
 
-  // Requeue anything that didn't finish cleanly.
+  // Requeue anything that didn't finish cleanly, resetting the attempt counter
+  // so terminally-failed chunks get a fresh set of tries.
   await db
     .update(schema.textChunks)
-    .set({ status: "pending" })
+    .set({ status: "pending", attempts: 0, claimedAt: null })
     .where(
       and(
         eq(schema.textChunks.textId, id),

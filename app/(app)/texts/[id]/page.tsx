@@ -16,22 +16,32 @@ export const dynamic = "force-dynamic";
  * so firing this from page views is safe.
  */
 async function reviveStalledExtraction(textId: string): Promise<void> {
+  const { STALE_WORKING_MS, triggerExtraction } = await import("@/lib/texts/extract-job");
+  const staleBefore = new Date(Date.now() - STALE_WORKING_MS);
+
   const [counts] = await db
     .select({
       pending: count(sql`case when ${schema.textChunks.status} = 'pending' then 1 end`),
-      working: count(sql`case when ${schema.textChunks.status} = 'working' then 1 end`),
+      freshWorking: count(
+        sql`case when ${schema.textChunks.status} = 'working' and ${schema.textChunks.claimedAt} > ${staleBefore} then 1 end`,
+      ),
+      staleWorking: count(
+        sql`case when ${schema.textChunks.status} = 'working' and (${schema.textChunks.claimedAt} is null or ${schema.textChunks.claimedAt} <= ${staleBefore}) then 1 end`,
+      ),
     })
     .from(schema.textChunks)
     .where(eq(schema.textChunks.textId, textId));
 
-  if (!counts || Number(counts.working) > 0 || Number(counts.pending) === 0) return;
+  // A live invocation is on it — leave it alone (avoids spawning a new worker
+  // on every 4s poll). Otherwise, if there's recoverable work, re-kick.
+  if (!counts || Number(counts.freshWorking) > 0) return;
+  if (Number(counts.pending) === 0 && Number(counts.staleWorking) === 0) return;
 
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host");
   const proto = h.get("x-forwarded-proto") ?? "https";
   const origin = host ? `${proto}://${host}` : undefined;
 
-  const { triggerExtraction } = await import("@/lib/texts/extract-job");
   after(() => triggerExtraction(textId, origin));
 }
 
