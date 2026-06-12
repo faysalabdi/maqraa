@@ -11,21 +11,24 @@ export const dynamic = "force-dynamic";
 
 /**
  * Self-heal a dead extraction chain: if a text is still "processing" but no
- * worker owns any chunk (e.g. a previous invocation was killed mid-handoff),
- * re-kick the background job. Atomic chunk claims make duplicate kicks no-ops,
- * so firing this from page views is safe.
+ * worker is actually making progress, re-kick the background job. Atomic chunk
+ * claims make duplicate kicks no-ops, so firing this from page views is safe.
  */
 async function reviveStalledExtraction(textId: string): Promise<void> {
   const { STALE_WORKING_MS, triggerExtraction } = await import("@/lib/texts/extract-job");
-  // Raw sql fragments can't infer param types, so pass the cutoff as an ISO
-  // string with an explicit cast — a bare Date crashes the postgres driver.
   const staleBefore = new Date(Date.now() - STALE_WORKING_MS).toISOString();
+  // The reader polls every 4s; a fresh kick that just claimed chunks needs
+  // breathing room before another page view re-kicks.
+  const KICK_QUIET_MS = 60_000;
+  const recentKickBefore = new Date(Date.now() - KICK_QUIET_MS).toISOString();
 
   const [counts] = await db
     .select({
       pending: count(sql`case when ${schema.textChunks.status} = 'pending' then 1 end`),
-      freshWorking: count(
-        sql`case when ${schema.textChunks.status} = 'working' and ${schema.textChunks.claimedAt} > ${staleBefore}::timestamptz then 1 end`,
+      // Anything claimed in the last KICK_QUIET_MS — a healthy worker may still
+      // be starting up, no need for another kick yet.
+      recentlyClaimed: count(
+        sql`case when ${schema.textChunks.claimedAt} > ${recentKickBefore}::timestamptz then 1 end`,
       ),
       staleWorking: count(
         sql`case when ${schema.textChunks.status} = 'working' and (${schema.textChunks.claimedAt} is null or ${schema.textChunks.claimedAt} <= ${staleBefore}::timestamptz) then 1 end`,
@@ -34,10 +37,11 @@ async function reviveStalledExtraction(textId: string): Promise<void> {
     .from(schema.textChunks)
     .where(eq(schema.textChunks.textId, textId));
 
-  // A live invocation is on it — leave it alone (avoids spawning a new worker
-  // on every 4s poll). Otherwise, if there's recoverable work, re-kick.
-  if (!counts || Number(counts.freshWorking) > 0) return;
-  if (Number(counts.pending) === 0 && Number(counts.staleWorking) === 0) return;
+  if (!counts) return;
+  if (Number(counts.recentlyClaimed) > 0) return;
+  const hasRecoverableWork =
+    Number(counts.pending) > 0 || Number(counts.staleWorking) > 0;
+  if (!hasRecoverableWork) return;
 
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host");
