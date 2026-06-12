@@ -88,24 +88,49 @@ export async function touchTextRead(id: string): Promise<void> {
  * presentation-form ligatures, broken text spans across columns, hidden font
  * encodings.
  *
- * Big books are split into small page-range chunks up front, then read in the
- * BACKGROUND: the import returns an id immediately with status "processing",
- * and a self-chaining route reads the chunks a few at a time. The reader shows
- * extracted text as it lands, so the user starts reading before the whole book
- * is done and a 600-page book never blocks (or times out) a single request.
+ * Upload path: the browser uploads the PDF straight to the private
+ * `pdf_imports` Supabase Storage bucket (Vercel rejects request bodies over
+ * ~4.5 MB, so the file can't travel through a server action). The action below
+ * receives only the storage path, downloads the file with the service role,
+ * splits it into small page-range chunks, deletes the upload, and queues the
+ * chunks for BACKGROUND extraction: the import returns an id immediately with
+ * status "processing" and a self-chaining route reads the chunks a few at a
+ * time. The reader shows extracted text as it lands, so the user starts
+ * reading before the whole book is done and a 600-page book never blocks (or
+ * times out) a single request.
  */
 
-export async function importTextFromPdf(
-  formData: FormData,
+export async function importTextFromStorage(
+  storagePath: string,
+  title: string,
 ): Promise<{ id: string } | { error: string }> {
   const user = await requireUser();
 
-  const file = formData.get("file");
-  const title = String(formData.get("title") ?? "").trim();
-  if (!(file instanceof File)) return { error: "No file received" };
-  if (file.size > 20 * 1024 * 1024) return { error: "PDF too large (max 20 MB)" };
+  // Users can only import objects from their own uid/ folder.
+  if (!storagePath.startsWith(`${user.id}/`) || storagePath.includes("..")) {
+    return { error: "Invalid upload path" };
+  }
+  title = title.trim().slice(0, 200);
 
-  const bytes = new Uint8Array(await file.arrayBuffer());
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const admin = createAdminClient();
+  const storage = admin.storage.from("pdf_imports");
+
+  const { data: blob, error: dlError } = await storage.download(storagePath);
+  if (dlError || !blob) {
+    console.error("[importTextFromStorage] download failed:", dlError?.message);
+    return {
+      error:
+        "Could not fetch your upload from storage. If this persists, run db/migrations/0004_pdf_imports_bucket.sql in the Supabase SQL editor.",
+    };
+  }
+  if (blob.size > 20 * 1024 * 1024) {
+    await storage.remove([storagePath]);
+    return { error: "PDF too large (max 20 MB)" };
+  }
+
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  const fileName = storagePath.split("/").pop() ?? "import.pdf";
 
   const { PAGES_PER_CHUNK, MAX_PAGES, triggerExtraction } = await import(
     "@/lib/texts/extract-job"
@@ -119,6 +144,7 @@ export async function importTextFromPdf(
     const source = await PDFDocument.load(bytes, { ignoreEncryption: true });
     pageCount = source.getPageCount();
     if (pageCount > MAX_PAGES) {
+      await storage.remove([storagePath]);
       return {
         error: `This PDF has ${pageCount} pages — the current limit is ${MAX_PAGES}. Split it and import in parts.`,
       };
@@ -142,10 +168,14 @@ export async function importTextFromPdf(
       });
     }
   } catch {
+    await storage.remove([storagePath]);
     return { error: "That PDF could not be read — is it a valid PDF file?" };
   }
 
-  if (chunks.length === 0) return { error: "That PDF has no pages" };
+  if (chunks.length === 0) {
+    await storage.remove([storagePath]);
+    return { error: "That PDF has no pages" };
+  }
 
   let textRowId: string;
   try {
@@ -153,7 +183,7 @@ export async function importTextFromPdf(
       .insert(schema.userTexts)
       .values({
         userId: user.id,
-        title: title || file.name.replace(/\.pdf$/i, ""),
+        title: title || fileName.replace(/\.pdf$/i, ""),
         kind: "pdf",
         level: await userLevel(user.id),
         contentAr: "",
@@ -182,7 +212,7 @@ export async function importTextFromPdf(
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("[importTextFromPdf] db write failed:", msg);
+    console.error("[importTextFromStorage] db write failed:", msg);
     if (/extraction_status|text_chunks|pages_total|pages_done/i.test(msg)) {
       return {
         error:
@@ -192,8 +222,11 @@ export async function importTextFromPdf(
     return { error: "Could not save the PDF — try again in a moment." };
   }
 
+  // The chunks are in Postgres now; the original upload is no longer needed.
+  await storage.remove([storagePath]);
+
   await logEvent("text_pdf_imported", {
-    sizeBytes: file.size,
+    sizeBytes: blob.size,
     pages: pageCount,
     chunks: chunks.length,
   });
