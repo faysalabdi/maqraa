@@ -17,16 +17,18 @@ export const dynamic = "force-dynamic";
  */
 async function reviveStalledExtraction(textId: string): Promise<void> {
   const { STALE_WORKING_MS, triggerExtraction } = await import("@/lib/texts/extract-job");
-  const staleBefore = new Date(Date.now() - STALE_WORKING_MS);
+  // Raw sql fragments can't infer param types, so pass the cutoff as an ISO
+  // string with an explicit cast — a bare Date crashes the postgres driver.
+  const staleBefore = new Date(Date.now() - STALE_WORKING_MS).toISOString();
 
   const [counts] = await db
     .select({
       pending: count(sql`case when ${schema.textChunks.status} = 'pending' then 1 end`),
       freshWorking: count(
-        sql`case when ${schema.textChunks.status} = 'working' and ${schema.textChunks.claimedAt} > ${staleBefore} then 1 end`,
+        sql`case when ${schema.textChunks.status} = 'working' and ${schema.textChunks.claimedAt} > ${staleBefore}::timestamptz then 1 end`,
       ),
       staleWorking: count(
-        sql`case when ${schema.textChunks.status} = 'working' and (${schema.textChunks.claimedAt} is null or ${schema.textChunks.claimedAt} <= ${staleBefore}) then 1 end`,
+        sql`case when ${schema.textChunks.status} = 'working' and (${schema.textChunks.claimedAt} is null or ${schema.textChunks.claimedAt} <= ${staleBefore}::timestamptz) then 1 end`,
       ),
     })
     .from(schema.textChunks)

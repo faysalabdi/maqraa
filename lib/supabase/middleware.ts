@@ -1,7 +1,6 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { env } from "@/lib/env";
-import { AUTH_COOKIE_OPTIONS } from "./cookie-options";
 
 const PUBLIC_PATHS = ["/", "/sign-in", "/auth/callback", "/preview"];
 
@@ -27,7 +26,6 @@ export async function updateSession(request: NextRequest) {
     env.NEXT_PUBLIC_SUPABASE_URL,
     env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
-      cookieOptions: AUTH_COOKIE_OPTIONS,
       cookies: {
         getAll() {
           return request.cookies.getAll();
@@ -48,6 +46,19 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const pathname = request.nextUrl.pathname;
+
+  // Signed-in users skip the marketing/sign-in pages — landing there after
+  // reopening the browser made live sessions look like logouts.
+  if (user && (pathname === "/" || pathname === "/sign-in")) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/path";
+    url.search = "";
+    const redirect = NextResponse.redirect(url);
+    // Carry over any auth cookies refreshed during this request.
+    for (const c of response.cookies.getAll()) redirect.cookies.set(c);
+    return redirect;
+  }
+
   const isPublic =
     PUBLIC_PATHS.includes(pathname) ||
     pathname.startsWith("/_next") ||
