@@ -7,7 +7,7 @@ import { eq, and, count } from "drizzle-orm";
 import { type GeneratedTest } from "@/lib/ai/test-generator";
 import { anthropic, FALLBACK_MODEL } from "@/lib/ai/anthropic";
 import { grantXp, recordActivity } from "@/lib/xp/grant";
-import { XP_REWARDS, testPassedXp } from "@/lib/xp/rewards";
+import { XP_REWARDS, testPassedXp, bookCompletionXp } from "@/lib/xp/rewards";
 import { checkAndGrantAchievements } from "@/lib/achievements/check";
 import { z } from "zod";
 import type { PerQuestionResult, SubmitResult } from "./test-types";
@@ -210,6 +210,7 @@ export async function submitAttempt(
   }
 
   let xpEarned = 0;
+  let newLevel: number | null = null;
   const attemptRef = { testId, bookId };
 
   if (passed) {
@@ -232,15 +233,20 @@ export async function submitAttempt(
       });
     }
 
-    xpEarned += await grantXp({
-      userId: user.id,
-      delta: XP_REWARDS.bookCompleted,
-      reason: "book_completed",
-      ref: { bookId },
-      refHash: `book_completed:${bookId}`,
-    });
+    const estimatedWords = (book.recommendedPages ?? 100) * 250;
+    const completionXp = bookCompletionXp(estimatedWords);
+    if (completionXp > 0) {
+      xpEarned += await grantXp({
+        userId: user.id,
+        delta: completionXp,
+        reason: "book_completed",
+        ref: { bookId },
+        refHash: `book_completed:${bookId}`,
+      });
+    }
 
-    await checkLevelUp(user.id, book.level);
+    const { maybeLevelUp } = await import("@/lib/progression");
+    newLevel = await maybeLevelUp(user.id, book.level);
   }
 
   await seedWrongVocab(user.id, perQuestion, bookId);
@@ -249,46 +255,14 @@ export async function submitAttempt(
   revalidatePath(`/book/${bookSlug}`);
   revalidatePath("/path");
 
-  return { ok: true, score: scorePercent, passed, xpEarned, perQuestion };
-}
-
-async function checkLevelUp(userId: string, bookLevel: number) {
-  const [levelRow] = await db
-    .select()
-    .from(schema.levels)
-    .where(eq(schema.levels.level, bookLevel))
-    .limit(1);
-  if (!levelRow) return;
-
-  const [profile] = await db
-    .select()
-    .from(schema.profiles)
-    .where(eq(schema.profiles.id, userId))
-    .limit(1);
-  if (!profile || profile.currentLevel !== bookLevel) return;
-
-  const [row] = await db
-    .select({ cnt: count() })
-    .from(schema.userBooks)
-    .where(
-      and(eq(schema.userBooks.userId, userId), eq(schema.userBooks.status, "completed")),
-    );
-
-  if (Number(row?.cnt ?? 0) >= levelRow.booksRequiredToClear) {
-    const nextLevel = bookLevel + 1;
-    await db
-      .update(schema.profiles)
-      .set({ currentLevel: nextLevel, updatedAt: new Date() })
-      .where(eq(schema.profiles.id, userId));
-
-    await grantXp({
-      userId,
-      delta: XP_REWARDS.levelUp,
-      reason: "level_up",
-      ref: { from: bookLevel, to: nextLevel },
-      refHash: `level_up:${bookLevel}_to_${nextLevel}`,
-    });
-  }
+  return {
+    ok: true,
+    score: scorePercent,
+    passed,
+    xpEarned,
+    perQuestion,
+    newLevel: passed ? (newLevel ?? null) : null,
+  };
 }
 
 async function seedWrongVocab(

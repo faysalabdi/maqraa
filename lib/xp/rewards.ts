@@ -11,6 +11,15 @@ export const XP_REWARDS = {
   levelUp: 500,
 } as const;
 
+/** Completion XP scaled to how long the reading actually was. */
+export function bookCompletionXp(wordCount: number): number {
+  if (wordCount < 500) return 0;
+  if (wordCount < 2_000) return 25;
+  if (wordCount < 10_000) return 75;
+  if (wordCount < 50_000) return 200;
+  return 500;
+}
+
 export const DAILY_CAPS = {
   pageLogged: 60,
   minuteLogged: 60,
