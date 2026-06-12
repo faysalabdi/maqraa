@@ -430,6 +430,8 @@ export const textChunks = pgTable(
     pdfBase64: text("pdf_base64").notNull(),
     // pending | working | done | failed
     status: text("status").notNull().default("pending"),
+    attempts: integer("attempts").notNull().default(0),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
     contentAr: text("content_ar"),
     titleAr: text("title_ar"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

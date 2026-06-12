@@ -1,4 +1,4 @@
-import { and, asc, count, eq } from "drizzle-orm";
+import { and, asc, count, eq, inArray, lt } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { extractArabicPdf } from "@/lib/ai/pdf-extract";
 import { sectionize } from "@/lib/reading/sections";
@@ -23,9 +23,15 @@ import { sectionize } from "@/lib/reading/sections";
 // the model's output-token cap, so a chunk's Arabic is never truncated.
 export const PAGES_PER_CHUNK = 12;
 export const MAX_PAGES = 1000;
-// Chunks read concurrently per batch. The SDK auto-retries 429s, so a modest
-// burst above the account's tokens/min tier degrades to slower, not dropped.
-const BATCH_SIZE = 5;
+// Modest concurrency keeps us under the account's tokens/min tier so chunks
+// rarely hit a rate limit in the first place.
+const BATCH_SIZE = 3;
+// A chunk that keeps failing (after its in-call retry) is requeued up to this
+// many job-level passes before being marked terminally failed.
+const MAX_CHUNK_ATTEMPTS = 5;
+// A 'working' chunk older than this was stranded by a killed invocation and is
+// safe to requeue.
+export const STALE_WORKING_MS = 120_000;
 // Stop starting new batches this long after the invocation began and hand off
 // instead. A batch is bounded by the 200s per-chunk API timeout, so starting
 // one later than this risks the platform killing the invocation mid-batch
@@ -101,8 +107,10 @@ async function rebuildContent(textId: string): Promise<void> {
     .filter(Boolean)
     .join("\n\n");
 
-  const settledPages = chunks
-    .filter((c) => c.status === "done" || c.status === "failed")
+  // Count only pages whose text is actually in the book, so the progress
+  // counter reflects readable content rather than failed/queued ranges.
+  const donePages = chunks
+    .filter((c) => c.status === "done")
     .reduce((sum, c) => sum + (c.pageEnd - c.pageStart), 0);
 
   const sections = content ? sectionize(content) : [];
@@ -113,7 +121,7 @@ async function rebuildContent(textId: string): Promise<void> {
       contentAr: content,
       wordCount: countWords(content),
       totalSections: Math.max(1, sections.length),
-      pagesDone: settledPages,
+      pagesDone: donePages,
     })
     .where(eq(schema.userTexts.id, textId));
 }
@@ -126,6 +134,9 @@ async function finalize(textId: string): Promise<void> {
     .orderBy(asc(schema.textChunks.chunkIndex));
 
   const done = chunks.filter((c) => c.status === "done" && c.contentAr);
+  const failed = chunks.filter((c) => c.status === "failed");
+
+  await rebuildContent(textId);
 
   if (done.length === 0) {
     await db
@@ -139,8 +150,21 @@ async function finalize(textId: string): Promise<void> {
     return;
   }
 
-  await rebuildContent(textId);
+  if (failed.length > 0) {
+    // Some page ranges never read after all retries. Keep the chunks (so the
+    // user can resume and re-attempt just those) and surface a failed state
+    // rather than silently passing off a partial book as complete.
+    await db
+      .update(schema.userTexts)
+      .set({
+        extractionStatus: "failed",
+        extractionError: `${failed.length} page range${failed.length === 1 ? "" : "s"} couldn't be read after several tries. Tap retry to attempt them again — what's read so far is kept.`,
+      })
+      .where(eq(schema.userTexts.id, textId));
+    return;
+  }
 
+  // Every chunk succeeded — the book is fully read.
   await db
     .update(schema.userTexts)
     .set({ extractionStatus: "ready", extractionError: null })
@@ -164,6 +188,19 @@ async function processOneBatch(textId: string): Promise<"stop" | number> {
     .limit(1);
   if (!text || text.extractionStatus !== "processing") return "stop";
 
+  // Recover chunks stranded in 'working' by a killed invocation.
+  const staleBefore = new Date(Date.now() - STALE_WORKING_MS);
+  await db
+    .update(schema.textChunks)
+    .set({ status: "pending" })
+    .where(
+      and(
+        eq(schema.textChunks.textId, textId),
+        eq(schema.textChunks.status, "working"),
+        lt(schema.textChunks.claimedAt, staleBefore),
+      ),
+    );
+
   const pending = await db
     .select()
     .from(schema.textChunks)
@@ -172,20 +209,26 @@ async function processOneBatch(textId: string): Promise<"stop" | number> {
     .limit(BATCH_SIZE);
 
   if (pending.length === 0) {
-    // Nothing left to claim. Any chunk still 'working' is from a crashed run;
-    // it's excluded from the content and the user can recover it via retry,
-    // which requeues 'working'/'failed' chunks. Finalize now rather than risk
-    // an endless loop on a stuck chunk.
-    await finalize(textId);
+    // No pending work. If something is still freshly 'working' (another live
+    // invocation), let it drive. Otherwise everything is done or terminally
+    // failed — finalize.
+    const [{ cnt: working }] = await db
+      .select({ cnt: count() })
+      .from(schema.textChunks)
+      .where(
+        and(eq(schema.textChunks.textId, textId), eq(schema.textChunks.status, "working")),
+      );
+    if (Number(working) === 0) await finalize(textId);
     return "stop";
   }
 
   // Claim each chunk atomically so a duplicate invocation can't double-read it.
+  const now = new Date();
   const claimed: typeof pending = [];
   for (const c of pending) {
     const res = await db
       .update(schema.textChunks)
-      .set({ status: "working" })
+      .set({ status: "working", claimedAt: now })
       .where(and(eq(schema.textChunks.id, c.id), eq(schema.textChunks.status, "pending")))
       .returning({ id: schema.textChunks.id });
     if (res.length > 0) claimed.push(c);
@@ -207,9 +250,12 @@ async function processOneBatch(textId: string): Promise<"stop" | number> {
           })
           .where(eq(schema.textChunks.id, chunk.id));
       } catch {
+        // Requeue transient failures up to MAX_CHUNK_ATTEMPTS so a rate limit
+        // or timeout doesn't permanently drop a page range.
+        const attempts = (chunk.attempts ?? 0) + 1;
         await db
           .update(schema.textChunks)
-          .set({ status: "failed" })
+          .set({ status: attempts >= MAX_CHUNK_ATTEMPTS ? "failed" : "pending", attempts })
           .where(eq(schema.textChunks.id, chunk.id));
       }
       // Surface progress the moment each chunk lands — a vision read of 12
@@ -224,11 +270,15 @@ async function processOneBatch(textId: string): Promise<"stop" | number> {
 
   await rebuildContent(textId);
 
+  // Count work that still needs doing (pending now includes requeued failures).
   const [{ cnt }] = await db
     .select({ cnt: count() })
     .from(schema.textChunks)
     .where(
-      and(eq(schema.textChunks.textId, textId), eq(schema.textChunks.status, "pending")),
+      and(
+        eq(schema.textChunks.textId, textId),
+        inArray(schema.textChunks.status, ["pending", "working"]),
+      ),
     );
 
   if (Number(cnt) === 0) {
