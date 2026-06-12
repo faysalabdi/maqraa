@@ -7,27 +7,34 @@ import { sectionize } from "@/lib/reading/sections";
  * Background PDF extraction.
  *
  * A PDF import is split into small page-range chunks (stored in `text_chunks`)
- * and read by Claude one batch at a time. Each batch runs inside a single
- * serverless invocation that stays well under the function time limit; when a
- * batch finishes it re-triggers the extract route to process the next batch.
- * This chains across as many invocations as a book needs, so arbitrarily large
- * books never hit a single-request timeout, and the reader can render whatever
- * has been extracted so far while the rest streams in.
+ * and read by Claude in batches. The extract route loops through as many
+ * batches as fit inside its time budget, then hands off to a fresh invocation
+ * of itself for the rest. This chains across as many invocations as a book
+ * needs, so arbitrarily large books never hit a single-request timeout, and
+ * the reader renders whatever has been extracted so far while the rest
+ * streams in.
+ *
+ * The self-call URL comes from the ORIGINAL request's own headers — the one
+ * URL guaranteed reachable and correct — threaded through every hop. Env-based
+ * URLs (NEXT_PUBLIC_APP_URL / VERCEL_URL) are fallbacks only.
  */
 
 // Small chunks keep each Claude vision call fast and — crucially — well under
 // the model's output-token cap, so a chunk's Arabic is never truncated.
 export const PAGES_PER_CHUNK = 12;
 export const MAX_PAGES = 1000;
-// Chunks read concurrently per invocation. One batch must finish inside the
-// route's maxDuration; 4 small chunks comfortably do.
+// Chunks read concurrently per batch.
 const BATCH_SIZE = 4;
+// Stop starting new batches this long after the invocation began and hand off
+// instead. Must leave room for one worst-case batch inside maxDuration = 300s.
+const LOOP_BUDGET_MS = 210_000;
 
 function countWords(s: string): number {
   return s.split(/\s+/).filter(Boolean).length;
 }
 
-function appUrl(): string {
+function appUrl(origin?: string): string {
+  if (origin) return origin;
   if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
   return "http://localhost:3000";
@@ -45,27 +52,35 @@ export function internalSecret(): string {
   );
 }
 
-/** Fire-and-forget poke to the extract route to process the next batch. */
-export async function triggerExtraction(textId: string): Promise<void> {
+async function markFailed(textId: string, detail: string): Promise<void> {
+  await db
+    .update(schema.userTexts)
+    .set({
+      extractionStatus: "failed",
+      extractionError: `Background extraction stopped (${detail}). Tap retry to resume — progress is kept.`,
+    })
+    .where(eq(schema.userTexts.id, textId));
+}
+
+/** Poke the extract route to continue processing in a fresh invocation. */
+export async function triggerExtraction(textId: string, origin?: string): Promise<void> {
   try {
-    await fetch(`${appUrl()}/api/texts/extract`, {
+    const res = await fetch(`${appUrl(origin)}/api/texts/extract`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
         "x-internal-secret": internalSecret(),
       },
-      body: JSON.stringify({ textId }),
+      body: JSON.stringify({ textId, origin }),
     });
-  } catch {
-    // If we can't even reach our own route, mark the job failed so the user
-    // gets a retry button instead of a job stuck in "processing" forever.
-    await db
-      .update(schema.userTexts)
-      .set({
-        extractionStatus: "failed",
-        extractionError: "Could not start background extraction. Tap retry.",
-      })
-      .where(eq(schema.userTexts.id, textId));
+    if (!res.ok) {
+      // 401 = deployment protection in the way; 404 = stale deploy; etc.
+      await markFailed(textId, `handoff rejected: HTTP ${res.status}`);
+    }
+  } catch (e) {
+    // Surface the real network error so failures are diagnosable from the UI.
+    const detail = e instanceof Error && e.message ? e.message.slice(0, 120) : "handoff failed";
+    await markFailed(textId, detail);
   }
 }
 
@@ -133,16 +148,18 @@ async function finalize(textId: string): Promise<void> {
 }
 
 /**
- * Process one batch of pending chunks for a text, then either chain to the next
- * batch or finalize. Safe to call concurrently — chunks are claimed atomically.
+ * Process one batch of pending chunks. Returns "stop" when there's nothing
+ * more for this invocation to do (job gone, finalized, or another worker owns
+ * the remaining chunks), otherwise the number of chunks still pending.
+ * Safe to call concurrently — chunks are claimed atomically.
  */
-export async function runExtractionBatch(textId: string): Promise<void> {
+async function processOneBatch(textId: string): Promise<"stop" | number> {
   const [text] = await db
     .select()
     .from(schema.userTexts)
     .where(eq(schema.userTexts.id, textId))
     .limit(1);
-  if (!text || text.extractionStatus !== "processing") return;
+  if (!text || text.extractionStatus !== "processing") return "stop";
 
   const pending = await db
     .select()
@@ -152,8 +169,12 @@ export async function runExtractionBatch(textId: string): Promise<void> {
     .limit(BATCH_SIZE);
 
   if (pending.length === 0) {
+    // Nothing left to claim. Any chunk still 'working' is from a crashed run;
+    // it's excluded from the content and the user can recover it via retry,
+    // which requeues 'working'/'failed' chunks. Finalize now rather than risk
+    // an endless loop on a stuck chunk.
     await finalize(textId);
-    return;
+    return "stop";
   }
 
   // Claim each chunk atomically so a duplicate invocation can't double-read it.
@@ -166,6 +187,8 @@ export async function runExtractionBatch(textId: string): Promise<void> {
       .returning({ id: schema.textChunks.id });
     if (res.length > 0) claimed.push(c);
   }
+  // Another invocation got there first — let it drive.
+  if (claimed.length === 0) return "stop";
 
   await Promise.all(
     claimed.map(async (chunk) => {
@@ -195,20 +218,38 @@ export async function runExtractionBatch(textId: string): Promise<void> {
     .select({ cnt: count() })
     .from(schema.textChunks)
     .where(
-      and(
-        eq(schema.textChunks.textId, textId),
-        eq(schema.textChunks.status, "pending"),
-      ),
+      and(eq(schema.textChunks.textId, textId), eq(schema.textChunks.status, "pending")),
     );
 
-  if (Number(cnt) > 0) {
-    // More pages to read — chain to a fresh invocation for the next batch.
-    await triggerExtraction(textId);
-  } else {
-    // Nothing left to claim. Any chunk still 'working' is from a crashed run;
-    // it's excluded from the content and the user can recover it via retry,
-    // which requeues 'working'/'failed' chunks. Finalize now rather than risk
-    // an endless re-trigger loop on a stuck chunk.
+  if (Number(cnt) === 0) {
     await finalize(textId);
+    return "stop";
+  }
+  return Number(cnt);
+}
+
+/**
+ * Drive extraction for as long as this invocation's time budget allows, then
+ * hand the remainder to a fresh invocation via the extract route. `origin` is
+ * the public URL of the original request, threaded through every hop so the
+ * self-call never depends on env configuration.
+ */
+export async function runExtractionLoop(textId: string, origin?: string): Promise<void> {
+  const startedAt = Date.now();
+  for (;;) {
+    let result: "stop" | number;
+    try {
+      result = await processOneBatch(textId);
+    } catch (e) {
+      const detail = e instanceof Error && e.message ? e.message.slice(0, 120) : "batch crashed";
+      console.error("[extract] batch failed", textId, e);
+      await markFailed(textId, detail);
+      return;
+    }
+    if (result === "stop") return;
+    if (Date.now() - startedAt > LOOP_BUDGET_MS) {
+      await triggerExtraction(textId, origin);
+      return;
+    }
   }
 }
