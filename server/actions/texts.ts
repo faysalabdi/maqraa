@@ -2,10 +2,24 @@
 
 import { and, count, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { db, schema } from "@/lib/db";
 import { logEvent } from "@/lib/analytics";
+
+/**
+ * Public origin of the current request — the one URL guaranteed to reach this
+ * deployment. Used for the extraction route's self-call instead of trusting
+ * env configuration.
+ */
+async function requestOrigin(): Promise<string | undefined> {
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  if (!host) return undefined;
+  const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+  return `${proto}://${host}`;
+}
 
 async function requireUser() {
   const supabase = await createClient();
@@ -267,7 +281,8 @@ export async function importTextFromStorage(
   });
 
   // Kick off background extraction after this response is flushed.
-  after(() => triggerExtraction(textRowId));
+  const origin = await requestOrigin();
+  after(() => triggerExtraction(textRowId, origin));
 
   revalidatePath("/texts");
   return { id: textRowId };
@@ -312,7 +327,8 @@ export async function retryTextExtraction(
     .where(eq(schema.userTexts.id, id));
 
   const { triggerExtraction } = await import("@/lib/texts/extract-job");
-  after(() => triggerExtraction(id));
+  const origin = await requestOrigin();
+  after(() => triggerExtraction(id, origin));
 
   revalidatePath(`/texts/${id}`);
   revalidatePath("/texts");
