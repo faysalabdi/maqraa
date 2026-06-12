@@ -22,24 +22,34 @@ export function ImportTextForm() {
     setBusy(true);
     setError(null);
 
-    let result: { id: string } | { error: string };
-    if (mode === "paste") {
-      result = await importTextFromPaste(title, content);
-    } else {
-      if (!file) {
-        setError("Choose a PDF first");
-        setBusy(false);
-        return;
+    // The awaits can reject (server error, body too large, network drop) —
+    // without this catch the button would spin forever with no message.
+    try {
+      let result: { id: string } | { error: string };
+      if (mode === "paste") {
+        result = await importTextFromPaste(title, content);
+      } else {
+        if (!file) {
+          setError("Choose a PDF first");
+          return;
+        }
+        const fd = new FormData();
+        fd.set("file", file);
+        fd.set("title", title);
+        result = await importTextFromPdf(fd);
       }
-      const fd = new FormData();
-      fd.set("file", file);
-      fd.set("title", title);
-      result = await importTextFromPdf(fd);
-    }
 
-    setBusy(false);
-    if ("error" in result) setError(result.error);
-    else router.push(`/texts/${result.id}`);
+      if ("error" in result) setError(result.error);
+      else router.push(`/texts/${result.id}`);
+    } catch (err) {
+      setError(
+        err instanceof Error && err.message
+          ? `Import failed: ${err.message}`
+          : "Import failed — check your connection and try again.",
+      );
+    } finally {
+      setBusy(false);
+    }
   }
 
   const tabs = [

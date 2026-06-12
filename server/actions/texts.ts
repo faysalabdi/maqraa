@@ -147,31 +147,50 @@ export async function importTextFromPdf(
 
   if (chunks.length === 0) return { error: "That PDF has no pages" };
 
-  const [row] = await db
-    .insert(schema.userTexts)
-    .values({
-      userId: user.id,
-      title: title || file.name.replace(/\.pdf$/i, ""),
-      kind: "pdf",
-      level: await userLevel(user.id),
-      contentAr: "",
-      wordCount: 0,
-      totalSections: 1,
-      extractionStatus: "processing",
-      pagesTotal: pageCount,
-      pagesDone: 0,
-    })
-    .returning({ id: schema.userTexts.id });
+  let textRowId: string;
+  try {
+    const [row] = await db
+      .insert(schema.userTexts)
+      .values({
+        userId: user.id,
+        title: title || file.name.replace(/\.pdf$/i, ""),
+        kind: "pdf",
+        level: await userLevel(user.id),
+        contentAr: "",
+        wordCount: 0,
+        totalSections: 1,
+        extractionStatus: "processing",
+        pagesTotal: pageCount,
+        pagesDone: 0,
+      })
+      .returning({ id: schema.userTexts.id });
+    textRowId = row.id;
 
-  await db.insert(schema.textChunks).values(
-    chunks.map((c) => ({
-      textId: row.id,
-      chunkIndex: c.index,
-      pageStart: c.start,
-      pageEnd: c.end,
-      pdfBase64: c.base64,
-    })),
-  );
+    // Insert chunk rows in small batches — a 20 MB book is ~27 MB of base64,
+    // too much for one statement through the connection pooler.
+    const BATCH = 5;
+    for (let i = 0; i < chunks.length; i += BATCH) {
+      await db.insert(schema.textChunks).values(
+        chunks.slice(i, i + BATCH).map((c) => ({
+          textId: textRowId,
+          chunkIndex: c.index,
+          pageStart: c.start,
+          pageEnd: c.end,
+          pdfBase64: c.base64,
+        })),
+      );
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[importTextFromPdf] db write failed:", msg);
+    if (/extraction_status|text_chunks|pages_total|pages_done/i.test(msg)) {
+      return {
+        error:
+          "Database is missing migration 0003 (background PDF extraction). Run db/migrations/0003_background_pdf_extraction.sql in the Supabase SQL editor, then retry.",
+      };
+    }
+    return { error: "Could not save the PDF — try again in a moment." };
+  }
 
   await logEvent("text_pdf_imported", {
     sizeBytes: file.size,
@@ -180,10 +199,10 @@ export async function importTextFromPdf(
   });
 
   // Kick off background extraction after this response is flushed.
-  after(() => triggerExtraction(row.id));
+  after(() => triggerExtraction(textRowId));
 
   revalidatePath("/texts");
-  return { id: row.id };
+  return { id: textRowId };
 }
 
 /** Resume a stalled or failed PDF extraction. */
