@@ -147,7 +147,7 @@ export function ImportTextForm() {
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
           {busy
             ? mode === "pdf"
-              ? "Extracting text from your PDF…"
+              ? "Extracting and cleaning Arabic… (~30s for big PDFs)"
               : mode === "url"
                 ? "Fetching and extracting…"
                 : "Saving…"
