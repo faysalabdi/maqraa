@@ -19,22 +19,21 @@ import { sectionize } from "@/lib/reading/sections";
  * URLs (NEXT_PUBLIC_APP_URL / VERCEL_URL) are fallbacks only.
  */
 
-// Small chunks keep each Claude vision call short and — crucially — well under
-// the model's output-token cap, so a chunk's Arabic is never truncated. Dense
-// scanned pages read at roughly 10-20s/page, so 6 pages stays comfortably
-// inside the 240s per-chunk timeout.
-export const PAGES_PER_CHUNK = 6;
-export const MAX_PAGES = 1000;
-// Modest concurrency keeps us under the account's tokens/min tier so chunks
-// rarely hit a rate limit in the first place.
+// Chunks are read by Mistral OCR or the PDF's own text layer (see
+// lib/ai/pdf-extract.ts) — both run at tens of pages per second, so larger
+// chunks cut wall time and DB row count without crowding the function budget.
+// 50 pages keeps each chunk's base64 payload comfortably small (~10-15 MB).
+export const PAGES_PER_CHUNK = 50;
+export const MAX_PAGES = 2000;
+// Modest concurrency keeps us under per-account OCR rate limits.
 const BATCH_SIZE = 3;
 // A chunk that keeps failing is requeued up to this many job-level passes
 // before being marked terminally failed.
 const MAX_CHUNK_ATTEMPTS = 5;
 // A 'working' chunk older than this was stranded by a killed invocation and is
-// safe to requeue. Must exceed the worst-case batch duration (240s chunk
-// timeout + overhead) or live workers get falsely requeued.
-export const STALE_WORKING_MS = 300_000;
+// safe to requeue. Must exceed the worst-case batch duration (per-chunk
+// timeout + overhead) so live workers aren't falsely requeued.
+export const STALE_WORKING_MS = 180_000;
 
 function countWords(s: string): number {
   return s.split(/\s+/).filter(Boolean).length;
