@@ -21,6 +21,15 @@ function countWords(s: string): number {
 
 const MAX_TEXTS_PER_USER = 200;
 
+async function userLevel(userId: string): Promise<number> {
+  const [profile] = await db
+    .select({ currentLevel: schema.profiles.currentLevel })
+    .from(schema.profiles)
+    .where(eq(schema.profiles.id, userId))
+    .limit(1);
+  return profile?.currentLevel ?? 1;
+}
+
 export async function importTextFromPaste(
   title: string,
   content: string,
@@ -33,13 +42,19 @@ export async function importTextFromPaste(
   if (cleanContent.length < 40) return { error: "Text is too short" };
   if (!/[؀-ۿ]/.test(cleanContent)) return { error: "That doesn't look like Arabic text" };
 
+  const { sectionize } = await import("@/lib/reading/sections");
+  const sections = sectionize(cleanContent);
+  const level = await userLevel(user.id);
+
   const [row] = await db
     .insert(schema.userTexts)
     .values({
       userId: user.id,
       title: cleanTitle,
+      level,
       contentAr: cleanContent,
       wordCount: countWords(cleanContent),
+      totalSections: sections.length,
     })
     .returning({ id: schema.userTexts.id });
 
@@ -89,15 +104,16 @@ export async function importTextFromPdf(
 
   let extracted;
   try {
-    const { extractArabicPdf } = await import("@/lib/ai/pdf-extract");
-    extracted = await extractArabicPdf(bytes);
+    const { extractArabicPdfChunked } = await import("@/lib/ai/pdf-extract");
+    extracted = await extractArabicPdfChunked(bytes);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "PDF extraction failed";
-    // Anthropic returns 400 for malformed or too-large PDFs, 413 for size.
     return {
-      error: msg.includes("invalid")
-        ? "That PDF could not be read — is it a real text/scan PDF and under 100 pages?"
-        : "PDF extraction failed — try a smaller file or fewer pages",
+      error: msg.includes("pages")
+        ? msg // our own page-limit message is already user-friendly
+        : msg.includes("invalid")
+          ? "That PDF could not be read — is it a valid PDF file?"
+          : "PDF extraction failed — try again, or split the file and retry",
     };
   }
 
@@ -115,6 +131,7 @@ export async function importTextFromPdf(
       userId: user.id,
       title: title || extracted.title_ar || file.name.replace(/\.pdf$/i, ""),
       kind: "pdf",
+      level: await userLevel(user.id),
       contentAr: cleanedContent,
       wordCount: countWords(cleanedContent),
       totalSections: sections.length,
@@ -253,6 +270,7 @@ export type TextSectionResult = {
   total: number;
   perQuestion: { id: string; correct: boolean; answerIndex: number; rationaleAr: string }[];
   xpEarned: number;
+  textFinished: boolean;
 };
 
 export async function submitTextSectionQuiz(
@@ -318,5 +336,43 @@ export async function submitTextSectionQuiz(
     await recordActivity(user.id);
   }
 
-  return { correctCount, total: quiz.questions.length, perQuestion, xpEarned };
+  // Finishing every section of a text counts like finishing a book: it earns
+  // book-completion XP and pushes the path forward at the text's level.
+  let textFinished = false;
+  if (text.totalSections > 0 && completed.size >= text.totalSections) {
+    textFinished = true;
+    xpEarned += await grantXp({
+      userId: user.id,
+      delta: XP_TEXT_COMPLETED,
+      reason: "book_completed",
+      ref: { textId, kind: text.kind },
+      refHash: `text_completed:${textId}`,
+    });
+    const { maybeLevelUp } = await import("@/lib/progression");
+    const level = text.level ?? (await userLevel(user.id));
+    await maybeLevelUp(user.id, level);
+    revalidatePath("/path");
+  }
+
+  return { correctCount, total: quiz.questions.length, perQuestion, xpEarned, textFinished };
+}
+
+const XP_TEXT_COMPLETED = 100;
+
+/** Manually re-assign a text's difficulty level (1-8). */
+export async function setTextLevel(
+  id: string,
+  level: number,
+): Promise<{ ok: true } | { error: string }> {
+  const user = await requireUser();
+  const clean = Math.round(level);
+  if (clean < 1 || clean > 8) return { error: "Level must be 1-8" };
+
+  await db
+    .update(schema.userTexts)
+    .set({ level: clean })
+    .where(and(eq(schema.userTexts.id, id), eq(schema.userTexts.userId, user.id)));
+
+  revalidatePath("/texts");
+  return { ok: true };
 }

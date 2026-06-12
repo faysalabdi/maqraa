@@ -240,7 +240,8 @@ export async function submitAttempt(
       refHash: `book_completed:${bookId}`,
     });
 
-    await checkLevelUp(user.id, book.level);
+    const { maybeLevelUp } = await import("@/lib/progression");
+    await maybeLevelUp(user.id, book.level);
   }
 
   await seedWrongVocab(user.id, perQuestion, bookId);
@@ -250,45 +251,6 @@ export async function submitAttempt(
   revalidatePath("/path");
 
   return { ok: true, score: scorePercent, passed, xpEarned, perQuestion };
-}
-
-async function checkLevelUp(userId: string, bookLevel: number) {
-  const [levelRow] = await db
-    .select()
-    .from(schema.levels)
-    .where(eq(schema.levels.level, bookLevel))
-    .limit(1);
-  if (!levelRow) return;
-
-  const [profile] = await db
-    .select()
-    .from(schema.profiles)
-    .where(eq(schema.profiles.id, userId))
-    .limit(1);
-  if (!profile || profile.currentLevel !== bookLevel) return;
-
-  const [row] = await db
-    .select({ cnt: count() })
-    .from(schema.userBooks)
-    .where(
-      and(eq(schema.userBooks.userId, userId), eq(schema.userBooks.status, "completed")),
-    );
-
-  if (Number(row?.cnt ?? 0) >= levelRow.booksRequiredToClear) {
-    const nextLevel = bookLevel + 1;
-    await db
-      .update(schema.profiles)
-      .set({ currentLevel: nextLevel, updatedAt: new Date() })
-      .where(eq(schema.profiles.id, userId));
-
-    await grantXp({
-      userId,
-      delta: XP_REWARDS.levelUp,
-      reason: "level_up",
-      ref: { from: bookLevel, to: nextLevel },
-      refHash: `level_up:${bookLevel}_to_${nextLevel}`,
-    });
-  }
 }
 
 async function seedWrongVocab(
