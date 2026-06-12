@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { anthropic, TEST_MODEL } from "./anthropic";
 
 export const ExtractedSchema = z.object({
   title_ar: z.string().nullable().optional(),
@@ -11,27 +10,27 @@ export type Extracted = z.infer<typeof ExtractedSchema>;
 /*
  * Per-chunk Arabic PDF extraction, tried in this order:
  *
- *   1. unpdf — pulls the PDF's embedded text layer. Free, instant. Works on any
+ *   1. unpdf — pulls the PDF's embedded text layer. Free, instant. Wins any
  *      digitally-exported Arabic PDF (most modern books, papers, exports).
  *   2. Mistral OCR (`mistral-ocr-latest`) — for scanned pages. ~$1 per 1000
- *      pages, ~30 pages/second, strong on Arabic.
- *   3. Claude vision — legacy fallback, only used when MISTRAL_API_KEY is unset.
- *      Slow (minutes per chunk) and expensive; kept so the app still works
- *      without a Mistral key.
+ *      pages, tens of pages per second, strong on Arabic, logical reading order.
  *
- * The chunking machinery in `lib/texts/extract-job.ts` is unchanged — every
- * chunk just gets read by whichever of the three engines fits.
+ * There is deliberately NO Claude-vision path: it read a chunk in minutes and
+ * cost orders of magnitude more. If neither path can run (no text layer AND no
+ * MISTRAL_API_KEY) we throw — the job's requeue surfaces a clear failure rather
+ * than silently grinding for an hour.
  */
 
 export async function extractArabicPdf(pdf: Uint8Array): Promise<Extracted> {
   const layer = await tryTextLayer(pdf);
-  if (layer) return { title_ar: null, content_ar: layer };
+  if (layer) return { title_ar: null, content_ar: normalizeArabic(layer) };
 
-  if (process.env.MISTRAL_API_KEY) {
-    return await mistralOcr(pdf);
+  if (!process.env.MISTRAL_API_KEY) {
+    throw new Error(
+      "This PDF has no usable text layer and MISTRAL_API_KEY is not set, so it can't be OCR'd. Add a Mistral API key (console.mistral.ai) to your environment.",
+    );
   }
-
-  return await claudeVision(pdf);
+  return await mistralOcr(pdf);
 }
 
 /* ─────────────────────── 1. text-layer fast path ─────────────────────── */
@@ -41,7 +40,10 @@ async function tryTextLayer(pdf: Uint8Array): Promise<string | null> {
     const { getDocumentProxy, extractText } = await import("unpdf");
     const doc = await getDocumentProxy(pdf);
     const { text, totalPages } = await extractText(doc, { mergePages: false });
-    const joined = text.map((p) => p.trim()).filter(Boolean).join("\n\n");
+    const joined = text
+      .map((p) => p.trim())
+      .filter(Boolean)
+      .join("\n\n");
     if (!isUsableArabicLayer(joined, totalPages)) return null;
     return joined;
   } catch {
@@ -52,8 +54,9 @@ async function tryTextLayer(pdf: Uint8Array): Promise<string | null> {
 /**
  * A text layer is "usable" when it contains a meaningful amount of Arabic per
  * page (rules out scans) AND is stored in logical Unicode codepoints rather
- * than presentation-form glyphs (rules out broken legacy exports that look
- * like Arabic but are reversed ligature sequences no reader could read back).
+ * than presentation-form glyphs (rules out broken legacy exports that store
+ * reversed ligature sequences no reader could read back). Anything that fails
+ * this falls through to OCR, which always produces clean logical-order text.
  */
 function isUsableArabicLayer(text: string, pageCount: number): boolean {
   if (!text) return false;
@@ -87,9 +90,8 @@ async function mistralOcr(pdf: Uint8Array): Promise<Extracted> {
       },
       includeImageBase64: false,
     },
-    // Mistral OCR is fast (≈30 pages/s), but allow generous slack for big
-    // chunks + network jitter. The job's own requeue handles transient
-    // failures, so no SDK-level retries.
+    // OCR is fast, but allow slack for big chunks + network jitter. The job's
+    // own requeue handles transient failures, so no SDK-level retries.
     { retries: { strategy: "none" }, timeoutMs: 120_000 },
   );
 
@@ -98,7 +100,7 @@ async function mistralOcr(pdf: Uint8Array): Promise<Extracted> {
     .filter((s) => s.length > 0)
     .join("\n\n");
 
-  return { title_ar: null, content_ar: content };
+  return { title_ar: null, content_ar: normalizeArabic(content) };
 }
 
 /**
@@ -111,6 +113,7 @@ function markdownToPlain(md: string): string {
     .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
     .replace(/^#{1,6}\s+/gm, "")
     .replace(/^\s*[-*+]\s+/gm, "")
+    .replace(/^\s*\|.*\|\s*$/gm, "")
     .replace(/\*\*([^*]+)\*\*/g, "$1")
     .replace(/\*([^*]+)\*/g, "$1")
     .replace(/`([^`]+)`/g, "$1")
@@ -118,55 +121,30 @@ function markdownToPlain(md: string): string {
     .trim();
 }
 
-/* ──────────────────── 3. Claude vision (legacy fallback) ──────────────────── */
+/* ─────────────────────── shared text normalization ─────────────────────── */
 
-const CLAUDE_SUBMIT_TOOL = {
-  name: "submit_extracted",
-  description: "Submit the extracted Arabic reading text from the PDF.",
-  input_schema: {
-    type: "object",
-    properties: {
-      title_ar: { type: "string" },
-      content_ar: { type: "string" },
-    },
-    required: ["title_ar", "content_ar"],
-  },
-} as const;
-
-const CLAUDE_SYSTEM = `You extract Arabic reading text from PDFs. Read pages in order, preserve original wording exactly (no translation, no summarization), keep paragraph breaks, drop page numbers / running headers / footers / branding. Arabic must be in logical Unicode order — never presentation-form ligatures. Submit only via the submit_extracted tool.`;
-
-async function claudeVision(pdf: Uint8Array): Promise<Extracted> {
-  const data = Buffer.from(pdf).toString("base64");
-  const response = await anthropic.messages.create(
-    {
-      model: TEST_MODEL,
-      max_tokens: 16000,
-      system: [{ type: "text", text: CLAUDE_SYSTEM, cache_control: { type: "ephemeral" } }],
-      tools: [CLAUDE_SUBMIT_TOOL as never],
-      tool_choice: { type: "tool", name: "submit_extracted" },
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "document",
-              source: { type: "base64", media_type: "application/pdf", data },
-              cache_control: { type: "ephemeral" },
-            } as never,
-            {
-              type: "text",
-              text: "Extract the Arabic reading content from this PDF. Submit via the submit_extracted tool.",
-            },
-          ],
-        },
-      ],
-    },
-    { timeout: 240_000, maxRetries: 0 },
-  );
-
-  const toolUse = response.content.find((c) => c.type === "tool_use");
-  if (!toolUse || toolUse.type !== "tool_use") {
-    throw new Error("PDF extraction did not return a tool_use block");
-  }
-  return ExtractedSchema.parse(toolUse.input);
+/**
+ * Cheap, instant cleanup applied to both paths. Fixes the structural artifacts
+ * that make extracted Arabic read badly — stray latin-only lines, runaway
+ * spacing, single newlines mid-paragraph — without any model call. Mistral OCR
+ * output is already logical-order and well-segmented, so this is light-touch.
+ */
+function normalizeArabic(text: string): string {
+  return text
+    .split(/\n{2,}/)
+    .map((para) =>
+      para
+        // Collapse single line breaks inside a paragraph into spaces (verse and
+        // real paragraph boundaries are double newlines, preserved by the split).
+        .replace(/\s*\n\s*/g, " ")
+        .replace(/[ \t ]{2,}/g, " ")
+        // Normalize spacing around Arabic punctuation.
+        .replace(/\s+([،؛؟!.])/g, "$1")
+        .trim(),
+    )
+    .filter((para) => para.length > 0)
+    // Drop paragraphs with no Arabic at all (page numbers, stray latin scraps).
+    .filter((para) => /[؀-ۿ]/.test(para))
+    .join("\n\n")
+    .trim();
 }
