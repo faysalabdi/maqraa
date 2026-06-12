@@ -75,8 +75,8 @@ export default async function LibraryPage() {
           </span>
           <h2 className="font-extrabold">Bring your own book</h2>
           <p className="mt-0.5 text-sm text-fg-muted">
-            Import a PDF you own or a link (arabic.ba, blogs, news). Position saved, vocab
-            saved, quizzes per section.
+            Import a PDF of a book you own. Claude reads each page directly so Arabic comes
+            out in the right order. Position saved, vocab saved, quizzes per section.
           </p>
           <span className="mt-2 inline-flex items-center gap-1 text-sm font-bold text-amber-600">
             My reading {textCount && Number(textCount.n) > 0 ? `(${textCount.n})` : ""}

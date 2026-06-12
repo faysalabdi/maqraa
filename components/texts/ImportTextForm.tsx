@@ -2,20 +2,15 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Link2, ClipboardPaste, FileText, Loader2, Sparkles } from "lucide-react";
+import { ClipboardPaste, FileText, Loader2, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  importTextFromUrl,
-  importTextFromPaste,
-  importTextFromPdf,
-} from "@/server/actions/texts";
+import { importTextFromPaste, importTextFromPdf } from "@/server/actions/texts";
 
-type Mode = "url" | "paste" | "pdf";
+type Mode = "pdf" | "paste";
 
 export function ImportTextForm() {
   const router = useRouter();
-  const [mode, setMode] = useState<Mode>("url");
-  const [url, setUrl] = useState("");
+  const [mode, setMode] = useState<Mode>("pdf");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [file, setFile] = useState<File | null>(null);
@@ -28,9 +23,7 @@ export function ImportTextForm() {
     setError(null);
 
     let result: { id: string } | { error: string };
-    if (mode === "url") {
-      result = await importTextFromUrl(url);
-    } else if (mode === "paste") {
+    if (mode === "paste") {
       result = await importTextFromPaste(title, content);
     } else {
       if (!file) {
@@ -50,14 +43,18 @@ export function ImportTextForm() {
   }
 
   const tabs = [
-    { key: "url", label: "From a link", icon: <Link2 className="h-4 w-4" /> },
     { key: "pdf", label: "From a PDF", icon: <FileText className="h-4 w-4" /> },
     { key: "paste", label: "Paste text", icon: <ClipboardPaste className="h-4 w-4" /> },
   ] as const;
 
   return (
     <div className="rounded-3xl bg-white p-6 shadow-soft ring-1 ring-border">
-      <h2 className="mb-3 text-lg font-bold">Import your own reading</h2>
+      <h2 className="mb-1 text-lg font-bold">Import your own reading</h2>
+      <p className="mb-4 text-sm text-fg-muted">
+        Bring a book you own as a PDF — Claude reads each page directly, so Arabic comes out in
+        the right order even when the PDF was poorly encoded. Saves your position, vocabulary,
+        and per-section comprehension as you go.
+      </p>
       <div className="mb-4 flex gap-1 rounded-xl bg-bg-muted p-1">
         {tabs.map((m) => (
           <button
@@ -73,23 +70,12 @@ export function ImportTextForm() {
             )}
           >
             {m.icon}
-            <span className="hidden sm:inline">{m.label}</span>
+            {m.label}
           </button>
         ))}
       </div>
 
       <form onSubmit={submit} className="space-y-3">
-        {mode === "url" && (
-          <input
-            type="url"
-            required
-            placeholder="https://arabic.ba/..."
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            className="w-full rounded-xl border border-border px-4 py-3 outline-none focus:ring-2 focus:ring-brand"
-          />
-        )}
-
         {mode === "pdf" && (
           <>
             <label className="block cursor-pointer rounded-xl border-2 border-dashed border-border p-6 text-center transition hover:border-brand hover:bg-emerald-50">
@@ -104,12 +90,12 @@ export function ImportTextForm() {
                 {file ? file.name : "Choose a PDF from your device"}
               </span>
               <span className="mt-1 block text-xs text-fg-muted">
-                A book you own, an article, study notes — text PDFs only (max 20 MB)
+                Up to 20 MB, up to about 100 pages per import. Text or scanned PDFs both work.
               </span>
             </label>
             <input
               type="text"
-              placeholder="Title (optional — defaults to the file name)"
+              placeholder="Title (optional — Claude will pick one from the document)"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="w-full rounded-xl border border-border px-4 py-3 outline-none focus:ring-2 focus:ring-brand"
@@ -147,17 +133,14 @@ export function ImportTextForm() {
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
           {busy
             ? mode === "pdf"
-              ? "Extracting and cleaning Arabic… (~30s for big PDFs)"
-              : mode === "url"
-                ? "Fetching and extracting…"
-                : "Saving…"
+              ? "Reading the PDF with Claude… (~30s for big files)"
+              : "Saving…"
             : "Import and read"}
         </button>
         {error && <p className="text-center text-sm text-danger">{error}</p>}
       </form>
       <p className="mt-3 text-center text-xs text-fg-muted">
-        Imports are private to your account, for personal study. Your reading position is saved
-        automatically.
+        Imports are private to your account, for personal study. Position is saved as you read.
       </p>
     </div>
   );

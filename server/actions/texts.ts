@@ -4,7 +4,6 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { db, schema } from "@/lib/db";
-import { fetchAndExtractArabic } from "@/lib/ai/extract-text";
 import { logEvent } from "@/lib/analytics";
 
 async function requireUser() {
@@ -21,42 +20,6 @@ function countWords(s: string): number {
 }
 
 const MAX_TEXTS_PER_USER = 200;
-
-export async function importTextFromUrl(
-  url: string,
-): Promise<{ id: string } | { error: string }> {
-  const user = await requireUser();
-
-  const existing = await db
-    .select({ id: schema.userTexts.id })
-    .from(schema.userTexts)
-    .where(eq(schema.userTexts.userId, user.id));
-  if (existing.length >= MAX_TEXTS_PER_USER) {
-    return { error: "You've reached the limit of saved texts. Delete some first." };
-  }
-
-  let extracted;
-  try {
-    extracted = await fetchAndExtractArabic(url.trim());
-  } catch (e) {
-    return { error: e instanceof Error ? e.message : "Import failed" };
-  }
-
-  const [row] = await db
-    .insert(schema.userTexts)
-    .values({
-      userId: user.id,
-      title: extracted.title.slice(0, 200),
-      sourceUrl: url.trim().slice(0, 500),
-      contentAr: extracted.content_ar,
-      wordCount: countWords(extracted.content_ar),
-    })
-    .returning({ id: schema.userTexts.id });
-
-  await logEvent("text_imported", { sourceUrl: url, words: countWords(extracted.content_ar) });
-  revalidatePath("/texts");
-  return { id: row.id };
-}
 
 export async function importTextFromPaste(
   title: string,
@@ -101,7 +64,16 @@ export async function touchTextRead(id: string): Promise<void> {
     .where(and(eq(schema.userTexts.id, id), eq(schema.userTexts.userId, user.id)));
 }
 
-/* ───────────────────────────── PDF import ───────────────────────────── */
+/* ───────────────────────────── PDF import ─────────────────────────────
+ *
+ * Strategy: send the PDF directly to Claude as a document content block.
+ * Claude renders each page visually and reads it like a human, so we
+ * avoid every Arabic-PDF-extraction failure mode at once — reversed
+ * glyph order, presentation-form ligatures, broken text spans across
+ * columns, hidden font encodings. The user pays for one Sonnet call per
+ * import (~$0.05 for a typical 30-page chapter) instead of getting
+ * garbled output for free.
+ */
 
 export async function importTextFromPdf(
   formData: FormData,
@@ -113,49 +85,25 @@ export async function importTextFromPdf(
   if (!(file instanceof File)) return { error: "No file received" };
   if (file.size > 20 * 1024 * 1024) return { error: "PDF too large (max 20 MB)" };
 
-  let raw: string;
+  const bytes = new Uint8Array(await file.arrayBuffer());
+
+  let extracted;
   try {
-    const { extractText } = await import("unpdf");
-    const buffer = new Uint8Array(await file.arrayBuffer());
-    const result = await extractText(buffer, { mergePages: true });
-    raw = Array.isArray(result.text) ? result.text.join("\n\n") : result.text;
-  } catch {
-    return { error: "Could not read that PDF. Is it a text PDF (not a scan)?" };
-  }
-
-  const content = raw
-    .replace(/[ \t]+/g, " ")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim()
-    .slice(0, 500_000);
-
-  if (!/[؀-ۿ]/.test(content)) {
+    const { extractArabicPdf } = await import("@/lib/ai/pdf-extract");
+    extracted = await extractArabicPdf(bytes);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "PDF extraction failed";
+    // Anthropic returns 400 for malformed or too-large PDFs, 413 for size.
     return {
-      error:
-        "No Arabic text found. Scanned/image PDFs need OCR first — try exporting a text PDF.",
+      error: msg.includes("invalid")
+        ? "That PDF could not be read — is it a real text/scan PDF and under 100 pages?"
+        : "PDF extraction failed — try a smaller file or fewer pages",
     };
   }
-  if (content.length < 100) return { error: "The PDF contained almost no extractable text" };
 
-  // Arabic PDF extractors notoriously emit text in visual right-to-left order
-  // with presentation-form ligatures, producing reversed nonsense like
-  // "دمحأ" instead of "أحمد". Pipe through Claude to fix ordering + ligatures.
-  const { cleanupArabicPdfText, looksReversed } = await import("@/lib/ai/pdf-cleanup");
-  const wasReversed = looksReversed(content);
-  let cleanedContent = content;
-  let quality: "good" | "partial" | "unsalvageable" = "good";
-  try {
-    const cleanup = await cleanupArabicPdfText(content);
-    cleanedContent = cleanup.cleaned_ar.trim();
-    quality = cleanup.quality;
-  } catch {
-    // Fall back to the raw text — still saved, but the reader may show it
-    // mis-ordered. User can reprocess later.
-    quality = "partial";
-  }
-
-  if (cleanedContent.length < 80) {
-    return { error: "Could not recover enough Arabic from that PDF" };
+  const cleanedContent = extracted.content_ar.trim();
+  if (cleanedContent.length < 60) {
+    return { error: "Could not find enough Arabic reading text in that PDF" };
   }
 
   const { sectionize } = await import("@/lib/reading/sections");
@@ -165,7 +113,7 @@ export async function importTextFromPdf(
     .insert(schema.userTexts)
     .values({
       userId: user.id,
-      title: title || file.name.replace(/\.pdf$/i, ""),
+      title: title || extracted.title_ar || file.name.replace(/\.pdf$/i, ""),
       kind: "pdf",
       contentAr: cleanedContent,
       wordCount: countWords(cleanedContent),
@@ -176,59 +124,11 @@ export async function importTextFromPdf(
   await logEvent("text_pdf_imported", {
     sizeBytes: file.size,
     sections: sections.length,
-    wasReversed,
-    quality,
+    chapters: extracted.chapters?.length ?? 0,
+    qualityNote: extracted.quality_note ?? null,
   });
   revalidatePath("/texts");
   return { id: row.id };
-}
-
-/**
- * Re-run the Claude cleanup on an existing text. For users who imported
- * a PDF before cleanup was wired up, or where the first cleanup pass was
- * imperfect. Resets section progress because sectioning will shift.
- */
-export async function reprocessText(id: string): Promise<{ ok: true } | { error: string }> {
-  const user = await requireUser();
-
-  const [text] = await db
-    .select()
-    .from(schema.userTexts)
-    .where(and(eq(schema.userTexts.id, id), eq(schema.userTexts.userId, user.id)))
-    .limit(1);
-  if (!text) return { error: "text not found" };
-
-  let cleaned: string;
-  try {
-    const { cleanupArabicPdfText } = await import("@/lib/ai/pdf-cleanup");
-    const r = await cleanupArabicPdfText(text.contentAr);
-    cleaned = r.cleaned_ar.trim();
-  } catch {
-    return { error: "Cleanup failed — try again in a moment" };
-  }
-
-  if (cleaned.length < 80) return { error: "Could not recover usable Arabic" };
-
-  const { sectionize } = await import("@/lib/reading/sections");
-  const sections = sectionize(cleaned);
-
-  await db
-    .update(schema.userTexts)
-    .set({
-      contentAr: cleaned,
-      wordCount: countWords(cleaned),
-      totalSections: sections.length,
-      currentSection: 0,
-      completedSections: [],
-    })
-    .where(eq(schema.userTexts.id, id));
-
-  // Clear stale per-section quizzes since section boundaries moved.
-  await db.delete(schema.textQuizzes).where(eq(schema.textQuizzes.textId, id));
-
-  revalidatePath("/texts");
-  revalidatePath(`/texts/${id}`);
-  return { ok: true };
 }
 
 /* ─────────────────────────── story generation ─────────────────────────── */
