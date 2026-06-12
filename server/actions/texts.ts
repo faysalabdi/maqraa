@@ -502,10 +502,23 @@ export async function submitTextSectionQuiz(
   }));
   const correctCount = perQuestion.filter((p) => p.correct).length;
 
+  // Per-section checks are optional self-tests; the check on the LAST section
+  // is the required one that completes the text. Don't treat it as final while
+  // a PDF is still extracting — the last section so far isn't the book's end.
+  const isFinalSection =
+    text.extractionStatus === "ready" &&
+    text.totalSections > 0 &&
+    sectionNumber >= text.totalSections - 1;
+
   const completed = new Set<number>(
     Array.isArray(text.completedSections) ? (text.completedSections as number[]) : [],
   );
   completed.add(sectionNumber);
+  // Passing the final check completes the whole text, so mark every section
+  // done — that's what counts the text toward the path.
+  if (isFinalSection) {
+    for (let i = 0; i < text.totalSections; i++) completed.add(i);
+  }
 
   await db
     .update(schema.userTexts)
@@ -528,16 +541,10 @@ export async function submitTextSectionQuiz(
     await recordActivity(user.id);
   }
 
-  // Finishing every section of a text counts like finishing a book: it earns
-  // book-completion XP (scaled to length) and pushes the path forward. Skip
-  // this while a PDF is still extracting — "all sections" is only the prefix
-  // read so far, not the whole book.
+  // The final check earns book-completion XP (scaled to length) and pushes the
+  // path forward, like finishing a book.
   let textFinished = false;
-  if (
-    text.extractionStatus === "ready" &&
-    text.totalSections > 0 &&
-    completed.size >= text.totalSections
-  ) {
+  if (isFinalSection) {
     textFinished = true;
     const { bookCompletionXp } = await import("@/lib/xp/rewards");
     const completionXp = bookCompletionXp(text.wordCount);

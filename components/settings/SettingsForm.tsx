@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { LogOut, Save, Loader2, Check } from "lucide-react";
+import { LogOut, Save, Loader2, Check, KeyRound } from "lucide-react";
 import { updateSettings, signOutAction } from "@/server/actions/settings";
+import { createClient } from "@/lib/supabase/client";
 
 type Props = {
   initial: {
@@ -59,6 +60,33 @@ export default function SettingsForm({ initial, streak }: Props) {
     startTransition(async () => {
       await signOutAction();
       window.location.href = "/";
+    });
+  }
+
+  // Password set/change — works even for accounts created before passwords
+  // existed (OTP-only). updateUser adds a password to the current session.
+  const [password, setPassword] = useState("");
+  const [pwState, setPwState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [pwError, setPwError] = useState<string | null>(null);
+
+  function savePassword() {
+    if (password.length < 6) {
+      setPwState("error");
+      setPwError("Use at least 6 characters.");
+      return;
+    }
+    setPwState("saving");
+    setPwError(null);
+    const supabase = createClient();
+    supabase.auth.updateUser({ password }).then(({ error }) => {
+      if (error) {
+        setPwState("error");
+        setPwError(error.message);
+      } else {
+        setPwState("saved");
+        setPassword("");
+        setTimeout(() => setPwState("idle"), 3000);
+      }
     });
   }
 
@@ -156,6 +184,48 @@ export default function SettingsForm({ initial, streak }: Props) {
           />
           <span className="w-16 text-right text-sm font-bold">{dailyXpGoal}</span>
         </div>
+      </Section>
+
+      {/* Sign-in & security */}
+      <Section
+        title="Sign-in & security"
+        description="Set or change your password. Handy if you only ever signed in with an email code."
+      >
+        <Label>Password</Label>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="New password (6+ characters)"
+            autoComplete="new-password"
+            minLength={6}
+            className="min-w-0 flex-1 rounded-xl border border-border bg-white px-4 py-3 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/30"
+          />
+          <button
+            type="button"
+            onClick={savePassword}
+            disabled={pwState === "saving"}
+            className="inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-3 font-bold text-brand-fg shadow-glow-brand transition hover:bg-brand-dark disabled:opacity-60"
+          >
+            {pwState === "saving" ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : pwState === "saved" ? (
+              <Check className="h-4 w-4" />
+            ) : (
+              <KeyRound className="h-4 w-4" />
+            )}
+            {pwState === "saved" ? "Saved" : "Set password"}
+          </button>
+        </div>
+        {pwState === "error" && pwError && (
+          <p className="mt-2 text-sm text-danger">{pwError}</p>
+        )}
+        {pwState === "saved" && (
+          <p className="mt-2 text-sm text-emerald-700">
+            Password set. You can now sign in with your email and this password.
+          </p>
+        )}
       </Section>
 
       {/* Streak read-only */}
