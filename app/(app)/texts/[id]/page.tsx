@@ -43,6 +43,10 @@ export default async function TextReadPage({ params }: { params: Promise<{ id: s
         completedSections: Array.isArray(text.completedSections)
           ? (text.completedSections as number[])
           : [],
+        extractionStatus: text.extractionStatus,
+        extractionError: text.extractionError,
+        pagesTotal: text.pagesTotal,
+        pagesDone: text.pagesDone,
       }}
       initialSavedKeys={saved.map((s) => lookupKey(s.lemmaAr))}
     />

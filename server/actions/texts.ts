@@ -1,7 +1,8 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, count, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { db, schema } from "@/lib/db";
 import { logEvent } from "@/lib/analytics";
@@ -82,12 +83,16 @@ export async function touchTextRead(id: string): Promise<void> {
 /* ───────────────────────────── PDF import ─────────────────────────────
  *
  * Strategy: send the PDF directly to Claude as a document content block.
- * Claude renders each page visually and reads it like a human, so we
- * avoid every Arabic-PDF-extraction failure mode at once — reversed
- * glyph order, presentation-form ligatures, broken text spans across
- * columns, hidden font encodings. The user pays for one Sonnet call per
- * import (~$0.05 for a typical 30-page chapter) instead of getting
- * garbled output for free.
+ * Claude renders each page visually and reads it like a human, so we avoid
+ * every Arabic-PDF-extraction failure mode at once — reversed glyph order,
+ * presentation-form ligatures, broken text spans across columns, hidden font
+ * encodings.
+ *
+ * Big books are split into small page-range chunks up front, then read in the
+ * BACKGROUND: the import returns an id immediately with status "processing",
+ * and a self-chaining route reads the chunks a few at a time. The reader shows
+ * extracted text as it lands, so the user starts reading before the whole book
+ * is done and a 600-page book never blocks (or times out) a single request.
  */
 
 export async function importTextFromPdf(
@@ -102,50 +107,129 @@ export async function importTextFromPdf(
 
   const bytes = new Uint8Array(await file.arrayBuffer());
 
-  let extracted;
+  const { PAGES_PER_CHUNK, MAX_PAGES, triggerExtraction } = await import(
+    "@/lib/texts/extract-job"
+  );
+
+  // Split into chunks now (fast, no AI). The slow vision reads happen later.
+  let chunks: { index: number; start: number; end: number; base64: string }[];
+  let pageCount: number;
   try {
-    const { extractArabicPdfChunked } = await import("@/lib/ai/pdf-extract");
-    extracted = await extractArabicPdfChunked(bytes);
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "PDF extraction failed";
-    return {
-      error: msg.includes("pages")
-        ? msg // our own page-limit message is already user-friendly
-        : msg.includes("invalid")
-          ? "That PDF could not be read — is it a valid PDF file?"
-          : "PDF extraction failed — try again, or split the file and retry",
-    };
+    const { PDFDocument } = await import("pdf-lib");
+    const source = await PDFDocument.load(bytes, { ignoreEncryption: true });
+    pageCount = source.getPageCount();
+    if (pageCount > MAX_PAGES) {
+      return {
+        error: `This PDF has ${pageCount} pages — the current limit is ${MAX_PAGES}. Split it and import in parts.`,
+      };
+    }
+
+    chunks = [];
+    for (let start = 0; start < pageCount; start += PAGES_PER_CHUNK) {
+      const end = Math.min(start + PAGES_PER_CHUNK, pageCount);
+      const part = await PDFDocument.create();
+      const pages = await part.copyPages(
+        source,
+        Array.from({ length: end - start }, (_, i) => start + i),
+      );
+      for (const page of pages) part.addPage(page);
+      const partBytes = await part.save();
+      chunks.push({
+        index: chunks.length,
+        start,
+        end,
+        base64: Buffer.from(partBytes).toString("base64"),
+      });
+    }
+  } catch {
+    return { error: "That PDF could not be read — is it a valid PDF file?" };
   }
 
-  const cleanedContent = extracted.content_ar.trim();
-  if (cleanedContent.length < 60) {
-    return { error: "Could not find enough Arabic reading text in that PDF" };
-  }
-
-  const { sectionize } = await import("@/lib/reading/sections");
-  const sections = sectionize(cleanedContent);
+  if (chunks.length === 0) return { error: "That PDF has no pages" };
 
   const [row] = await db
     .insert(schema.userTexts)
     .values({
       userId: user.id,
-      title: title || extracted.title_ar || file.name.replace(/\.pdf$/i, ""),
+      title: title || file.name.replace(/\.pdf$/i, ""),
       kind: "pdf",
       level: await userLevel(user.id),
-      contentAr: cleanedContent,
-      wordCount: countWords(cleanedContent),
-      totalSections: sections.length,
+      contentAr: "",
+      wordCount: 0,
+      totalSections: 1,
+      extractionStatus: "processing",
+      pagesTotal: pageCount,
+      pagesDone: 0,
     })
     .returning({ id: schema.userTexts.id });
 
+  await db.insert(schema.textChunks).values(
+    chunks.map((c) => ({
+      textId: row.id,
+      chunkIndex: c.index,
+      pageStart: c.start,
+      pageEnd: c.end,
+      pdfBase64: c.base64,
+    })),
+  );
+
   await logEvent("text_pdf_imported", {
     sizeBytes: file.size,
-    sections: sections.length,
-    chapters: extracted.chapters?.length ?? 0,
-    qualityNote: extracted.quality_note ?? null,
+    pages: pageCount,
+    chunks: chunks.length,
   });
+
+  // Kick off background extraction after this response is flushed.
+  after(() => triggerExtraction(row.id));
+
   revalidatePath("/texts");
   return { id: row.id };
+}
+
+/** Resume a stalled or failed PDF extraction. */
+export async function retryTextExtraction(
+  id: string,
+): Promise<{ ok: true } | { error: string }> {
+  const user = await requireUser();
+
+  const [text] = await db
+    .select()
+    .from(schema.userTexts)
+    .where(and(eq(schema.userTexts.id, id), eq(schema.userTexts.userId, user.id)))
+    .limit(1);
+  if (!text) return { error: "Text not found" };
+  if (text.extractionStatus === "ready") return { ok: true };
+
+  const [{ cnt }] = await db
+    .select({ cnt: count() })
+    .from(schema.textChunks)
+    .where(eq(schema.textChunks.textId, id));
+  if (Number(cnt) === 0) {
+    return { error: "Nothing left to extract — please re-import this PDF." };
+  }
+
+  // Requeue anything that didn't finish cleanly.
+  await db
+    .update(schema.textChunks)
+    .set({ status: "pending" })
+    .where(
+      and(
+        eq(schema.textChunks.textId, id),
+        inArray(schema.textChunks.status, ["working", "failed"]),
+      ),
+    );
+
+  await db
+    .update(schema.userTexts)
+    .set({ extractionStatus: "processing", extractionError: null })
+    .where(eq(schema.userTexts.id, id));
+
+  const { triggerExtraction } = await import("@/lib/texts/extract-job");
+  after(() => triggerExtraction(id));
+
+  revalidatePath(`/texts/${id}`);
+  revalidatePath("/texts");
+  return { ok: true };
 }
 
 /* ─────────────────────────── story generation ─────────────────────────── */
@@ -337,9 +421,15 @@ export async function submitTextSectionQuiz(
   }
 
   // Finishing every section of a text counts like finishing a book: it earns
-  // book-completion XP (scaled to length) and pushes the path forward.
+  // book-completion XP (scaled to length) and pushes the path forward. Skip
+  // this while a PDF is still extracting — "all sections" is only the prefix
+  // read so far, not the whole book.
   let textFinished = false;
-  if (text.totalSections > 0 && completed.size >= text.totalSections) {
+  if (
+    text.extractionStatus === "ready" &&
+    text.totalSections > 0 &&
+    completed.size >= text.totalSections
+  ) {
     textFinished = true;
     const { bookCompletionXp } = await import("@/lib/xp/rewards");
     const completionXp = bookCompletionXp(text.wordCount);

@@ -375,6 +375,15 @@ export const usageEvents = pgTable(
 
 export const textKind = pgEnum("text_kind", ["imported", "pasted", "pdf", "generated"]);
 
+// Extraction lifecycle for PDF imports. Paste/generated texts are "ready"
+// immediately; PDFs start "processing" while Claude reads them in the
+// background and flip to "ready" (or "failed") when the job settles.
+export const textExtractionStatus = pgEnum("text_extraction_status", [
+  "ready",
+  "processing",
+  "failed",
+]);
+
 export const userTexts = pgTable(
   "user_texts",
   {
@@ -391,11 +400,43 @@ export const userTexts = pgTable(
     currentSection: integer("current_section").notNull().default(0),
     totalSections: integer("total_sections").notNull().default(1),
     completedSections: jsonb("completed_sections").notNull().default(sql`'[]'::jsonb`),
+    extractionStatus: textExtractionStatus("extraction_status").notNull().default("ready"),
+    extractionError: text("extraction_error"),
+    pagesTotal: integer("pages_total"),
+    pagesDone: integer("pages_done").notNull().default(0),
     lastReadAt: timestamp("last_read_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
     userCreatedIdx: index("user_texts_user_created_idx").on(t.userId, t.createdAt),
+  }),
+);
+
+// Transient per-chunk storage for background PDF extraction. Each row holds one
+// page-range slice of the original PDF (base64) and, once Claude reads it, the
+// extracted Arabic. Rows are deleted when the whole job finishes successfully.
+export const textChunks = pgTable(
+  "text_chunks",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    textId: uuid("text_id")
+      .notNull()
+      .references(() => userTexts.id, { onDelete: "cascade" }),
+    chunkIndex: integer("chunk_index").notNull(),
+    pageStart: integer("page_start").notNull(),
+    pageEnd: integer("page_end").notNull(), // exclusive
+    pdfBase64: text("pdf_base64").notNull(),
+    // pending | working | done | failed
+    status: text("status").notNull().default("pending"),
+    contentAr: text("content_ar"),
+    titleAr: text("title_ar"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    textChunkIdx: uniqueIndex("text_chunks_text_chunk_idx").on(t.textId, t.chunkIndex),
+    textStatusIdx: index("text_chunks_text_status_idx").on(t.textId, t.status),
   }),
 );
 

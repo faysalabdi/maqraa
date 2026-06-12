@@ -53,7 +53,10 @@ export default async function TextsPage() {
           const completedCount = Array.isArray(t.completedSections)
             ? (t.completedSections as number[]).length
             : 0;
-          const isFinished = t.totalSections > 0 && completedCount >= t.totalSections;
+          const isFinished =
+            t.extractionStatus === "ready" &&
+            t.totalSections > 0 &&
+            completedCount >= t.totalSections;
           return { t, completedCount, isFinished };
         });
         const active = mapped.filter((x) => !x.isFinished);
@@ -72,6 +75,9 @@ export default async function TextsPage() {
               currentSection: t.currentSection,
               totalSections: t.totalSections,
               completedCount,
+              extractionStatus: t.extractionStatus,
+              pagesTotal: t.pagesTotal,
+              pagesDone: t.pagesDone,
               createdAt: t.createdAt.toISOString(),
               lastReadAt: t.lastReadAt?.toISOString() ?? null,
             }}
