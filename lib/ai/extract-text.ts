@@ -1,12 +1,21 @@
 import { z } from "zod";
 import { anthropic, FALLBACK_MODEL } from "./anthropic";
 
+// Many graded-reader pages (e.g. arabic.ba flashcards) carry a single short
+// passage of 20-60 Arabic characters. Allow them, but reject obviously empty
+// extractions.
 export const ExtractedSchema = z.object({
   title: z.string(),
-  content_ar: z.string().min(40),
+  content_ar: z.string().min(15),
 });
 
 export type ExtractedText = z.infer<typeof ExtractedSchema>;
+
+export class ExtractError extends Error {
+  constructor(public readonly userMessage: string) {
+    super(userMessage);
+  }
+}
 
 const SUBMIT_EXTRACTION_TOOL = {
   name: "submit_extraction",
@@ -21,45 +30,80 @@ const SUBMIT_EXTRACTION_TOOL = {
       content_ar: {
         type: "string",
         description:
-          "The main Arabic body text only, cleaned. Paragraphs separated by blank lines. No navigation, ads, comments, or English UI text.",
+          "All Arabic reading content from the page, in reading order. Paragraphs separated by blank lines. Keep short passages even if only a few sentences. Drop navigation, ads, comments, share buttons, footers, repeated branding. Do NOT translate or paraphrase.",
       },
     },
     required: ["title", "content_ar"],
   },
 } as const;
 
-function stripHtml(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<(p|div|br|h[1-6]|li)[^>]*>/gi, "\n")
-    .replace(/<[^>]+>/g, " ")
+function decodeEntities(s: string): string {
+  return s
     .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&")
     .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)));
+}
+
+function stripHtml(html: string): string {
+  return decodeEntities(
+    html
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<noscript[\s\S]*?<\/noscript>/gi, " ")
+      .replace(/<(p|div|br|h[1-6]|li|tr|hr|article|section)[^>]*>/gi, "\n")
+      .replace(/<[^>]+>/g, " "),
+  )
     .replace(/[ \t]+/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
 
+function countArabicChars(s: string): number {
+  return (s.match(/[؀-ۿ]/g) ?? []).length;
+}
+
 export async function fetchAndExtractArabic(url: string): Promise<ExtractedText> {
   const parsed = new URL(url);
   if (!["http:", "https:"].includes(parsed.protocol)) {
-    throw new Error("Only http(s) URLs are supported");
+    throw new ExtractError("Only http(s) URLs are supported");
   }
 
-  const res = await fetch(url, {
-    headers: { "user-agent": "Mozilla/5.0 (compatible; arabic-xp/1.0)" },
-    signal: AbortSignal.timeout(15000),
-    redirect: "follow",
-  });
-  if (!res.ok) throw new Error(`Could not fetch the page (HTTP ${res.status})`);
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: {
+        // Browser-like UA — some sites serve a different body to bots.
+        "user-agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+        accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "accept-language": "ar,en;q=0.8",
+      },
+      signal: AbortSignal.timeout(20000),
+      redirect: "follow",
+    });
+  } catch (e) {
+    throw new ExtractError(
+      e instanceof Error && e.name === "TimeoutError"
+        ? "That page took too long to load"
+        : "Could not reach that page",
+    );
+  }
+  if (!res.ok) throw new ExtractError(`Could not fetch the page (HTTP ${res.status})`);
 
   const raw = (await res.text()).slice(0, 1_500_000);
-  const text = stripHtml(raw).slice(0, 40_000);
+  const text = stripHtml(raw).slice(0, 60_000);
+  const arabicChars = countArabicChars(text);
 
-  if (!/[؀-ۿ]/.test(text)) {
-    throw new Error("No Arabic text found on that page");
+  if (arabicChars < 10) {
+    throw new ExtractError(
+      "No Arabic text found on that page. The site may render content with JavaScript, or the Arabic is inside images.",
+    );
   }
 
   const response = await anthropic.messages.create({
@@ -68,7 +112,7 @@ export async function fetchAndExtractArabic(url: string): Promise<ExtractedText>
     system: [
       {
         type: "text",
-        text: "You extract the main Arabic reading text from messy web-page content for a language learner's personal reading list. Return the article/story body only — drop navigation, menus, ads, comments, share buttons, footers, and unrelated snippets. Keep the Arabic exactly as written (do not rewrite, summarize, or add tashkeel). Preserve paragraph breaks. If multiple stories are on the page, pick the main/longest one. Submit only via the submit_extraction tool.",
+        text: "You extract Arabic reading text from web pages for a language learner. Return ALL the Arabic reading content (even just a short paragraph or list of sentences from a flashcard-style page). Drop UI chrome, navigation, sidebar links, branding, comments, footer. Keep the text exactly as written — never translate, paraphrase, or add tashkeel. If the page only has a short passage, return that short passage; do not refuse. Submit only via the submit_extraction tool.",
         cache_control: { type: "ephemeral" },
       },
     ],
@@ -78,7 +122,26 @@ export async function fetchAndExtractArabic(url: string): Promise<ExtractedText>
   });
 
   const toolUse = response.content.find((c) => c.type === "tool_use");
-  if (!toolUse || toolUse.type !== "tool_use") throw new Error("Extraction failed");
+  if (!toolUse || toolUse.type !== "tool_use") {
+    throw new ExtractError("Extraction failed");
+  }
 
-  return ExtractedSchema.parse(toolUse.input);
+  const parsedTool = ExtractedSchema.safeParse(toolUse.input);
+  if (!parsedTool.success) {
+    // Fallback: if Claude couldn't surface enough, return raw Arabic-heavy
+    // lines so the user at least has *something* to read with translations.
+    const fallback = text
+      .split(/\n+/)
+      .filter((line) => countArabicChars(line) > 5)
+      .join("\n\n")
+      .slice(0, 20_000);
+    if (countArabicChars(fallback) < 15) {
+      throw new ExtractError(
+        "Could not find enough Arabic reading text on that page. Try pasting the text directly instead.",
+      );
+    }
+    return { title: parsed.hostname, content_ar: fallback };
+  }
+
+  return parsedTool.data;
 }

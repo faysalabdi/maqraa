@@ -137,8 +137,29 @@ export async function importTextFromPdf(
   }
   if (content.length < 100) return { error: "The PDF contained almost no extractable text" };
 
+  // Arabic PDF extractors notoriously emit text in visual right-to-left order
+  // with presentation-form ligatures, producing reversed nonsense like
+  // "دمحأ" instead of "أحمد". Pipe through Claude to fix ordering + ligatures.
+  const { cleanupArabicPdfText, looksReversed } = await import("@/lib/ai/pdf-cleanup");
+  const wasReversed = looksReversed(content);
+  let cleanedContent = content;
+  let quality: "good" | "partial" | "unsalvageable" = "good";
+  try {
+    const cleanup = await cleanupArabicPdfText(content);
+    cleanedContent = cleanup.cleaned_ar.trim();
+    quality = cleanup.quality;
+  } catch {
+    // Fall back to the raw text — still saved, but the reader may show it
+    // mis-ordered. User can reprocess later.
+    quality = "partial";
+  }
+
+  if (cleanedContent.length < 80) {
+    return { error: "Could not recover enough Arabic from that PDF" };
+  }
+
   const { sectionize } = await import("@/lib/reading/sections");
-  const sections = sectionize(content);
+  const sections = sectionize(cleanedContent);
 
   const [row] = await db
     .insert(schema.userTexts)
@@ -146,15 +167,68 @@ export async function importTextFromPdf(
       userId: user.id,
       title: title || file.name.replace(/\.pdf$/i, ""),
       kind: "pdf",
-      contentAr: content,
-      wordCount: countWords(content),
+      contentAr: cleanedContent,
+      wordCount: countWords(cleanedContent),
       totalSections: sections.length,
     })
     .returning({ id: schema.userTexts.id });
 
-  await logEvent("text_pdf_imported", { sizeBytes: file.size, sections: sections.length });
+  await logEvent("text_pdf_imported", {
+    sizeBytes: file.size,
+    sections: sections.length,
+    wasReversed,
+    quality,
+  });
   revalidatePath("/texts");
   return { id: row.id };
+}
+
+/**
+ * Re-run the Claude cleanup on an existing text. For users who imported
+ * a PDF before cleanup was wired up, or where the first cleanup pass was
+ * imperfect. Resets section progress because sectioning will shift.
+ */
+export async function reprocessText(id: string): Promise<{ ok: true } | { error: string }> {
+  const user = await requireUser();
+
+  const [text] = await db
+    .select()
+    .from(schema.userTexts)
+    .where(and(eq(schema.userTexts.id, id), eq(schema.userTexts.userId, user.id)))
+    .limit(1);
+  if (!text) return { error: "text not found" };
+
+  let cleaned: string;
+  try {
+    const { cleanupArabicPdfText } = await import("@/lib/ai/pdf-cleanup");
+    const r = await cleanupArabicPdfText(text.contentAr);
+    cleaned = r.cleaned_ar.trim();
+  } catch {
+    return { error: "Cleanup failed — try again in a moment" };
+  }
+
+  if (cleaned.length < 80) return { error: "Could not recover usable Arabic" };
+
+  const { sectionize } = await import("@/lib/reading/sections");
+  const sections = sectionize(cleaned);
+
+  await db
+    .update(schema.userTexts)
+    .set({
+      contentAr: cleaned,
+      wordCount: countWords(cleaned),
+      totalSections: sections.length,
+      currentSection: 0,
+      completedSections: [],
+    })
+    .where(eq(schema.userTexts.id, id));
+
+  // Clear stale per-section quizzes since section boundaries moved.
+  await db.delete(schema.textQuizzes).where(eq(schema.textQuizzes.textId, id));
+
+  revalidatePath("/texts");
+  revalidatePath(`/texts/${id}`);
+  return { ok: true };
 }
 
 /* ─────────────────────────── story generation ─────────────────────────── */
