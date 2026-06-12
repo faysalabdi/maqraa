@@ -61,7 +61,9 @@ export function ImportTextForm() {
           return;
         }
 
-        const path = `${user.id}/${crypto.randomUUID()}-${file.name.replace(/[^\w.\-؀-ۿ ]/g, "_")}`;
+        // Storage keys must be ASCII — keep the key synthetic and pass the
+        // real filename (often Arabic) separately for the title fallback.
+        const path = `${user.id}/${crypto.randomUUID()}.pdf`;
         const { error: upError } = await supabase.storage
           .from("pdf_imports")
           .upload(path, file, { contentType: "application/pdf" });
@@ -75,7 +77,7 @@ export function ImportTextForm() {
         }
 
         setBusy("preparing");
-        result = await importTextFromStorage(path, title);
+        result = await importTextFromStorage(path, title, file.name);
       }
 
       if ("error" in result) setError(result.error);
