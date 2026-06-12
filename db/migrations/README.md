@@ -24,6 +24,7 @@ All migrations are written idempotent — re-running is safe.
 | 0002 | `0002_achievement_cleanup.sql` | Removes orphan achievements (`page-turner`, `night-owl`) whose criteria types (`pages_logged`, `session_time_window`) are no longer tracked. Run before `pnpm db:seed` to re-seed the replacement achievements (`test-champion`, `vocab-collector`). |
 | 0003 | `0003_restage_wipe.sql` | Wipe-and-reseed for the 9-stage restage. Truncates every user-progress + catalogue table (`user_achievements`, `xp_events`, `vocab_items`, `comprehension_attempts`/`tests`, `reading_sessions`, `user_books`, `streaks`, `profiles`, `achievements`, `books`, `levels`) and reinserts profile + streak rows for existing auth users. Run before `pnpm db:seed`. Supersedes 0002 (achievements get re-seeded fresh). |
 | 0003 | `0003_background_pdf_extraction.sql` | Background PDF extraction. Adds `extraction_status`/`extraction_error`/`pages_total`/`pages_done` to `user_texts` and the transient `text_chunks` table (per-chunk PDF bytes + extracted text, RLS-locked, emptied when a job finishes). Single-pass — safe to run as one query. |
+| 0004 | `0004_pdf_imports_bucket.sql` | Direct-to-storage PDF uploads. Creates the private `pdf_imports` storage bucket (20 MB cap, PDF-only) with per-user folder policies. Needed because Vercel rejects request bodies over ~4.5 MB, so the browser uploads straight to Supabase Storage and the server action receives only the path. |
 
 ## Verification after applying 0001
 
