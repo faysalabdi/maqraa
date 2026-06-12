@@ -115,7 +115,7 @@ async function finalize(textId: string): Promise<void> {
       .set({
         extractionStatus: "failed",
         extractionError:
-          "Could not read any Arabic text from this PDF. It may be a scan or image-only file.",
+          "Could not read any Arabic text from this PDF. Try re-saving it with a PDF viewer (\"Print to PDF\") and importing again.",
       })
       .where(eq(schema.userTexts.id, textId));
     return;
