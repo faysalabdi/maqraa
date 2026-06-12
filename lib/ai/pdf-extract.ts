@@ -62,12 +62,16 @@ async function tryTextLayer(pdf: Uint8Array): Promise<string | null> {
 
 /**
  * A text layer is "usable" when it contains a meaningful amount of Arabic per
- * page (rules out scans) AND is stored in logical Unicode codepoints rather
- * than presentation-form glyphs (rules out broken legacy exports that store
- * reversed ligature sequences no reader could read back). Anything that fails
- * this falls through to OCR, which always produces clean logical-order text.
+ * page (rules out scans), is stored in logical Unicode codepoints rather than
+ * presentation-form glyphs, AND isn't transposed-ligature garbage. Legacy
+ * Arabic typesetting (old InDesign exports and the like) embeds layers that
+ * use real Arabic codepoints but store lam ligatures as swapped letter pairs,
+ * so الحقيقة comes out احلقيقة, الآن comes out اآلن, في comes out يف — looks
+ * like Arabic to a codepoint check, reads as gibberish. Anything that fails
+ * falls through to OCR, which reads the rendered page and always produces
+ * clean logical-order text.
  */
-function isUsableArabicLayer(text: string, pageCount: number): boolean {
+export function isUsableArabicLayer(text: string, pageCount: number): boolean {
   if (!text) return false;
   let arabic = 0;
   let presentationForms = 0;
@@ -80,7 +84,28 @@ function isUsableArabicLayer(text: string, pageCount: number): boolean {
   }
   if (arabic === 0) return false;
   if (presentationForms > arabic * 0.05) return false;
-  return arabic >= Math.max(1, pageCount) * 100;
+  if (arabic < Math.max(1, pageCount) * 100) return false;
+  return transposedLigatureRatio(text) < 0.01;
+}
+
+/**
+ * Signature sequences that are (near-)impossible in real Arabic but ubiquitous
+ * in transposed-ligature layers:
+ *  - األ / اآل / اإل — lam-alef-hamza stored reversed (األولى for الأولى)
+ *  - يف / إىل / عىل / حىت — high-frequency prepositions with their ligature
+ *    pair swapped (في، إلى، على، حتى); medial ى can't occur in real words
+ *  - word-initial احل / اخل / اجل / امل — definite article with its lam-pair
+ *    ligature swapped (احلقيقة for الحقيقة)
+ * Real prose triggers these at a near-zero rate, corrupted layers at several
+ * per sentence, so a 1%-of-words threshold separates them cleanly.
+ */
+const TRANSPOSED_SIGNATURES =
+  /ا[أآإ]ل|(?<![؀-ۿ])(?:(?:يف|إىل|عىل|حىت)(?![؀-ۿ])|ا[حخجم]ل)/g;
+
+function transposedLigatureRatio(text: string): number {
+  const hits = text.match(TRANSPOSED_SIGNATURES)?.length ?? 0;
+  const words = text.split(/\s+/).filter(Boolean).length;
+  return words === 0 ? 0 : hits / words;
 }
 
 /* ──────────────────────── 2. Mistral OCR ──────────────────────── */
@@ -98,6 +123,11 @@ async function mistralOcr(pdf: Uint8Array): Promise<Extracted> {
         documentUrl: `data:application/pdf;base64,${base64}`,
       },
       includeImageBase64: false,
+      // Running headers/footers (book title, page numbers) aren't reading
+      // content — have OCR pull them out of the markdown body into the
+      // per-page header/footer fields, which we simply don't use.
+      extractHeader: true,
+      extractFooter: true,
     },
     // OCR is fast, but allow slack for big chunks + network jitter. The job's
     // own requeue handles transient failures, so no SDK-level retries.
