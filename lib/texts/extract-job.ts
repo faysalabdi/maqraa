@@ -34,7 +34,7 @@ const MAX_CHUNK_ATTEMPTS = 5;
 // A 'working' chunk older than this was stranded by a killed invocation and is
 // safe to requeue. Must exceed the worst-case batch duration (240s chunk
 // timeout + overhead) or live workers get falsely requeued.
-export const STALE_WORKING_MS = 360_000;
+export const STALE_WORKING_MS = 300_000;
 
 function countWords(s: string): number {
   return s.split(/\s+/).filter(Boolean).length;
@@ -91,7 +91,7 @@ export async function triggerExtraction(textId: string, origin?: string): Promis
   }
 }
 
-/** Rebuild user_texts.content_ar from completed chunks, in page order. */
+/** Rebuild user_texts.content_ar from extracted chunks, in page order. */
 async function rebuildContent(textId: string): Promise<void> {
   const chunks = await db
     .select()
@@ -99,16 +99,19 @@ async function rebuildContent(textId: string): Promise<void> {
     .where(eq(schema.textChunks.textId, textId))
     .orderBy(asc(schema.textChunks.chunkIndex));
 
+  // Include any chunk that has extracted text, even if status was reverted to
+  // 'pending' (Retry resets status but keeps content_ar). Otherwise a Retry on
+  // a partially-extracted book would wipe content_ar back to 0 words until
+  // every chunk re-extracts.
   const content = chunks
-    .filter((c) => c.status === "done" && c.contentAr)
-    .map((c) => (c.contentAr ?? "").trim())
-    .filter(Boolean)
+    .filter((c) => c.contentAr && c.contentAr.trim().length > 0)
+    .map((c) => c.contentAr!.trim())
     .join("\n\n");
 
   // Count only pages whose text is actually in the book, so the progress
   // counter reflects readable content rather than failed/queued ranges.
   const donePages = chunks
-    .filter((c) => c.status === "done")
+    .filter((c) => c.contentAr && c.contentAr.trim().length > 0)
     .reduce((sum, c) => sum + (c.pageEnd - c.pageStart), 0);
 
   const sections = content ? sectionize(content) : [];
