@@ -23,8 +23,9 @@ import { sectionize } from "@/lib/reading/sections";
 // the model's output-token cap, so a chunk's Arabic is never truncated.
 export const PAGES_PER_CHUNK = 12;
 export const MAX_PAGES = 1000;
-// Chunks read concurrently per batch.
-const BATCH_SIZE = 4;
+// Chunks read concurrently per batch. The SDK auto-retries 429s, so a modest
+// burst above the account's tokens/min tier degrades to slower, not dropped.
+const BATCH_SIZE = 5;
 // Stop starting new batches this long after the invocation began and hand off
 // instead. Must leave room for one worst-case batch inside maxDuration = 300s.
 const LOOP_BUDGET_MS = 210_000;
@@ -208,6 +209,13 @@ async function processOneBatch(textId: string): Promise<"stop" | number> {
           .update(schema.textChunks)
           .set({ status: "failed" })
           .where(eq(schema.textChunks.id, chunk.id));
+      }
+      // Surface progress the moment each chunk lands — a vision read of 12
+      // dense pages takes minutes, and per-batch updates look like a hang.
+      try {
+        await rebuildContent(textId);
+      } catch {
+        // next chunk or the post-batch rebuild will catch the state up
       }
     }),
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -98,9 +98,29 @@ export function TextReader({
     return () => clearInterval(t);
   }, [isProcessing, router]);
 
+  // A single vision read of 12 dense pages can take several minutes, so quiet
+  // periods are normal — but if nothing lands for this long, offer a resume.
+  const STALL_AFTER_MS = 10 * 60_000;
+  const [stalled, setStalled] = useState(false);
+  const lastProgress = useRef({ pages: text.pagesDone, at: Date.now() });
+  useEffect(() => {
+    if (!isProcessing) return;
+    if (text.pagesDone !== lastProgress.current.pages) {
+      lastProgress.current = { pages: text.pagesDone, at: Date.now() };
+      setStalled(false);
+    }
+    const t = setInterval(
+      () => setStalled(Date.now() - lastProgress.current.at > STALL_AFTER_MS),
+      20_000,
+    );
+    return () => clearInterval(t);
+  }, [isProcessing, text.pagesDone, STALL_AFTER_MS]);
+
   const [retrying, setRetrying] = useState(false);
   function retry() {
     setRetrying(true);
+    lastProgress.current = { pages: text.pagesDone, at: Date.now() };
+    setStalled(false);
     retryTextExtraction(text.id)
       .then(() => router.refresh())
       .finally(() => setRetrying(false));
@@ -202,6 +222,20 @@ export function TextReader({
                   {text.pagesDone} / {text.pagesTotal} pages
                 </p>
               ) : null}
+              {stalled && (
+                <div className="mx-auto mt-5 max-w-sm rounded-2xl bg-amber-50 p-4 text-sm text-amber-900 ring-1 ring-amber-200">
+                  <p className="font-semibold">
+                    No progress for a while — the job may have stalled.
+                  </p>
+                  <button
+                    onClick={retry}
+                    disabled={retrying}
+                    className="mt-2 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-amber-600 disabled:opacity-60"
+                  >
+                    {retrying ? "Resuming…" : "Resume extraction"}
+                  </button>
+                </div>
+              )}
             </>
           )}
         </div>
@@ -238,7 +272,7 @@ export function TextReader({
               </p>
             )}
           </div>
-          {isFailed && (
+          {(isFailed || stalled) && (
             <button
               onClick={retry}
               disabled={retrying}
