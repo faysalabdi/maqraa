@@ -27,8 +27,10 @@ export const MAX_PAGES = 1000;
 // burst above the account's tokens/min tier degrades to slower, not dropped.
 const BATCH_SIZE = 5;
 // Stop starting new batches this long after the invocation began and hand off
-// instead. Must leave room for one worst-case batch inside maxDuration = 300s.
-const LOOP_BUDGET_MS = 210_000;
+// instead. A batch is bounded by the 200s per-chunk API timeout, so starting
+// one later than this risks the platform killing the invocation mid-batch
+// (maxDuration 300s) — which strands chunks in 'working' with no error.
+const LOOP_BUDGET_MS = 60_000;
 
 function countWords(s: string): number {
   return s.split(/\s+/).filter(Boolean).length;

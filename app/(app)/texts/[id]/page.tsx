@@ -1,11 +1,39 @@
 import { notFound, redirect } from "next/navigation";
-import { and, eq } from "drizzle-orm";
+import { headers } from "next/headers";
+import { after } from "next/server";
+import { and, count, eq, sql } from "drizzle-orm";
 import { createClient } from "@/lib/supabase/server";
 import { db, schema } from "@/lib/db";
 import { lookupKey } from "@/lib/arabic";
 import { TextReader } from "@/components/texts/TextReader";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Self-heal a dead extraction chain: if a text is still "processing" but no
+ * worker owns any chunk (e.g. a previous invocation was killed mid-handoff),
+ * re-kick the background job. Atomic chunk claims make duplicate kicks no-ops,
+ * so firing this from page views is safe.
+ */
+async function reviveStalledExtraction(textId: string): Promise<void> {
+  const [counts] = await db
+    .select({
+      pending: count(sql`case when ${schema.textChunks.status} = 'pending' then 1 end`),
+      working: count(sql`case when ${schema.textChunks.status} = 'working' then 1 end`),
+    })
+    .from(schema.textChunks)
+    .where(eq(schema.textChunks.textId, textId));
+
+  if (!counts || Number(counts.working) > 0 || Number(counts.pending) === 0) return;
+
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  const proto = h.get("x-forwarded-proto") ?? "https";
+  const origin = host ? `${proto}://${host}` : undefined;
+
+  const { triggerExtraction } = await import("@/lib/texts/extract-job");
+  after(() => triggerExtraction(textId, origin));
+}
 
 export default async function TextReadPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -23,6 +51,10 @@ export default async function TextReadPage({ params }: { params: Promise<{ id: s
     .limit(1);
   const text = rows[0];
   if (!text) notFound();
+
+  if (text.extractionStatus === "processing") {
+    await reviveStalledExtraction(text.id);
+  }
 
   const saved = await db
     .select({ lemmaAr: schema.vocabItems.lemmaAr })

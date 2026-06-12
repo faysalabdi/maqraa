@@ -89,13 +89,14 @@ Submit only via the submit_extracted tool.`;
 export async function extractArabicPdf(pdf: Uint8Array): Promise<Extracted> {
   const data = Buffer.from(pdf).toString("base64");
 
-  const response = await anthropic.messages.create({
-    model: TEST_MODEL,
-    max_tokens: 16000,
-    system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
-    tools: [SUBMIT_TOOL as never],
-    tool_choice: { type: "tool", name: "submit_extracted" },
-    messages: [
+  const response = await anthropic.messages.create(
+    {
+      model: TEST_MODEL,
+      max_tokens: 16000,
+      system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
+      tools: [SUBMIT_TOOL as never],
+      tool_choice: { type: "tool", name: "submit_extracted" },
+      messages: [
       {
         role: "user",
         content: [
@@ -109,9 +110,14 @@ export async function extractArabicPdf(pdf: Uint8Array): Promise<Extracted> {
             text: "Extract the Arabic reading content from this PDF. Submit via the submit_extracted tool.",
           },
         ],
-      },
-    ],
-  });
+        },
+      ],
+    },
+    // Hard-bound a chunk read so one slow call can never blow the serverless
+    // invocation budget — a timed-out chunk is marked failed and requeued on
+    // resume instead of silently killing the whole extraction chain.
+    { timeout: 200_000, maxRetries: 0 },
+  );
 
   const toolUse = response.content.find((c) => c.type === "tool_use");
   if (!toolUse || toolUse.type !== "tool_use") {
