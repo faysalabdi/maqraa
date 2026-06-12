@@ -70,6 +70,7 @@ export function TextReader({
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [result, setResult] = useState<TextSectionResult | null>(null);
   const [quizLoading, setQuizLoading] = useState(false);
+  const [quizError, setQuizError] = useState<string | null>(null);
   const [speaking, setSpeaking] = useState(false);
   const [canSpeak, setCanSpeak] = useState(false);
 
@@ -131,16 +132,19 @@ export function TextReader({
     setQuiz(null);
     setAnswers({});
     setResult(null);
+    setQuizError(null);
     setSectionIdx(Math.max(0, Math.min(sections.length - 1, idx)));
   }
 
   function startQuiz() {
     setPhase("quiz");
     setAnswers({});
+    setQuiz(null);
+    setQuizError(null);
     setQuizLoading(true);
     getTextSectionQuiz(text.id, sectionIdx)
       .then(setQuiz)
-      .catch(() => setPhase("reading"))
+      .catch(() => setQuizError("Couldn't load the check — please try again."))
       .finally(() => setQuizLoading(false));
   }
 
@@ -387,9 +391,16 @@ export function TextReader({
                 <ChevronLeft className="h-4 w-4" /> Back
               </button>
 
-              {isLast && isProcessing ? (
-                // The trailing section can still grow as more pages arrive, so
-                // hold off on its quiz until the book is fully extracted.
+              {!isLast ? (
+                // Mid-book: advance freely. The comprehension check is optional.
+                <button
+                  onClick={() => goTo(sectionIdx + 1)}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-brand py-3.5 font-bold text-brand-fg shadow-glow-brand transition hover:bg-brand-dark"
+                >
+                  Continue <ArrowRight className="h-4 w-4" />
+                </button>
+              ) : isProcessing ? (
+                // The trailing section can still grow as more pages arrive.
                 <button
                   disabled
                   className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-bg-muted py-3.5 font-bold text-fg-muted"
@@ -397,37 +408,29 @@ export function TextReader({
                   <Loader2 className="h-5 w-5 animate-spin" /> More pages loading…
                 </button>
               ) : completed.has(sectionIdx) ? (
-                <button
-                  onClick={() => (isLast ? null : goTo(sectionIdx + 1))}
-                  disabled={isLast}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-brand py-3.5 font-bold text-brand-fg shadow-glow-brand transition hover:bg-brand-dark disabled:opacity-60"
+                // Final check already passed — the whole text is done.
+                <Link
+                  href="/texts"
+                  className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-500 py-3.5 font-bold text-white shadow-glow-brand transition hover:bg-emerald-600"
                 >
-                  {isLast ? (
-                    <>
-                      <Check className="h-5 w-5" /> Text finished
-                    </>
-                  ) : (
-                    <>
-                      Continue <ArrowRight className="h-4 w-4" />
-                    </>
-                  )}
-                </button>
+                  <Check className="h-5 w-5" /> Text finished
+                </Link>
               ) : (
+                // Required check at the end of the book.
                 <button
                   onClick={startQuiz}
                   className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-brand py-3.5 font-bold text-brand-fg shadow-glow-brand transition hover:bg-brand-dark"
                 >
-                  <Sparkles className="h-5 w-5" /> Check my understanding
+                  <Sparkles className="h-5 w-5" /> Finish — check understanding
                 </button>
               )}
             </div>
-            {!completed.has(sectionIdx) && !(isLast && isProcessing) && (
+            {!isLast && (
               <button
-                onClick={() => goTo(sectionIdx + 1)}
-                disabled={isLast}
-                className="mt-2 w-full text-center text-sm text-fg-muted hover:text-fg disabled:hidden"
+                onClick={startQuiz}
+                className="mt-2 flex w-full items-center justify-center gap-1.5 text-sm text-fg-muted transition hover:text-brand"
               >
-                Skip quiz, keep reading →
+                <Sparkles className="h-3.5 w-3.5" /> Check my understanding (optional)
               </button>
             )}
           </motion.div>
@@ -441,8 +444,29 @@ export function TextReader({
             exit={{ opacity: 0, y: -12 }}
             className="rounded-3xl bg-white p-7 shadow-soft ring-1 ring-border"
           >
-            <h2 className="mb-5 text-lg font-bold">Quick check — section {sectionIdx + 1}</h2>
-            {quizLoading && !quiz ? (
+            <h2 className="mb-5 text-lg font-bold">
+              {isLast ? "Final check — pass to finish" : `Quick check — section ${sectionIdx + 1}`}
+            </h2>
+            {quizError ? (
+              <div className="flex flex-col items-center gap-3 py-8 text-center">
+                <AlertTriangle className="h-8 w-8 text-amber-500" />
+                <p className="text-sm text-fg-muted">{quizError}</p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={startQuiz}
+                    className="rounded-xl bg-brand px-4 py-2 text-sm font-bold text-brand-fg transition hover:bg-brand-dark"
+                  >
+                    Try again
+                  </button>
+                  <button
+                    onClick={() => setPhase("reading")}
+                    className="rounded-xl border border-border px-4 py-2 text-sm font-semibold transition hover:bg-bg-muted"
+                  >
+                    Back to the text
+                  </button>
+                </div>
+              </div>
+            ) : quizLoading && !quiz ? (
               <div className="flex flex-col items-center gap-3 py-10 text-fg-muted">
                 <Loader2 className="h-8 w-8 animate-spin text-brand" />
                 <p className="text-sm">Writing questions about what you just read…</p>
