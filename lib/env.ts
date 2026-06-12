@@ -9,6 +9,9 @@ export const env = createEnv({
     ANTHROPIC_API_KEY: z.string().min(1),
     ANTHROPIC_TEST_MODEL: z.string().default("claude-sonnet-4-6"),
     ANTHROPIC_FALLBACK_MODEL: z.string().default("claude-haiku-4-5-20251001"),
+    // PDF extraction uses Mistral OCR when set; falls back to Claude vision
+    // otherwise. Mistral is ~100x cheaper and ~100x faster on scanned Arabic.
+    MISTRAL_API_KEY: z.string().optional(),
     ADMIN_EMAILS: z.string().optional(), // comma-separated allowlist for /admin
   },
   client: {
@@ -23,6 +26,7 @@ export const env = createEnv({
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
     ANTHROPIC_TEST_MODEL: process.env.ANTHROPIC_TEST_MODEL,
     ANTHROPIC_FALLBACK_MODEL: process.env.ANTHROPIC_FALLBACK_MODEL,
+    MISTRAL_API_KEY: process.env.MISTRAL_API_KEY,
     ADMIN_EMAILS: process.env.ADMIN_EMAILS,
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
