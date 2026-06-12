@@ -59,36 +59,35 @@ export function internalSecret(): string {
   );
 }
 
-async function markFailed(textId: string, detail: string): Promise<void> {
-  await db
-    .update(schema.userTexts)
-    .set({
-      extractionStatus: "failed",
-      extractionError: `Background extraction stopped (${detail}). Tap retry to resume — progress is kept.`,
-    })
-    .where(eq(schema.userTexts.id, textId));
-}
-
-/** Poke the extract route to continue processing in a fresh invocation. */
+/**
+ * Poke the extract route to continue processing in a fresh invocation.
+ *
+ * Transient failures here must NOT fail the job: the text stays "processing"
+ * and the reader page's revive check re-kicks any chain with unclaimed work
+ * within a minute of being viewed. Flipping to "failed" on a blipped handoff
+ * is what made extractions "randomly stop" — failed status also turns off the
+ * reader's polling and self-heal, so a recoverable stall needed manual help.
+ */
 export async function triggerExtraction(textId: string, origin?: string): Promise<void> {
-  try {
-    const res = await fetch(`${appUrl(origin)}/api/texts/extract`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-internal-secret": internalSecret(),
-      },
-      body: JSON.stringify({ textId, origin }),
-    });
-    if (!res.ok) {
-      // 401 = deployment protection in the way; 404 = stale deploy; etc.
-      await markFailed(textId, `handoff rejected: HTTP ${res.status}`);
+  const url = `${appUrl(origin)}/api/texts/extract`;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-internal-secret": internalSecret(),
+        },
+        body: JSON.stringify({ textId, origin }),
+      });
+      if (res.ok) return;
+      console.error(`[extract] handoff HTTP ${res.status} for ${textId} (attempt ${attempt + 1})`);
+    } catch (e) {
+      console.error(`[extract] handoff error for ${textId} (attempt ${attempt + 1})`, e);
     }
-  } catch (e) {
-    // Surface the real network error so failures are diagnosable from the UI.
-    const detail = e instanceof Error && e.message ? e.message.slice(0, 120) : "handoff failed";
-    await markFailed(textId, detail);
+    await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
   }
+  // All attempts failed — leave status as-is; the revive check recovers it.
 }
 
 /** Rebuild user_texts.content_ar from extracted chunks, in page order. */
@@ -302,9 +301,11 @@ export async function runExtractionLoop(textId: string, origin?: string): Promis
   try {
     result = await processOneBatch(textId);
   } catch (e) {
-    const detail = e instanceof Error && e.message ? e.message.slice(0, 120) : "batch crashed";
-    console.error("[extract] batch failed", textId, e);
-    await markFailed(textId, detail);
+    // Transient (usually a DB hiccup): leave the text "processing" — any
+    // claimed chunks go stale and the revive check re-kicks the chain. Only
+    // finalize() may declare a text failed, and only for chunks that exhausted
+    // their attempts.
+    console.error("[extract] batch crashed", textId, e);
     return;
   }
   if (result !== "stop") {
