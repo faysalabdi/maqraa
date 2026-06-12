@@ -141,11 +141,28 @@ export async function importTextFromStorage(
   );
 
   // Split into chunks now (fast, no AI). The slow vision reads happen later.
-  let chunks: { index: number; start: number; end: number; base64: string }[];
-  let pageCount: number;
+  let chunks: { index: number; start: number; end: number; base64: string }[] = [];
+  let pageCount: number | null = null;
   try {
-    const { PDFDocument } = await import("pdf-lib");
-    const source = await PDFDocument.load(bytes, { ignoreEncryption: true });
+    // @cantoo/pdf-lib is an API-compatible pdf-lib fork that can actually
+    // decrypt files. Book-site PDFs (Noor-Book etc.) are routinely
+    // owner-password protected — any viewer opens them, but strict parsers
+    // refuse. Try progressively more forgiving loads.
+    const { PDFDocument } = await import("@cantoo/pdf-lib");
+    let source;
+    try {
+      source = await PDFDocument.load(bytes, { updateMetadata: false });
+    } catch {
+      try {
+        source = await PDFDocument.load(bytes, { password: "", updateMetadata: false });
+      } catch {
+        source = await PDFDocument.load(bytes, {
+          ignoreEncryption: true,
+          updateMetadata: false,
+        });
+      }
+    }
+
     pageCount = source.getPageCount();
     if (pageCount > MAX_PAGES) {
       await storage.remove([storagePath]);
@@ -154,7 +171,6 @@ export async function importTextFromStorage(
       };
     }
 
-    chunks = [];
     for (let start = 0; start < pageCount; start += PAGES_PER_CHUNK) {
       const end = Math.min(start + PAGES_PER_CHUNK, pageCount);
       const part = await PDFDocument.create();
@@ -171,9 +187,24 @@ export async function importTextFromStorage(
         base64: Buffer.from(partBytes).toString("base64"),
       });
     }
-  } catch {
-    await storage.remove([storagePath]);
-    return { error: "That PDF could not be read — is it a valid PDF file?" };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[importTextFromStorage] pdf parse failed:", msg, `size=${blob.size}`);
+
+    // Last resort: queue the untouched original as a single chunk and let
+    // Claude's own PDF parser (far more tolerant than ours) try it. Works for
+    // books up to the API's 100-page-per-request cap.
+    if (blob.size <= 30 * 1024 * 1024) {
+      chunks = [
+        { index: 0, start: 0, end: 0, base64: Buffer.from(bytes).toString("base64") },
+      ];
+      pageCount = null;
+    } else {
+      await storage.remove([storagePath]);
+      return {
+        error: `That PDF could not be read (${msg.slice(0, 140)}). Try re-saving it with a PDF viewer ("Print to PDF") and importing again.`,
+      };
+    }
   }
 
   if (chunks.length === 0) {
