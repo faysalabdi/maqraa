@@ -1,7 +1,11 @@
 import { and, asc, count, eq, inArray, lt } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
-import { extractArabicPdf } from "@/lib/ai/pdf-extract";
+import { extractArabicPdf, MissingMistralKeyError } from "@/lib/ai/pdf-extract";
 import { sectionize } from "@/lib/reading/sections";
+
+/** Sentinel persisted in user_texts.extraction_error so the UI can render a
+ * tailored panel instead of a raw error message. */
+export const OCR_KEY_MISSING_ERROR = "ocr-key-missing";
 
 /*
  * Background PDF extraction.
@@ -248,7 +252,21 @@ async function processOneBatch(textId: string): Promise<"stop" | number> {
             titleAr: extracted.title_ar ?? null,
           })
           .where(eq(schema.textChunks.id, chunk.id));
-      } catch {
+      } catch (e) {
+        // Missing OCR key isn't transient — only the operator can fix it. Fail
+        // the whole text now with a sentinel the UI knows how to render,
+        // instead of burning 5 attempts × N chunks on a config problem.
+        if (e instanceof MissingMistralKeyError) {
+          await db
+            .update(schema.userTexts)
+            .set({ extractionStatus: "failed", extractionError: OCR_KEY_MISSING_ERROR })
+            .where(eq(schema.userTexts.id, textId));
+          await db
+            .update(schema.textChunks)
+            .set({ status: "failed" })
+            .where(eq(schema.textChunks.id, chunk.id));
+          return;
+        }
         // Requeue transient failures up to MAX_CHUNK_ATTEMPTS so a rate limit
         // or timeout doesn't permanently drop a page range.
         const attempts = (chunk.attempts ?? 0) + 1;
@@ -257,8 +275,8 @@ async function processOneBatch(textId: string): Promise<"stop" | number> {
           .set({ status: attempts >= MAX_CHUNK_ATTEMPTS ? "failed" : "pending", attempts })
           .where(eq(schema.textChunks.id, chunk.id));
       }
-      // Surface progress the moment each chunk lands — a vision read of 12
-      // dense pages takes minutes, and per-batch updates look like a hang.
+      // Surface progress the moment each chunk lands so the reader fills in
+      // continuously rather than in batch-sized jumps.
       try {
         await rebuildContent(textId);
       } catch {
@@ -289,11 +307,11 @@ async function processOneBatch(textId: string): Promise<"stop" | number> {
 
 /**
  * Process exactly ONE batch, then hand any remaining work to a fresh
- * invocation via the extract route. One batch per invocation is what lets the
- * generous 240s per-chunk timeout fit the 300s function budget — the batch
- * starts immediately, never partway through an invocation's lifetime.
- * `origin` is the public URL of the original request, threaded through every
- * hop so the self-call never depends on env configuration.
+ * invocation via the extract route. One batch per invocation keeps every
+ * chunk's API call comfortably inside the 300s function budget, with no risk
+ * of a slow chunk being killed mid-write. `origin` is the public URL of the
+ * original request, threaded through every hop so the self-call never depends
+ * on env configuration.
  */
 export async function runExtractionLoop(textId: string, origin?: string): Promise<void> {
   let result: "stop" | number;
