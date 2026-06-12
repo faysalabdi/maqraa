@@ -185,8 +185,12 @@ export async function importTextFromStorage(
       };
     }
 
-    for (let start = 0; start < pageCount; start += PAGES_PER_CHUNK) {
-      const end = Math.min(start + PAGES_PER_CHUNK, pageCount);
+    // Graded chunk sizes: a tiny first chunk so the reader shows the opening
+    // pages within ~30-60s of import, ramping up to the steady-state size for
+    // throughput on the rest of the book.
+    const chunkSize = (idx: number) => (idx === 0 ? 4 : idx === 1 ? 8 : PAGES_PER_CHUNK);
+    for (let start = 0; start < pageCount; ) {
+      const end = Math.min(start + chunkSize(chunks.length), pageCount);
       const part = await PDFDocument.create();
       const pages = await part.copyPages(
         source,
@@ -200,6 +204,7 @@ export async function importTextFromStorage(
         end,
         base64: Buffer.from(partBytes).toString("base64"),
       });
+      start = end;
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
