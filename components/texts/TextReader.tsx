@@ -34,6 +34,10 @@ type Phase = "reading" | "quiz" | "result";
 
 type ExtractionStatus = "ready" | "processing" | "failed";
 
+// Mirrors OCR_KEY_MISSING_ERROR in lib/texts/extract-job.ts — a config problem
+// (no Mistral API key) rather than a bad PDF, so it gets its own panel.
+const OCR_KEY_MISSING_ERROR = "ocr-key-missing";
+
 export function TextReader({
   text,
   initialSavedKeys,
@@ -187,7 +191,35 @@ export function TextReader({
           <ArrowLeft className="h-4 w-4" /> Library
         </Link>
         <div className="rounded-3xl bg-white p-8 text-center shadow-soft ring-1 ring-border">
-          {isFailed ? (
+          {isFailed && text.extractionError === OCR_KEY_MISSING_ERROR ? (
+            <>
+              <AlertTriangle className="mx-auto h-12 w-12 text-amber-500" />
+              <h1 className="mt-4 text-2xl font-extrabold">OCR isn&apos;t set up yet</h1>
+              <p className="mx-auto mt-2 max-w-sm text-sm text-fg-muted">
+                This is a scanned PDF with no text layer, so it needs OCR to read.
+                Add a <span className="font-semibold">MISTRAL_API_KEY</span> in your
+                environment (get one at{" "}
+                <a
+                  href="https://console.mistral.ai"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-semibold text-brand underline"
+                >
+                  console.mistral.ai
+                </a>
+                ), then tap retry. PDFs that already have selectable text don&apos;t
+                need a key.
+              </p>
+              <button
+                onClick={retry}
+                disabled={retrying}
+                className="mt-6 inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-3 font-bold text-brand-fg transition hover:bg-brand-dark disabled:opacity-60"
+              >
+                {retrying ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                Retry
+              </button>
+            </>
+          ) : isFailed ? (
             <>
               <AlertTriangle className="mx-auto h-12 w-12 text-amber-500" />
               <h1 className="mt-4 text-2xl font-extrabold">Couldn&apos;t read this PDF</h1>
@@ -209,7 +241,7 @@ export function TextReader({
               <Loader2 className="mx-auto h-12 w-12 animate-spin text-brand" />
               <h1 className="mt-4 text-2xl font-extrabold">Reading your PDF…</h1>
               <p className="mx-auto mt-2 max-w-sm text-sm text-fg-muted">
-                Claude is reading{" "}
+                Extracting{" "}
                 {text.pagesTotal ? `all ${text.pagesTotal} pages` : "the pages"} so the
                 Arabic comes out in the right order. The first pages will appear here in a
                 moment — you can start reading before the rest is done.

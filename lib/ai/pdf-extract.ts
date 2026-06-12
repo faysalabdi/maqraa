@@ -7,6 +7,19 @@ export const ExtractedSchema = z.object({
 
 export type Extracted = z.infer<typeof ExtractedSchema>;
 
+/**
+ * Sentinel error for "this server isn't configured to OCR scanned PDFs".
+ * Thrown when a chunk has no readable text layer AND no Mistral key is set.
+ * The job catches this by name and fails the whole text immediately rather
+ * than burning retries on a config problem only the operator can fix.
+ */
+export class MissingMistralKeyError extends Error {
+  constructor() {
+    super("MISTRAL_API_KEY is required to OCR scanned PDFs but is not set.");
+    this.name = "MissingMistralKeyError";
+  }
+}
+
 /*
  * Per-chunk Arabic PDF extraction, tried in this order:
  *
@@ -17,19 +30,15 @@ export type Extracted = z.infer<typeof ExtractedSchema>;
  *
  * There is deliberately NO Claude-vision path: it read a chunk in minutes and
  * cost orders of magnitude more. If neither path can run (no text layer AND no
- * MISTRAL_API_KEY) we throw — the job's requeue surfaces a clear failure rather
- * than silently grinding for an hour.
+ * MISTRAL_API_KEY) we throw MissingMistralKeyError — the job surfaces a clear,
+ * non-transient failure rather than silently grinding for an hour.
  */
 
 export async function extractArabicPdf(pdf: Uint8Array): Promise<Extracted> {
   const layer = await tryTextLayer(pdf);
   if (layer) return { title_ar: null, content_ar: normalizeArabic(layer) };
 
-  if (!process.env.MISTRAL_API_KEY) {
-    throw new Error(
-      "This PDF has no usable text layer and MISTRAL_API_KEY is not set, so it can't be OCR'd. Add a Mistral API key (console.mistral.ai) to your environment.",
-    );
-  }
+  if (!process.env.MISTRAL_API_KEY) throw new MissingMistralKeyError();
   return await mistralOcr(pdf);
 }
 
