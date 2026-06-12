@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { Trophy, Zap, Sparkles, Crown, Medal } from "lucide-react";
+import { Trophy, Zap, Sparkles, Crown, Medal, Gem } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { tierForWeeklyXp, xpToNextTier, TIER_META } from "@/lib/xp/skills";
 import type { LeaderboardRow, LeaderboardScope } from "@/lib/db/queries/leaderboard";
 
 type Props = {
@@ -39,6 +40,11 @@ export function LeaderboardView({
             </p>
           </div>
         </div>
+
+        {/* My weekly tier */}
+        {scope === "weekly" && myRank && (
+          <MyTier weeklyXp={myRank.xp} />
+        )}
 
         {/* Tabs */}
         <div className="mt-4 flex gap-1 rounded-2xl bg-white/70 p-1 ring-1 ring-amber-200">
@@ -80,6 +86,7 @@ export function LeaderboardView({
               rank={i + 1}
               row={row}
               isMe={row.userId === currentUserId}
+              showTier={scope === "weekly"}
             />
           ))}
         </ol>
@@ -125,14 +132,46 @@ function Tab({
   );
 }
 
+function MyTier({ weeklyXp }: { weeklyXp: number }) {
+  const tier = tierForWeeklyXp(weeklyXp);
+  const meta = TIER_META[tier];
+  const next = xpToNextTier(weeklyXp);
+
+  return (
+    <div className="mt-4 flex items-center gap-3 rounded-2xl bg-white/70 p-3 ring-1 ring-amber-200">
+      <span
+        className={cn(
+          "grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br text-white shadow-soft",
+          meta.gradient,
+        )}
+      >
+        <Gem className="h-5 w-5" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="font-extrabold leading-tight">{meta.label} tier</p>
+        <p className="text-xs text-fg-muted">
+          {next
+            ? `${next.needed.toLocaleString()} XP this week to reach ${TIER_META[next.tier].label}`
+            : "Top tier — hold the line until Monday"}
+        </p>
+      </div>
+      <span className="shrink-0 text-sm font-black text-fg-muted">
+        {weeklyXp.toLocaleString()} XP
+      </span>
+    </div>
+  );
+}
+
 function Row({
   rank,
   row,
   isMe,
+  showTier,
 }: {
   rank: number;
   row: LeaderboardRow;
   isMe: boolean;
+  showTier?: boolean;
 }) {
   const name = row.displayName?.trim() || `Reader · ${row.userId.slice(0, 4)}`;
   const initial = name[0]?.toUpperCase() ?? "?";
@@ -186,9 +225,19 @@ function Row({
             </span>
           )}
         </p>
-        <span className="inline-flex items-center gap-1 text-xs font-bold text-fg-muted">
+        <span className="inline-flex items-center gap-1.5 text-xs font-bold text-fg-muted">
           <Sparkles className="h-3 w-3" />
           Lv {row.currentLevel}
+          {showTier && (
+            <span
+              className={cn(
+                "rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ring-1",
+                TIER_META[tierForWeeklyXp(row.xp)].badge,
+              )}
+            >
+              {TIER_META[tierForWeeklyXp(row.xp)].label}
+            </span>
+          )}
         </span>
       </div>
 

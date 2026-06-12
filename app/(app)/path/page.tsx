@@ -3,6 +3,10 @@ import { db, schema } from "@/lib/db";
 import { eq, asc, gte, sql, and } from "drizzle-orm";
 import { PathSection } from "@/components/path/PathSection";
 import { ProgressHero } from "@/components/path/ProgressHero";
+import { SkillRanks } from "@/components/xp/SkillRanks";
+import { DailyQuests } from "@/components/quests/DailyQuests";
+import { getSkillRanks, type SkillRanks as SkillRanksData } from "@/lib/xp/skill-xp";
+import { getDailyQuestState, type DailyQuestState } from "@/lib/quests/progress";
 import type { BookNodeData, BookStatus } from "@/lib/db/queries/path";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +34,8 @@ export default async function PathPage() {
   let xpToday = 0;
   let streakDays = 0;
   let longestStreak = 0;
+  let skillRanks: SkillRanksData | null = null;
+  let questState: DailyQuestState | null = null;
   const userBookMap = new Map<
     string,
     { status: string; bestScore: string | null; attempts: number }
@@ -75,6 +81,11 @@ export default async function PathPage() {
     streakDays = streakRows[0]?.currentDays ?? 0;
     longestStreak = streakRows[0]?.longestDays ?? 0;
     xpToday = Number(xpRows[0]?.total ?? 0);
+
+    [skillRanks, questState] = await Promise.all([
+      getSkillRanks(user.id),
+      getDailyQuestState(user.id),
+    ]);
 
     for (const r of userBookRows) {
       userBookMap.set(r.bookId, {
@@ -161,6 +172,18 @@ export default async function PathPage() {
           </p>
           <h1 className="mt-1 text-3xl font-extrabold">Your reading path</h1>
           <p className="mt-1 text-fg-muted">Sign in to track progress.</p>
+        </div>
+      )}
+
+      {user && questState && (
+        <div className="mt-4">
+          <DailyQuests initial={questState} />
+        </div>
+      )}
+
+      {user && skillRanks && (
+        <div className="mt-4">
+          <SkillRanks data={skillRanks} compact />
         </div>
       )}
 

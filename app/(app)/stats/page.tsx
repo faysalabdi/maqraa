@@ -5,6 +5,8 @@ import { and, count, eq, gte, sql } from "drizzle-orm";
 import { Award, BookOpen, Flame, Languages, Sparkles, Target, Trophy, Zap } from "lucide-react";
 import { XpChart, type XpDay } from "@/components/stats/XpChart";
 import { StatGrid, type StatTile } from "@/components/stats/StatGrid";
+import { SkillRanks } from "@/components/xp/SkillRanks";
+import { getSkillRanks } from "@/lib/xp/skill-xp";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { strengthFor, STRENGTH_META, STRENGTH_ORDER, type Strength } from "@/lib/srs/strength";
@@ -186,6 +188,8 @@ export default async function StatsPage() {
       </header>
 
       <StatGrid tiles={tiles} />
+
+      <SkillRanks data={await getSkillRanks(user.id)} />
 
       <XpChart days={days} />
 
