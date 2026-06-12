@@ -103,6 +103,7 @@ export async function touchTextRead(id: string): Promise<void> {
 export async function importTextFromStorage(
   storagePath: string,
   title: string,
+  originalFileName?: string,
 ): Promise<{ id: string } | { error: string }> {
   const user = await requireUser();
 
@@ -130,7 +131,10 @@ export async function importTextFromStorage(
   }
 
   const bytes = new Uint8Array(await blob.arrayBuffer());
-  const fileName = storagePath.split("/").pop() ?? "import.pdf";
+  // The storage key is a synthetic uuid (storage rejects non-ASCII keys), so
+  // the real filename — often Arabic — travels as a separate argument.
+  const fileName =
+    originalFileName?.trim().slice(0, 200) || storagePath.split("/").pop() || "import.pdf";
 
   const { PAGES_PER_CHUNK, MAX_PAGES, triggerExtraction } = await import(
     "@/lib/texts/extract-job"
