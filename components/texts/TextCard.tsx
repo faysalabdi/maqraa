@@ -2,7 +2,16 @@
 
 import Link from "next/link";
 import { useTransition } from "react";
-import { BookOpen, CheckCircle2, ExternalLink, FileText, Trash2, Wand2 } from "lucide-react";
+import {
+  AlertTriangle,
+  BookOpen,
+  CheckCircle2,
+  ExternalLink,
+  FileText,
+  Loader2,
+  Trash2,
+  Wand2,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { deleteText, setTextLevel } from "@/server/actions/texts";
 
@@ -19,28 +28,41 @@ export function TextCard({
     currentSection: number;
     totalSections: number;
     completedCount: number;
+    extractionStatus: "ready" | "processing" | "failed";
+    pagesTotal: number | null;
+    pagesDone: number;
     createdAt: string;
     lastReadAt: string | null;
   };
 }) {
   const [isPending, startTransition] = useTransition();
+  const isProcessing = text.extractionStatus === "processing";
+  const isFailed = text.extractionStatus === "failed";
   const pct = Math.round((text.completedCount / Math.max(1, text.totalSections)) * 100);
-  const isFinished = text.totalSections > 0 && text.completedCount >= text.totalSections;
+  const isFinished =
+    !isProcessing && text.totalSections > 0 && text.completedCount >= text.totalSections;
 
-  const icon =
-    text.kind === "generated" ? (
-      <Wand2 className="h-5 w-5" />
-    ) : text.kind === "pdf" ? (
-      <FileText className="h-5 w-5" />
-    ) : (
-      <BookOpen className="h-5 w-5" />
-    );
+  const icon = isProcessing ? (
+    <Loader2 className="h-5 w-5 animate-spin" />
+  ) : isFailed ? (
+    <AlertTriangle className="h-5 w-5" />
+  ) : text.kind === "generated" ? (
+    <Wand2 className="h-5 w-5" />
+  ) : text.kind === "pdf" ? (
+    <FileText className="h-5 w-5" />
+  ) : (
+    <BookOpen className="h-5 w-5" />
+  );
 
   return (
     <div
       className={cn(
         "rounded-2xl bg-white px-4 py-3 shadow-soft ring-1 transition",
-        isFinished ? "ring-emerald-300 hover:ring-emerald-400" : "ring-border hover:ring-brand",
+        isFinished
+          ? "ring-emerald-300 hover:ring-emerald-400"
+          : isFailed
+            ? "ring-amber-300 hover:ring-amber-400"
+            : "ring-border hover:ring-brand",
       )}
     >
       <div className="flex items-center gap-3">
@@ -48,13 +70,17 @@ export function TextCard({
           href={`/texts/${text.id}`}
           className={cn(
             "relative grid h-10 w-10 shrink-0 place-items-center rounded-xl",
-            isFinished
-              ? "bg-emerald-100 text-emerald-700"
-              : text.kind === "generated"
-                ? "bg-violet-100 text-violet-600"
-                : text.kind === "pdf"
-                  ? "bg-amber-100 text-amber-700"
-                  : "bg-emerald-100 text-brand",
+            isProcessing
+              ? "bg-sky-100 text-sky-600"
+              : isFailed
+                ? "bg-amber-100 text-amber-700"
+                : isFinished
+                  ? "bg-emerald-100 text-emerald-700"
+                  : text.kind === "generated"
+                    ? "bg-violet-100 text-violet-600"
+                    : text.kind === "pdf"
+                      ? "bg-amber-100 text-amber-700"
+                      : "bg-emerald-100 text-brand",
           )}
         >
           {isFinished ? <CheckCircle2 className="h-5 w-5" /> : icon}
@@ -64,13 +90,26 @@ export function TextCard({
             {text.title}
           </p>
           <p className="text-xs text-fg-muted">
-            {isFinished ? (
-              <span className="font-semibold text-emerald-700">Finished · </span>
+            {isProcessing ? (
+              <span className="font-semibold text-sky-700">
+                Reading PDF
+                {text.pagesTotal ? ` · ${text.pagesDone}/${text.pagesTotal} pages` : "…"}
+              </span>
+            ) : isFailed ? (
+              <span className="font-semibold text-amber-700">Extraction failed · tap to retry</span>
             ) : (
-              text.kind === "generated" && "AI story · "
+              <>
+                {isFinished ? (
+                  <span className="font-semibold text-emerald-700">Finished · </span>
+                ) : (
+                  text.kind === "generated" && "AI story · "
+                )}
+                {text.wordCount.toLocaleString()} words
+                {!isFinished &&
+                  text.totalSections > 1 &&
+                  ` · section ${text.currentSection + 1}/${text.totalSections}`}
+              </>
             )}
-            {text.wordCount.toLocaleString()} words
-            {!isFinished && text.totalSections > 1 && ` · section ${text.currentSection + 1}/${text.totalSections}`}
           </p>
         </Link>
         <select

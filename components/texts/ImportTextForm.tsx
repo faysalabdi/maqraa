@@ -90,7 +90,8 @@ export function ImportTextForm() {
                 {file ? file.name : "Choose a PDF from your device"}
               </span>
               <span className="mt-1 block text-xs text-fg-muted">
-                Up to 20 MB and ~600 pages. Long books are read in chunks — a full book can take a few minutes.
+                Up to 20 MB. Big books are read in the background — you can start reading the
+                first pages while the rest loads.
               </span>
             </label>
             <input
@@ -133,7 +134,7 @@ export function ImportTextForm() {
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
           {busy
             ? mode === "pdf"
-              ? "Reading the PDF with Claude… (full books can take a few minutes)"
+              ? "Preparing your PDF…"
               : "Saving…"
             : "Import and read"}
         </button>

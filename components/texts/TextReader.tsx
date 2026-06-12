@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
   ChevronLeft,
@@ -22,12 +24,15 @@ import {
   updateTextProgress,
   getTextSectionQuiz,
   submitTextSectionQuiz,
+  retryTextExtraction,
   type TextSectionQuiz,
   type TextSectionResult,
 } from "@/server/actions/texts";
 import { speakArabic, stopSpeaking, ttsAvailable } from "@/lib/tts";
 
 type Phase = "reading" | "quiz" | "result";
+
+type ExtractionStatus = "ready" | "processing" | "failed";
 
 export function TextReader({
   text,
@@ -43,9 +48,16 @@ export function TextReader({
     wordCount: number;
     currentSection: number;
     completedSections: number[];
+    extractionStatus: ExtractionStatus;
+    extractionError: string | null;
+    pagesTotal: number | null;
+    pagesDone: number;
   };
   initialSavedKeys: string[];
 }) {
+  const router = useRouter();
+  const isProcessing = text.extractionStatus === "processing";
+  const isFailed = text.extractionStatus === "failed";
   const wordTap = useWordTap(initialSavedKeys, { source: `text:${text.id}` });
   const sections = useMemo(() => sectionize(text.contentAr), [text.contentAr]);
 
@@ -77,6 +89,22 @@ export function TextReader({
     setSpeaking(false);
     window.scrollTo({ top: 0 });
   }, [text.id, sectionIdx]);
+
+  // While a PDF is still being read in the background, poll the server so newly
+  // extracted pages appear automatically.
+  useEffect(() => {
+    if (!isProcessing) return;
+    const t = setInterval(() => router.refresh(), 4000);
+    return () => clearInterval(t);
+  }, [isProcessing, router]);
+
+  const [retrying, setRetrying] = useState(false);
+  function retry() {
+    setRetrying(true);
+    retryTextExtraction(text.id)
+      .then(() => router.refresh())
+      .finally(() => setRetrying(false));
+  }
 
   function goTo(idx: number) {
     setPhase("reading");
@@ -118,8 +146,109 @@ export function TextReader({
     }
   }
 
+  const hasContent = text.contentAr.trim().length > 0;
+  const pagePct =
+    text.pagesTotal && text.pagesTotal > 0
+      ? Math.min(100, Math.round((text.pagesDone / text.pagesTotal) * 100))
+      : 0;
+
+  // Full-screen states for a PDF that isn't readable yet.
+  if (!hasContent && (isProcessing || isFailed)) {
+    return (
+      <main className="mx-auto max-w-2xl px-4 pt-10">
+        <Link
+          href="/texts"
+          className="mb-6 inline-flex items-center gap-1 text-sm text-fg-muted hover:text-fg"
+        >
+          <ArrowLeft className="h-4 w-4" /> Library
+        </Link>
+        <div className="rounded-3xl bg-white p-8 text-center shadow-soft ring-1 ring-border">
+          {isFailed ? (
+            <>
+              <AlertTriangle className="mx-auto h-12 w-12 text-amber-500" />
+              <h1 className="mt-4 text-2xl font-extrabold">Couldn&apos;t read this PDF</h1>
+              <p className="mx-auto mt-2 max-w-sm text-sm text-fg-muted">
+                {text.extractionError ??
+                  "Something went wrong while reading your PDF."}
+              </p>
+              <button
+                onClick={retry}
+                disabled={retrying}
+                className="mt-6 inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-3 font-bold text-brand-fg transition hover:bg-brand-dark disabled:opacity-60"
+              >
+                {retrying ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                Try again
+              </button>
+            </>
+          ) : (
+            <>
+              <Loader2 className="mx-auto h-12 w-12 animate-spin text-brand" />
+              <h1 className="mt-4 text-2xl font-extrabold">Reading your PDF…</h1>
+              <p className="mx-auto mt-2 max-w-sm text-sm text-fg-muted">
+                Claude is reading{" "}
+                {text.pagesTotal ? `all ${text.pagesTotal} pages` : "the pages"} so the
+                Arabic comes out in the right order. The first pages will appear here in a
+                moment — you can start reading before the rest is done.
+              </p>
+              <div className="mx-auto mt-6 h-2.5 max-w-xs overflow-hidden rounded-full bg-bg-muted ring-1 ring-border">
+                <motion.div
+                  className="h-full rounded-full bg-gradient-to-r from-brand to-emerald-400"
+                  animate={{ width: `${Math.max(6, pagePct)}%` }}
+                  transition={{ type: "spring", damping: 20 }}
+                />
+              </div>
+              {text.pagesTotal ? (
+                <p className="mt-2 text-xs font-bold text-fg-muted">
+                  {text.pagesDone} / {text.pagesTotal} pages
+                </p>
+              ) : null}
+            </>
+          )}
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="mx-auto max-w-2xl px-4 pb-40 pt-4">
+      {(isProcessing || isFailed) && (
+        <div
+          className={cn(
+            "mb-3 flex items-center gap-3 rounded-2xl px-4 py-3 text-sm ring-1",
+            isFailed
+              ? "bg-amber-50 text-amber-900 ring-amber-200"
+              : "bg-sky-50 text-sky-900 ring-sky-200",
+          )}
+        >
+          {isFailed ? (
+            <AlertTriangle className="h-5 w-5 shrink-0" />
+          ) : (
+            <Loader2 className="h-5 w-5 shrink-0 animate-spin" />
+          )}
+          <div className="min-w-0 flex-1">
+            {isFailed ? (
+              <p className="font-semibold">
+                Extraction stopped early — some pages may be missing.
+              </p>
+            ) : (
+              <p className="font-semibold">
+                Still reading the rest of your PDF
+                {text.pagesTotal ? ` · ${text.pagesDone}/${text.pagesTotal} pages` : ""} —
+                new pages appear as they&apos;re ready.
+              </p>
+            )}
+          </div>
+          {isFailed && (
+            <button
+              onClick={retry}
+              disabled={retrying}
+              className="shrink-0 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-amber-600 disabled:opacity-60"
+            >
+              {retrying ? "Resuming…" : "Resume"}
+            </button>
+          )}
+        </div>
+      )}
       {/* sticky progress header */}
       <div className="sticky top-14 z-20 -mx-4 mb-4 border-b border-border bg-bg/90 px-4 py-2 backdrop-blur">
         <div className="flex items-center justify-between gap-3">
@@ -224,7 +353,16 @@ export function TextReader({
                 <ChevronLeft className="h-4 w-4" /> Back
               </button>
 
-              {completed.has(sectionIdx) ? (
+              {isLast && isProcessing ? (
+                // The trailing section can still grow as more pages arrive, so
+                // hold off on its quiz until the book is fully extracted.
+                <button
+                  disabled
+                  className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-bg-muted py-3.5 font-bold text-fg-muted"
+                >
+                  <Loader2 className="h-5 w-5 animate-spin" /> More pages loading…
+                </button>
+              ) : completed.has(sectionIdx) ? (
                 <button
                   onClick={() => (isLast ? null : goTo(sectionIdx + 1))}
                   disabled={isLast}
@@ -249,7 +387,7 @@ export function TextReader({
                 </button>
               )}
             </div>
-            {!completed.has(sectionIdx) && (
+            {!completed.has(sectionIdx) && !(isLast && isProcessing) && (
               <button
                 onClick={() => goTo(sectionIdx + 1)}
                 disabled={isLast}
