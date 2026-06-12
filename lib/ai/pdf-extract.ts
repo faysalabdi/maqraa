@@ -83,10 +83,68 @@ Chapters:
 
 Submit only via the submit_extracted tool.`;
 
+// Anthropic caps PDF document blocks at 100 pages per request. Long books get
+// split into page-range chunks with pdf-lib and processed in parallel batches.
+const PAGES_PER_CHUNK = 80;
+const MAX_PAGES = 600;
+const CONCURRENCY = 3;
+
+export async function extractArabicPdfChunked(pdf: Uint8Array): Promise<Extracted> {
+  const { PDFDocument } = await import("pdf-lib");
+  const source = await PDFDocument.load(pdf, { ignoreEncryption: true });
+  const pageCount = source.getPageCount();
+
+  if (pageCount > MAX_PAGES) {
+    throw new Error(
+      `This PDF has ${pageCount} pages — the current limit is ${MAX_PAGES}. Split it and import in parts.`,
+    );
+  }
+  if (pageCount <= PAGES_PER_CHUNK + 10) {
+    return extractArabicPdf(pdf);
+  }
+
+  const chunks: Uint8Array[] = [];
+  for (let start = 0; start < pageCount; start += PAGES_PER_CHUNK) {
+    const end = Math.min(start + PAGES_PER_CHUNK, pageCount);
+    const part = await PDFDocument.create();
+    const pages = await part.copyPages(
+      source,
+      Array.from({ length: end - start }, (_, i) => start + i),
+    );
+    for (const page of pages) part.addPage(page);
+    chunks.push(await part.save());
+  }
+
+  // Parallel batches keep wall time inside serverless limits; a failed chunk
+  // is skipped rather than failing the whole book.
+  const results: (Extracted | null)[] = new Array(chunks.length).fill(null);
+  for (let batch = 0; batch < chunks.length; batch += CONCURRENCY) {
+    const slice = chunks.slice(batch, batch + CONCURRENCY);
+    const settled = await Promise.allSettled(slice.map((c) => extractArabicPdf(c)));
+    settled.forEach((r, i) => {
+      if (r.status === "fulfilled") results[batch + i] = r.value;
+    });
+  }
+
+  const ok = results.filter((r): r is Extracted => r !== null);
+  if (ok.length === 0) throw new Error("PDF extraction failed on every chunk");
+
+  const failedChunks = results.length - ok.length;
+  return {
+    title_ar: ok[0].title_ar,
+    content_ar: ok.map((r) => r.content_ar.trim()).join("\n\n"),
+    chapters: [],
+    quality_note:
+      failedChunks > 0
+        ? `${failedChunks} of ${results.length} page ranges could not be extracted and were skipped.`
+        : ok
+            .map((r) => r.quality_note)
+            .filter(Boolean)
+            .join(" · ") || undefined,
+  };
+}
+
 export async function extractArabicPdf(pdf: Uint8Array): Promise<Extracted> {
-  // Anthropic's PDF document blocks accept base64-encoded PDFs up to 32 MB,
-  // ~100 pages per single request. We cap upstream at 20 MB and let very long
-  // books fail gracefully with a friendly message.
   const data = Buffer.from(pdf).toString("base64");
 
   const response = await anthropic.messages.create({

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useTransition } from "react";
 import { BookOpen, ExternalLink, FileText, Trash2, Wand2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { deleteText } from "@/server/actions/texts";
+import { deleteText, setTextLevel } from "@/server/actions/texts";
 
 export function TextCard({
   text,
@@ -56,11 +56,29 @@ export function TextCard({
             {text.title}
           </p>
           <p className="text-xs text-fg-muted">
-            {text.kind === "generated" && `AI story · level ${text.level} · `}
+            {text.kind === "generated" && "AI story · "}
             {text.wordCount.toLocaleString()} words
             {text.totalSections > 1 && ` · section ${text.currentSection + 1}/${text.totalSections}`}
           </p>
         </Link>
+        <select
+          value={text.level ?? ""}
+          onChange={(e) =>
+            startTransition(async () => {
+              await setTextLevel(text.id, Number(e.target.value));
+            })
+          }
+          disabled={isPending}
+          title="Level this text counts toward on your path"
+          className="shrink-0 rounded-lg border border-border bg-bg-muted px-1.5 py-1 text-xs font-bold text-fg-muted outline-none transition hover:text-fg focus:ring-2 focus:ring-brand"
+        >
+          {text.level == null && <option value="">Lv ?</option>}
+          {[1, 2, 3, 4, 5, 6, 7, 8].map((l) => (
+            <option key={l} value={l}>
+              Lv {l}
+            </option>
+          ))}
+        </select>
         {text.sourceUrl && (
           <a
             href={text.sourceUrl}

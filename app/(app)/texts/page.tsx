@@ -7,6 +7,8 @@ import { GenerateStoryCard } from "@/components/texts/GenerateStoryCard";
 import { TextCard } from "@/components/texts/TextCard";
 
 export const dynamic = "force-dynamic";
+// Big-book PDF imports run multiple Claude vision calls; allow up to 5 minutes.
+export const maxDuration = 300;
 
 export default async function TextsPage() {
   const supabase = await createClient();
