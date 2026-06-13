@@ -80,6 +80,22 @@ export async function importTextFromPaste(
 
 export async function deleteText(id: string): Promise<void> {
   const user = await requireUser();
+  // Reclaim any preserved source upload (a still-processing PDF holds onto
+  // its original until finalize) so deletes don't orphan storage objects.
+  const [row] = await db
+    .select({ pdfStoragePath: schema.userTexts.pdfStoragePath })
+    .from(schema.userTexts)
+    .where(and(eq(schema.userTexts.id, id), eq(schema.userTexts.userId, user.id)))
+    .limit(1);
+  if (row?.pdfStoragePath) {
+    try {
+      const { createAdminClient } = await import("@/lib/supabase/admin");
+      const admin = createAdminClient();
+      await admin.storage.from("pdf_imports").remove([row.pdfStoragePath]);
+    } catch (e) {
+      console.error("[deleteText] failed to remove source pdf", id, e);
+    }
+  }
   await db
     .delete(schema.userTexts)
     .where(and(eq(schema.userTexts.id, id), eq(schema.userTexts.userId, user.id)));
@@ -197,21 +213,22 @@ export async function importTextFromStorage(
       );
       for (const page of pages) part.addPage(page);
       const partBytes = await part.save();
-      // Defensive: pdf-lib can silently produce a 0-byte save when re-
-      // serializing a slice of an encrypted source. Skip rather than queue
-      // an unreadable chunk that every engine will reject downstream.
-      if (partBytes.length < 500) {
+      // pdf-lib silently produces 0-byte saves for some page ranges of
+      // encrypted source PDFs. Queue those chunks anyway with an empty
+      // payload — the extractor recognizes this and Mistral-OCRs that page
+      // range straight from the preserved source instead of dropping
+      // real content.
+      const usable = partBytes.length >= 500;
+      if (!usable) {
         console.warn(
-          `[importTextFromStorage] page range ${start}-${end} produced ${partBytes.length} bytes; skipping`,
+          `[importTextFromStorage] page range ${start}-${end} produced ${partBytes.length} bytes; will OCR from source`,
         );
-        start = end;
-        continue;
       }
       chunks.push({
         index: chunks.length,
         start,
         end,
-        base64: Buffer.from(partBytes).toString("base64"),
+        base64: usable ? Buffer.from(partBytes).toString("base64") : "",
       });
       start = end;
     }
@@ -255,6 +272,10 @@ export async function importTextFromStorage(
         extractionStatus: "processing",
         pagesTotal: pageCount,
         pagesDone: 0,
+        // Hold onto the source upload until extraction is fully ready so
+        // chunks that pdf-lib couldn't slice can be OCR'd from it by page
+        // range. finalize() deletes it on success.
+        pdfStoragePath: storagePath,
       })
       .returning({ id: schema.userTexts.id });
     textRowId = row.id;
@@ -282,11 +303,17 @@ export async function importTextFromStorage(
           "Database is missing migration 0003 (background PDF extraction). Run db/migrations/0003_background_pdf_extraction.sql in the Supabase SQL editor, then retry.",
       };
     }
+    if (/pdf_storage_path/i.test(msg)) {
+      return {
+        error:
+          "Database is missing migration 0006. Run db/migrations/0006_preserve_source_pdf.sql in the Supabase SQL editor, then retry.",
+      };
+    }
     return { error: "Could not save the PDF — try again in a moment." };
   }
 
-  // The chunks are in Postgres now; the original upload is no longer needed.
-  await storage.remove([storagePath]);
+  // The original upload stays in storage until finalize() — empty-chunk
+  // recovery may need to OCR specific page ranges from it.
 
   await logEvent("text_pdf_imported", {
     sizeBytes: blob.size,
