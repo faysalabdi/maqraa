@@ -139,6 +139,17 @@ async function finalize(textId: string): Promise<void> {
   const done = chunks.filter((c) => c.status === "done" && c.contentAr);
   const failed = chunks.filter((c) => c.status === "failed");
 
+  // The chunk catch stashes the most recent real exception here while the
+  // text is still processing — fold it into the user-facing failure message
+  // so a broken book says WHY instead of just "couldn't be read".
+  const [textRow] = await db
+    .select({ extractionError: schema.userTexts.extractionError })
+    .from(schema.userTexts)
+    .where(eq(schema.userTexts.id, textId))
+    .limit(1);
+  const lastError = textRow?.extractionError;
+  const detail = lastError ? ` (${lastError})` : "";
+
   await rebuildContent(textId);
 
   if (done.length === 0) {
@@ -146,8 +157,7 @@ async function finalize(textId: string): Promise<void> {
       .update(schema.userTexts)
       .set({
         extractionStatus: "failed",
-        extractionError:
-          "Could not read any Arabic text from this PDF. Try re-saving it with a PDF viewer (\"Print to PDF\") and importing again.",
+        extractionError: `Could not read any Arabic text from this PDF.${detail}`,
       })
       .where(eq(schema.userTexts.id, textId));
     return;
@@ -161,7 +171,7 @@ async function finalize(textId: string): Promise<void> {
       .update(schema.userTexts)
       .set({
         extractionStatus: "failed",
-        extractionError: `${failed.length} page range${failed.length === 1 ? "" : "s"} couldn't be read after several tries. Tap retry to attempt them again — what's read so far is kept.`,
+        extractionError: `${failed.length} page range${failed.length === 1 ? "" : "s"} couldn't be read after several tries. Tap retry — what's read so far is kept.${detail}`,
       })
       .where(eq(schema.userTexts.id, textId));
     return;
@@ -266,6 +276,22 @@ async function processOneBatch(textId: string): Promise<"stop" | number> {
             .set({ status: "failed" })
             .where(eq(schema.textChunks.id, chunk.id));
           return;
+        }
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error(
+          `[extract] chunk ${chunk.chunkIndex} (pages ${chunk.pageStart}-${chunk.pageEnd}) failed for ${textId}:`,
+          e,
+        );
+        // Stash the real error on the text row (status stays "processing", so
+        // nothing user-visible yet). If the job ends up failing, finalize folds
+        // this into the failure message — no more guessing from a blank card.
+        try {
+          await db
+            .update(schema.userTexts)
+            .set({ extractionError: msg.slice(0, 280) })
+            .where(eq(schema.userTexts.id, textId));
+        } catch {
+          // never let diagnostics take down the requeue below
         }
         // Requeue transient failures up to MAX_CHUNK_ATTEMPTS so a rate limit
         // or timeout doesn't permanently drop a page range.
