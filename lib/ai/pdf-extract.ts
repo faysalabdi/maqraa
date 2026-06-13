@@ -123,21 +123,15 @@ async function mistralOcr(pdf: Uint8Array): Promise<Extracted> {
         documentUrl: `data:application/pdf;base64,${base64}`,
       },
       includeImageBase64: false,
-      // Running headers/footers (book title, page numbers) aren't reading
-      // content — have OCR pull them out of the markdown body into the
-      // per-page header/footer fields, which we simply don't use.
-      extractHeader: true,
-      extractFooter: true,
     },
     // OCR is fast, but allow slack for big chunks + network jitter. The job's
     // own requeue handles transient failures, so no SDK-level retries.
     { retries: { strategy: "none" }, timeoutMs: 120_000 },
   );
 
-  const content = result.pages
-    .map((p) => markdownToPlain(p.markdown))
-    .filter((s) => s.length > 0)
-    .join("\n\n");
+  const pages = result.pages.map((p) => markdownToPlain(p.markdown));
+  const cleaned = stripRunningHeadersFooters(pages);
+  const content = cleaned.filter((s) => s.length > 0).join("\n\n");
 
   return { title_ar: null, content_ar: normalizeArabic(content) };
 }
@@ -158,6 +152,67 @@ function markdownToPlain(md: string): string {
     .replace(/`([^`]+)`/g, "$1")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+/**
+ * Detect running headers/footers within a chunk of OCR-extracted pages and
+ * strip them. A running header/footer is a short line (≤6 words) that repeats
+ * as the FIRST or LAST non-empty line of three or more pages in the chunk —
+ * the chapter title, the book name, "Page 19". We compare with digits and
+ * punctuation stripped so "Page 19" and "Page 20" count as the same header.
+ *
+ * Standalone page-number lines (just digits, Arabic or Latin) are dropped from
+ * any position. Everything else is left untouched.
+ */
+export function stripRunningHeadersFooters(pages: string[]): string[] {
+  const firstCount = new Map<string, number>();
+  const lastCount = new Map<string, number>();
+  for (const page of pages) {
+    const lines = page.split("\n").map((l) => l.trim()).filter(Boolean);
+    if (lines.length === 0) continue;
+    const first = headerKey(lines[0]);
+    const last = headerKey(lines[lines.length - 1]);
+    if (first) firstCount.set(first, (firstCount.get(first) ?? 0) + 1);
+    if (last && last !== first) lastCount.set(last, (lastCount.get(last) ?? 0) + 1);
+  }
+  const repeatedFirst = new Set(
+    [...firstCount.entries()].filter(([, n]) => n >= 3).map(([k]) => k),
+  );
+  const repeatedLast = new Set(
+    [...lastCount.entries()].filter(([, n]) => n >= 3).map(([k]) => k),
+  );
+
+  return pages.map((page) => {
+    const lines = page.split("\n");
+    let start = 0;
+    let end = lines.length;
+    while (start < end) {
+      const t = lines[start].trim();
+      if (t === "" || isPageNumberLine(t) || repeatedFirst.has(headerKey(t))) start++;
+      else break;
+    }
+    while (end > start) {
+      const t = lines[end - 1].trim();
+      if (t === "" || isPageNumberLine(t) || repeatedLast.has(headerKey(t))) end--;
+      else break;
+    }
+    return lines.slice(start, end).join("\n").trim();
+  });
+}
+
+/**
+ * Comparison key for a header/footer line: strip digits, whitespace, and
+ * common punctuation, and bail out for lines longer than 6 words (real prose,
+ * not a running label). Returns "" when the line isn't a header candidate.
+ */
+function headerKey(line: string): string {
+  const words = line.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0 || words.length > 6) return "";
+  return line.replace(/[\d٠-٩\s.,،؛:\-–—|]+/g, "").trim();
+}
+
+function isPageNumberLine(line: string): boolean {
+  return /^[\d٠-٩]{1,4}$/.test(line.replace(/[\s.,\-–—|]/g, ""));
 }
 
 /* ─────────────────────── shared text normalization ─────────────────────── */
