@@ -197,6 +197,16 @@ export async function importTextFromStorage(
       );
       for (const page of pages) part.addPage(page);
       const partBytes = await part.save();
+      // Defensive: pdf-lib can silently produce a 0-byte save when re-
+      // serializing a slice of an encrypted source. Skip rather than queue
+      // an unreadable chunk that every engine will reject downstream.
+      if (partBytes.length < 500) {
+        console.warn(
+          `[importTextFromStorage] page range ${start}-${end} produced ${partBytes.length} bytes; skipping`,
+        );
+        start = end;
+        continue;
+      }
       chunks.push({
         index: chunks.length,
         start,

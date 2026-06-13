@@ -38,6 +38,14 @@ export class MissingMistralKeyError extends Error {
  */
 
 export async function extractArabicPdf(pdf: Uint8Array): Promise<Extracted> {
+  // A chunk that came out of pdf-lib as empty/near-empty bytes — e.g. an
+  // encrypted source where copyPages couldn't re-serialize this slice —
+  // can't be read by anything. Return empty content so the chunk completes
+  // and the rest of the book finalizes, instead of looping every engine
+  // through Mistral's "application/x-empty" rejection until the retry
+  // budget runs out and the whole book gets marked failed.
+  if (pdf.length < 500) return { title_ar: null, content_ar: "" };
+
   const layer = await readTextLayer(pdf);
   if (layer) {
     const pages = stripRunningHeadersFooters(layer.pages);
