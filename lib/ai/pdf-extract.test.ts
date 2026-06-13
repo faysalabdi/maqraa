@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isUsableArabicLayer, stripRunningHeadersFooters } from "./pdf-extract";
+import { classifyArabicLayer, stripRunningHeadersFooters } from "./pdf-extract";
 
 // Clean logical-order Arabic (what a healthy text layer contains).
 const CLEAN =
@@ -19,27 +19,27 @@ const TRANSPOSED =
   "اخلطوة إىل وقت آخر؟ رمضان ليس جمرد شهر للصيام بل هو فرصة ذهبية لتعيد تشكيل " +
   "ذاتك يف هذه األيام اجلميلة، فرصة قد ال تتكرر. عىل خري إن شاء اهلل حىت نلتقي.";
 
-describe("isUsableArabicLayer", () => {
-  it("accepts a clean logical-order Arabic layer", () => {
-    expect(isUsableArabicLayer(CLEAN, 1)).toBe(true);
+describe("classifyArabicLayer", () => {
+  it("classifies a clean logical-order Arabic layer as clean", () => {
+    expect(classifyArabicLayer(CLEAN, 1)).toBe("clean");
   });
 
-  it("rejects an empty layer", () => {
-    expect(isUsableArabicLayer("", 1)).toBe(false);
+  it("classifies an empty layer as unusable", () => {
+    expect(classifyArabicLayer("", 1)).toBe("unusable");
   });
 
-  it("rejects transposed-ligature layers from legacy typesetting", () => {
-    expect(isUsableArabicLayer(TRANSPOSED, 1)).toBe(false);
+  it("classifies transposed-ligature layers as transposed (repairable)", () => {
+    expect(classifyArabicLayer(TRANSPOSED, 1)).toBe("transposed");
   });
 
-  it("rejects layers with too little Arabic for the page count (scans)", () => {
-    expect(isUsableArabicLayer("صفحة ١٩", 10)).toBe(false);
+  it("classifies layers with too little Arabic for the page count as unusable (scans)", () => {
+    expect(classifyArabicLayer("صفحة ١٩", 10)).toBe("unusable");
   });
 
-  it("rejects presentation-form glyph soup", () => {
+  it("classifies presentation-form glyph soup as unusable", () => {
     // U+FE8D / U+FEDF / U+FEA4 — isolated/initial form glyphs, not real text.
     const soup = "ﺍﻟﺤﻤﺪ ".repeat(60);
-    expect(isUsableArabicLayer(soup, 1)).toBe(false);
+    expect(classifyArabicLayer(soup, 1)).toBe("unusable");
   });
 });
 

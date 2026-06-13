@@ -21,22 +21,45 @@ export class MissingMistralKeyError extends Error {
 }
 
 /*
- * Per-chunk Arabic PDF extraction, tried in this order:
+ * Per-chunk Arabic PDF extraction:
  *
  *   1. unpdf — pulls the PDF's embedded text layer. Free, instant. Wins any
- *      digitally-exported Arabic PDF (most modern books, papers, exports).
- *   2. Mistral OCR (`mistral-ocr-latest`) — for scanned pages. ~$1 per 1000
- *      pages, tens of pages per second, strong on Arabic, logical reading order.
+ *      digitally-exported Arabic PDF with a healthy layer outright.
+ *   2. Claude text repair — for layers that exist but are transposed-ligature
+ *      garbage (legacy typesetting). The text is all there, just letter-pair
+ *      scrambled; a text-only model call unscrambles it in seconds. No vision.
+ *   3. Mistral OCR (`mistral-ocr-latest`) — for true scans with no layer at
+ *      all. ~$1 per 1000 pages, tens of pages per second.
  *
  * There is deliberately NO Claude-vision path: it read a chunk in minutes and
- * cost orders of magnitude more. If neither path can run (no text layer AND no
- * MISTRAL_API_KEY) we throw MissingMistralKeyError — the job surfaces a clear,
+ * cost orders of magnitude more. If only OCR can help and MISTRAL_API_KEY is
+ * unset we throw MissingMistralKeyError — the job surfaces a clear,
  * non-transient failure rather than silently grinding for an hour.
  */
 
 export async function extractArabicPdf(pdf: Uint8Array): Promise<Extracted> {
-  const layer = await tryTextLayer(pdf);
-  if (layer) return { title_ar: null, content_ar: normalizeArabic(layer) };
+  const layer = await readTextLayer(pdf);
+  if (layer) {
+    const pages = stripRunningHeadersFooters(layer.pages);
+    const joined = pages.filter(Boolean).join("\n\n");
+    const verdict = classifyArabicLayer(joined, layer.totalPages);
+
+    if (verdict === "clean") {
+      return { title_ar: null, content_ar: normalizeArabic(joined) };
+    }
+    if (verdict === "transposed") {
+      try {
+        const fixed = await fixTransposedArabic(joined);
+        return { title_ar: null, content_ar: normalizeArabic(fixed) };
+      } catch (e) {
+        // Text repair is the cheap path; OCR of the rendered page is the
+        // ground-truth fallback when it misbehaves.
+        console.error("[pdf-extract] transposed-layer repair failed, falling back to OCR", e);
+        if (!process.env.MISTRAL_API_KEY) throw e;
+        return await mistralOcr(pdf);
+      }
+    }
+  }
 
   if (!process.env.MISTRAL_API_KEY) throw new MissingMistralKeyError();
   return await mistralOcr(pdf);
@@ -44,35 +67,33 @@ export async function extractArabicPdf(pdf: Uint8Array): Promise<Extracted> {
 
 /* ─────────────────────── 1. text-layer fast path ─────────────────────── */
 
-async function tryTextLayer(pdf: Uint8Array): Promise<string | null> {
+async function readTextLayer(
+  pdf: Uint8Array,
+): Promise<{ pages: string[]; totalPages: number } | null> {
   try {
     const { getDocumentProxy, extractText } = await import("unpdf");
     const doc = await getDocumentProxy(pdf);
     const { text, totalPages } = await extractText(doc, { mergePages: false });
-    const joined = text
-      .map((p) => p.trim())
-      .filter(Boolean)
-      .join("\n\n");
-    if (!isUsableArabicLayer(joined, totalPages)) return null;
-    return joined;
+    return { pages: text.map((p) => p.trim()), totalPages };
   } catch {
     return null;
   }
 }
 
+export type LayerVerdict = "clean" | "transposed" | "unusable";
+
 /**
- * A text layer is "usable" when it contains a meaningful amount of Arabic per
- * page (rules out scans), is stored in logical Unicode codepoints rather than
- * presentation-form glyphs, AND isn't transposed-ligature garbage. Legacy
- * Arabic typesetting (old InDesign exports and the like) embeds layers that
- * use real Arabic codepoints but store lam ligatures as swapped letter pairs,
- * so الحقيقة comes out احلقيقة, الآن comes out اآلن, في comes out يف — looks
- * like Arabic to a codepoint check, reads as gibberish. Anything that fails
- * falls through to OCR, which reads the rendered page and always produces
- * clean logical-order text.
+ * Classify a text layer:
+ *  - "clean"      — logical-order Arabic, use as-is.
+ *  - "transposed" — full text is present but legacy typesetting stored lam
+ *    ligatures as swapped letter pairs (الحقيقة reads احلقيقة, في reads يف,
+ *    الآن reads اآلن). Real codepoints, scrambled words — repairable by a
+ *    text-only model call.
+ *  - "unusable"   — empty, too sparse for the page count (a scan), or
+ *    presentation-form glyph soup. Only OCR of the rendered page helps.
  */
-export function isUsableArabicLayer(text: string, pageCount: number): boolean {
-  if (!text) return false;
+export function classifyArabicLayer(text: string, pageCount: number): LayerVerdict {
+  if (!text) return "unusable";
   let arabic = 0;
   let presentationForms = 0;
   for (const ch of text) {
@@ -82,10 +103,10 @@ export function isUsableArabicLayer(text: string, pageCount: number): boolean {
     else if (cp >= 0xfb50 && cp <= 0xfdff) presentationForms++;
     else if (cp >= 0xfe70 && cp <= 0xfeff) presentationForms++;
   }
-  if (arabic === 0) return false;
-  if (presentationForms > arabic * 0.05) return false;
-  if (arabic < Math.max(1, pageCount) * 100) return false;
-  return transposedLigatureRatio(text) < 0.01;
+  if (arabic === 0) return "unusable";
+  if (presentationForms > arabic * 0.05) return "unusable";
+  if (arabic < Math.max(1, pageCount) * 100) return "unusable";
+  return transposedLigatureRatio(text) < 0.01 ? "clean" : "transposed";
 }
 
 /**
@@ -108,7 +129,89 @@ function transposedLigatureRatio(text: string): number {
   return words === 0 ? 0 : hits / words;
 }
 
-/* ──────────────────────── 2. Mistral OCR ──────────────────────── */
+/* ──────────────── 2. Claude text repair (transposed layers) ──────────────── */
+
+const FIX_SYSTEM = `You repair Arabic text that was extracted from a PDF typeset with a corrupted legacy font encoding. The corruption swaps the letter order inside lam ligatures and similar pairs. Examples of the corruption and the correct form:
+
+احلقيقة → الحقيقة
+اخلطوة → الخطوة
+اجلسد → الجسد
+املتكررة → المتكررة
+األيام → الأيام
+اآلن → الآن
+اإلسالم → الإسلام
+يف → في
+إىل → إلى
+عىل → على
+حىت → حتى
+ال يحدث → لا يحدث (standalone ال as a word is usually لا)
+
+Rewrite the user's text with the corruption fixed. Rules:
+- Fix ONLY the letter-order/encoding corruption. Do NOT translate, summarize, rephrase, reorder, add, or remove anything.
+- Keep all punctuation, numbers, diacritics, and paragraph breaks exactly where they are.
+- Rejoin words the corruption split with a stray space (e.g. تغي ري → تغيير) when unambiguous.
+- Output ONLY the corrected text — no preamble, no commentary.`;
+
+/**
+ * Unscramble a transposed-ligature layer with a fast text-only model. The
+ * text is split on paragraph boundaries into ~4k-char segments so each
+ * response stays far below the output-token cap, and segments are repaired a
+ * few at a time in parallel. Anthropic client is imported lazily so this
+ * module stays importable without env configuration (unit tests).
+ */
+async function fixTransposedArabic(text: string): Promise<string> {
+  const { anthropic, FALLBACK_MODEL } = await import("./anthropic");
+  const segments = segmentParagraphs(text, 4000);
+
+  async function fixSegment(segment: string): Promise<string> {
+    const res = await anthropic.messages.create(
+      {
+        model: FALLBACK_MODEL,
+        max_tokens: 8000,
+        temperature: 0,
+        system: [{ type: "text", text: FIX_SYSTEM, cache_control: { type: "ephemeral" } }],
+        messages: [{ role: "user", content: segment }],
+      },
+      { timeout: 90_000, maxRetries: 1 },
+    );
+    const block = res.content.find((c) => c.type === "text");
+    const fixed = block && block.type === "text" ? block.text.trim() : "";
+    // A faithful repair preserves length to within noise; anything far off
+    // means the model summarized or bailed — better to fall back to OCR.
+    if (fixed.length < segment.length * 0.5 || fixed.length > segment.length * 1.6) {
+      throw new Error(
+        `transposed repair length mismatch (${segment.length} chars in, ${fixed.length} out)`,
+      );
+    }
+    return fixed;
+  }
+
+  const out: string[] = [];
+  const CONCURRENCY = 5;
+  for (let i = 0; i < segments.length; i += CONCURRENCY) {
+    const fixed = await Promise.all(segments.slice(i, i + CONCURRENCY).map(fixSegment));
+    out.push(...fixed);
+  }
+  return out.join("\n\n");
+}
+
+function segmentParagraphs(text: string, maxChars: number): string[] {
+  const paras = text.split(/\n{2,}/);
+  const segments: string[] = [];
+  let current = "";
+  for (const para of paras) {
+    if (current && current.length + para.length + 2 > maxChars) {
+      segments.push(current);
+      current = para;
+    } else {
+      current = current ? `${current}\n\n${para}` : para;
+    }
+  }
+  if (current) segments.push(current);
+  return segments;
+}
+
+/* ──────────────────────── 3. Mistral OCR ──────────────────────── */
 
 async function mistralOcr(pdf: Uint8Array): Promise<Extracted> {
   const { Mistral } = await import("@mistralai/mistralai");
@@ -124,9 +227,11 @@ async function mistralOcr(pdf: Uint8Array): Promise<Extracted> {
       },
       includeImageBase64: false,
     },
-    // OCR is fast, but allow slack for big chunks + network jitter. The job's
-    // own requeue handles transient failures, so no SDK-level retries.
-    { retries: { strategy: "none" }, timeoutMs: 120_000 },
+    // OCR runs at tens of pages per second, so even a 50-page chunk should
+    // finish well under a minute — a tight bound makes a hanging call fail
+    // fast and visibly instead of looking like a frozen import. The job's own
+    // requeue handles transient failures, so no SDK-level retries.
+    { retries: { strategy: "none" }, timeoutMs: 60_000 },
   );
 
   const pages = result.pages.map((p) => markdownToPlain(p.markdown));
