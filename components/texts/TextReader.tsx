@@ -297,9 +297,17 @@ export function TextReader({
           )}
           <div className="min-w-0 flex-1">
             {isFailed ? (
-              <p className="font-semibold">
-                Extraction stopped early — some pages may be missing.
-              </p>
+              <>
+                <p className="font-semibold">
+                  Extraction stopped early — some pages may be missing.
+                </p>
+                {text.extractionError &&
+                  text.extractionError !== OCR_KEY_MISSING_ERROR && (
+                    <p className="mt-1 break-words text-xs leading-snug opacity-80">
+                      {text.extractionError}
+                    </p>
+                  )}
+              </>
             ) : (
               <p className="font-semibold">
                 Still reading the rest of your PDF
