@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isUsableArabicLayer } from "./pdf-extract";
+import { isUsableArabicLayer, stripRunningHeadersFooters } from "./pdf-extract";
 
 // Clean logical-order Arabic (what a healthy text layer contains).
 const CLEAN =
@@ -40,5 +40,65 @@ describe("isUsableArabicLayer", () => {
     // U+FE8D / U+FEDF / U+FEA4 — isolated/initial form glyphs, not real text.
     const soup = "ﺍﻟﺤﻤﺪ ".repeat(60);
     expect(isUsableArabicLayer(soup, 1)).toBe(false);
+  });
+});
+
+describe("stripRunningHeadersFooters", () => {
+  // The actual header from the broken book in the user's screenshot, varying
+  // the page number across pages — what real OCR output looks like.
+  const HEADER = (n: number) => `ما لم يخبرك به أحد ${n}`;
+  const BODY = "هذا هو نص الكتاب الفعلي الذي نريد قراءته في هذه الصفحة.";
+
+  it("strips a running header that repeats across pages with varying page numbers", () => {
+    const pages = [
+      `${HEADER(17)}\n${BODY}`,
+      `${HEADER(18)}\n${BODY}`,
+      `${HEADER(19)}\n${BODY}`,
+      `${HEADER(20)}\n${BODY}`,
+    ];
+    const cleaned = stripRunningHeadersFooters(pages);
+    for (const page of cleaned) {
+      expect(page).not.toContain("يخبرك");
+      expect(page).toContain(BODY);
+    }
+  });
+
+  it("strips a running footer with a different label", () => {
+    const pages = [
+      `${BODY}\nالفصل الأول`,
+      `${BODY}\nالفصل الأول`,
+      `${BODY}\nالفصل الأول`,
+    ];
+    const cleaned = stripRunningHeadersFooters(pages);
+    for (const page of cleaned) {
+      expect(page).not.toContain("الفصل");
+      expect(page).toContain(BODY);
+    }
+  });
+
+  it("strips standalone page-number lines anywhere", () => {
+    const pages = ["19\n" + BODY + "\n20"];
+    const cleaned = stripRunningHeadersFooters(pages);
+    expect(cleaned[0]).not.toMatch(/^19/);
+    expect(cleaned[0]).not.toMatch(/20$/);
+    expect(cleaned[0]).toContain(BODY);
+  });
+
+  it("preserves a unique chapter title that only appears on one page", () => {
+    const pages = [
+      `الفصل الأول\n${BODY}`,
+      `${BODY}\n${BODY}`,
+      `${BODY}\n${BODY}`,
+    ];
+    const cleaned = stripRunningHeadersFooters(pages);
+    expect(cleaned[0]).toContain("الفصل الأول");
+  });
+
+  it("never strips long lines mistaken for headers", () => {
+    const longLine =
+      "هذا سطر طويل جدا يحتوي على كثير من الكلمات ويظهر في عدة صفحات لكنه ليس عنوانا.";
+    const pages = [longLine, longLine, longLine, longLine];
+    const cleaned = stripRunningHeadersFooters(pages);
+    for (const page of cleaned) expect(page).toBe(longLine);
   });
 });
