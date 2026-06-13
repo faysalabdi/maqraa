@@ -402,6 +402,10 @@ export const userTexts = pgTable(
     completedSections: jsonb("completed_sections").notNull().default(sql`'[]'::jsonb`),
     extractionStatus: textExtractionStatus("extraction_status").notNull().default("ready"),
     extractionError: text("extraction_error"),
+    // Storage path of the original uploaded PDF, kept until extraction is fully
+    // ready so chunks that pdf-lib couldn't slice can be OCR'd from the source
+    // by page range. Cleared on finalize.
+    pdfStoragePath: text("pdf_storage_path"),
     pagesTotal: integer("pages_total"),
     pagesDone: integer("pages_done").notNull().default(0),
     lastReadAt: timestamp("last_read_at", { withTimezone: true }),

@@ -38,14 +38,6 @@ export class MissingMistralKeyError extends Error {
  */
 
 export async function extractArabicPdf(pdf: Uint8Array): Promise<Extracted> {
-  // A chunk that came out of pdf-lib as empty/near-empty bytes — e.g. an
-  // encrypted source where copyPages couldn't re-serialize this slice —
-  // can't be read by anything. Return empty content so the chunk completes
-  // and the rest of the book finalizes, instead of looping every engine
-  // through Mistral's "application/x-empty" rejection until the retry
-  // budget runs out and the whole book gets marked failed.
-  if (pdf.length < 500) return { title_ar: null, content_ar: "" };
-
   const layer = await readTextLayer(pdf);
   if (layer) {
     const pages = stripRunningHeadersFooters(layer.pages);
@@ -222,18 +214,51 @@ function segmentParagraphs(text: string, maxChars: number): string[] {
 /* ──────────────────────── 3. Mistral OCR ──────────────────────── */
 
 async function mistralOcr(pdf: Uint8Array): Promise<Extracted> {
+  const base64 = Buffer.from(pdf).toString("base64");
+  return await runMistralOcr({
+    type: "document_url",
+    documentUrl: `data:application/pdf;base64,${base64}`,
+  });
+}
+
+/**
+ * Run Mistral OCR over a specific page range of a PDF. Used by the extractor
+ * to recover chunks whose pdf-lib slice came out as 0 bytes — we OCR that
+ * range straight from the preserved source upload instead of dropping it.
+ * `pageStart`/`pageEnd` are 0-indexed half-open, matching how chunks are
+ * stored. Mistral's `pages` parameter is also 0-indexed.
+ */
+export async function ocrPdfPageRange(
+  source: Uint8Array,
+  pageStart: number,
+  pageEnd: number,
+): Promise<Extracted> {
+  if (pageEnd <= pageStart) return { title_ar: null, content_ar: "" };
+  if (!process.env.MISTRAL_API_KEY) throw new MissingMistralKeyError();
+  const base64 = Buffer.from(source).toString("base64");
+  const pages = Array.from({ length: pageEnd - pageStart }, (_, i) => pageStart + i);
+  return await runMistralOcr(
+    {
+      type: "document_url",
+      documentUrl: `data:application/pdf;base64,${base64}`,
+    },
+    pages,
+  );
+}
+
+async function runMistralOcr(
+  document: { type: "document_url"; documentUrl: string },
+  pages?: number[],
+): Promise<Extracted> {
   const { Mistral } = await import("@mistralai/mistralai");
   const client = new Mistral({ apiKey: process.env.MISTRAL_API_KEY! });
-  const base64 = Buffer.from(pdf).toString("base64");
 
   const result = await client.ocr.process(
     {
       model: "mistral-ocr-latest",
-      document: {
-        type: "document_url",
-        documentUrl: `data:application/pdf;base64,${base64}`,
-      },
+      document,
       includeImageBase64: false,
+      ...(pages ? { pages } : {}),
     },
     // OCR runs at tens of pages per second, so even a 50-page chunk should
     // finish well under a minute — a tight bound makes a hanging call fail
@@ -242,8 +267,8 @@ async function mistralOcr(pdf: Uint8Array): Promise<Extracted> {
     { retries: { strategy: "none" }, timeoutMs: 60_000 },
   );
 
-  const pages = result.pages.map((p) => markdownToPlain(p.markdown));
-  const cleaned = stripRunningHeadersFooters(pages);
+  const pageMarkdowns = result.pages.map((p) => markdownToPlain(p.markdown));
+  const cleaned = stripRunningHeadersFooters(pageMarkdowns);
   const content = cleaned.filter((s) => s.length > 0).join("\n\n");
 
   return { title_ar: null, content_ar: normalizeArabic(content) };

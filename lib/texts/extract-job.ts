@@ -1,6 +1,10 @@
 import { and, asc, count, eq, inArray, lt } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
-import { extractArabicPdf, MissingMistralKeyError } from "@/lib/ai/pdf-extract";
+import {
+  extractArabicPdf,
+  MissingMistralKeyError,
+  ocrPdfPageRange,
+} from "@/lib/ai/pdf-extract";
 import { sectionize } from "@/lib/reading/sections";
 
 /** Sentinel persisted in user_texts.extraction_error so the UI can render a
@@ -129,6 +133,61 @@ async function rebuildContent(textId: string): Promise<void> {
     .where(eq(schema.userTexts.id, textId));
 }
 
+/**
+ * OCR a specific page range of the preserved source PDF and return it as the
+ * chunk's extracted content. Used when pdf-lib produced an empty slice at
+ * import time. Throws if the source path is missing (text wasn't imported
+ * with migration 0006 applied) so the chunk goes through normal retry.
+ */
+async function ocrFromSource(
+  textId: string,
+  pageStart: number,
+  pageEnd: number,
+): Promise<{ content_ar: string; title_ar: string | null }> {
+  const [row] = await db
+    .select({ pdfStoragePath: schema.userTexts.pdfStoragePath })
+    .from(schema.userTexts)
+    .where(eq(schema.userTexts.id, textId))
+    .limit(1);
+  const path = row?.pdfStoragePath;
+  if (!path) {
+    throw new Error(
+      `chunk has empty bytes and no source PDF preserved (pages ${pageStart}-${pageEnd}); re-import the PDF`,
+    );
+  }
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const admin = createAdminClient();
+  const { data, error } = await admin.storage.from("pdf_imports").download(path);
+  if (error || !data) {
+    throw new Error(`source PDF unreadable from storage: ${error?.message ?? "no data"}`);
+  }
+  const bytes = new Uint8Array(await data.arrayBuffer());
+  const extracted = await ocrPdfPageRange(bytes, pageStart, pageEnd);
+  return { content_ar: extracted.content_ar, title_ar: extracted.title_ar ?? null };
+}
+
+/** Delete the preserved source upload — called on the success/cleanup path. */
+async function deleteSourcePdf(textId: string): Promise<void> {
+  const [row] = await db
+    .select({ pdfStoragePath: schema.userTexts.pdfStoragePath })
+    .from(schema.userTexts)
+    .where(eq(schema.userTexts.id, textId))
+    .limit(1);
+  const path = row?.pdfStoragePath;
+  if (!path) return;
+  try {
+    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const admin = createAdminClient();
+    await admin.storage.from("pdf_imports").remove([path]);
+  } catch (e) {
+    console.error("[extract] failed to delete source pdf", textId, e);
+  }
+  await db
+    .update(schema.userTexts)
+    .set({ pdfStoragePath: null })
+    .where(eq(schema.userTexts.id, textId));
+}
+
 async function finalize(textId: string): Promise<void> {
   const chunks = await db
     .select()
@@ -183,8 +242,10 @@ async function finalize(textId: string): Promise<void> {
     .set({ extractionStatus: "ready", extractionError: null })
     .where(eq(schema.userTexts.id, textId));
 
-  // Free the (large) per-chunk PDF bytes now that the book is fully read.
+  // Free the (large) per-chunk PDF bytes and the preserved source upload now
+  // that the book is fully read.
   await db.delete(schema.textChunks).where(eq(schema.textChunks.textId, textId));
+  await deleteSourcePdf(textId);
 }
 
 /**
@@ -253,7 +314,13 @@ async function processOneBatch(textId: string): Promise<"stop" | number> {
     claimed.map(async (chunk) => {
       try {
         const bytes = new Uint8Array(Buffer.from(chunk.pdfBase64, "base64"));
-        const extracted = await extractArabicPdf(bytes);
+        // An empty payload means pdf-lib couldn't slice this page range from
+        // the source at import time. Recover by OCR'ing that range straight
+        // from the preserved source upload, so we don't drop real content.
+        const extracted =
+          bytes.length < 500
+            ? await ocrFromSource(textId, chunk.pageStart, chunk.pageEnd)
+            : await extractArabicPdf(bytes);
         await db
           .update(schema.textChunks)
           .set({
