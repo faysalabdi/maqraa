@@ -211,6 +211,21 @@ export const BOOKS: SeedBook[] = [
     hasFullText: true,
   },
   {
+    slug: "arba'in-qudsiyya",
+    level: 3,
+    orderInLevel: 9,
+    titleAr: "الأربعون القدسية",
+    titleEn: "Forty Hadith Qudsi",
+    authorAr: "الإمام النووي",
+    authorEn: "al-Nawawi",
+    blurb:
+      "Forty hadith qudsi — the words of Allah related by the Prophet. Short, profound, and fully readable in-app: each is a chapter with tap-to-translate and save-to-flashcards.",
+    difficulty: 2,
+    genre: "islamic",
+    recommendedPages: 70,
+    hasFullText: true,
+  },
+  {
     slug: "old-man-sea-ar",
     level: 3,
     orderInLevel: 5,
