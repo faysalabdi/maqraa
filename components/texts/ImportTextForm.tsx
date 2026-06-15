@@ -27,9 +27,9 @@ export function ImportTextForm() {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [file, setFile] = useState<File | null>(null);
-  const [busy, setBusy] = useState<false | "reading" | "uploading" | "preparing" | "saving">(
-    false,
-  );
+  const [busy, setBusy] = useState<
+    false | "reading" | "cleaning" | "uploading" | "preparing" | "saving"
+  >(false);
   const [pageProgress, setPageProgress] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,9 +58,7 @@ export function ImportTextForm() {
         // book in seconds, no upload, no chunking, no OCR cost.
         setBusy("reading");
         setPageProgress({ done: 0, total: 0 });
-        const { extractPdfInBrowser, pagesToContent } = await import(
-          "@/lib/pdf/extract-client"
-        );
+        const { extractPdfInBrowser } = await import("@/lib/pdf/extract-client");
 
         let extracted;
         try {
@@ -76,12 +74,15 @@ export function ImportTextForm() {
         }
 
         if (extracted.kind === "text") {
-          const totalPages = pageProgress?.total ?? 0;
-          setBusy("saving");
+          // Server post-processes: strips running headers/footers, runs a
+          // Claude text-repair pass when the layer is transposed-ligature
+          // gibberish. Takes a moment but yields clean readable Arabic.
+          setBusy("cleaning");
+          const totalPages = extracted.pages.length;
           const cleanTitle = title.trim() || file.name.replace(/\.pdf$/i, "");
           result = await importTextFromBrowserExtract(
             cleanTitle,
-            pagesToContent(extracted.pages),
+            extracted.pages,
             totalPages,
           );
         } else {
@@ -139,6 +140,7 @@ export function ImportTextForm() {
       }
       return "Reading PDF…";
     }
+    if (busy === "cleaning") return "Cleaning up text…";
     if (busy === "uploading") return "Uploading for OCR…";
     if (busy === "preparing") return "Splitting into pages…";
     return "Saving…";

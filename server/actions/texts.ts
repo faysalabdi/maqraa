@@ -80,23 +80,37 @@ export async function importTextFromPaste(
 
 /**
  * Import a PDF whose text the browser already extracted via PDF.js. Skips the
- * whole chunking / background-extraction pipeline — the text is already in
- * logical-order Arabic, so we sectionize and persist as `ready` immediately.
- * Cap is generous: a 1000-page book is ~1 MB of text.
+ * whole chunking / background-extraction pipeline: server post-processing
+ * runs synchronously (strip headers/footers, repair transposed-ligature
+ * encoding when present), then we sectionize and persist as `ready`. For a
+ * 200-page book this is a few seconds clean, 30-60s when transposed-repair
+ * is needed.
  */
 export async function importTextFromBrowserExtract(
   title: string,
-  content: string,
+  pages: string[],
   pageCount: number,
 ): Promise<{ id: string } | { error: string }> {
   const user = await requireUser();
 
   const cleanTitle = title.trim().slice(0, 200);
-  const cleanContent = content.trim().slice(0, 4_000_000);
   if (!cleanTitle) return { error: "Give the book a title" };
-  if (cleanContent.length < 40) return { error: "PDF text is too short to import" };
-  if (!/[؀-ۿ]/.test(cleanContent)) {
-    return { error: "No Arabic text found in this PDF" };
+  if (!Array.isArray(pages) || pages.length === 0) {
+    return { error: "No PDF pages provided" };
+  }
+  // Cap protects against runaway uploads — a 1500-page Arabic book is well
+  // under this, JSON-encoded.
+  const rawJoined = pages.join("\n\n");
+  if (rawJoined.length > 6_000_000) {
+    return { error: "That PDF is too large to import all at once" };
+  }
+  if (rawJoined.trim().length < 40) return { error: "PDF text is too short to import" };
+  if (!/[؀-ۿ]/.test(rawJoined)) return { error: "No Arabic text found in this PDF" };
+
+  const { processBrowserExtractedPages } = await import("@/lib/ai/pdf-extract");
+  const { content: cleanContent, repaired } = await processBrowserExtractedPages(pages);
+  if (cleanContent.length < 40) {
+    return { error: "PDF text was almost entirely headers/page numbers" };
   }
 
   const { sectionize } = await import("@/lib/reading/sections");
@@ -123,7 +137,7 @@ export async function importTextFromBrowserExtract(
     sizeBytes: cleanContent.length,
     pages: pageCount,
     chunks: 0,
-    path: "browser-extract",
+    path: repaired ? "browser-extract-repaired" : "browser-extract",
   });
   revalidatePath("/texts");
   return { id: row.id };

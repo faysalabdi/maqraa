@@ -353,6 +353,46 @@ function isPageNumberLine(line: string): boolean {
   return /^[\d٠-٩]{1,4}$/.test(line.replace(/[\s.,\-–—|]/g, ""));
 }
 
+/**
+ * Post-process Arabic text the browser already extracted from a PDF (via
+ * pdfjs-dist + cMaps). The browser produces logical-order codepoints in
+ * sub-second time, but two things still need server-side cleanup:
+ *  - Running headers / footers / page-number lines that PDF.js dutifully
+ *    includes in every page's text layer. Stripped per-page.
+ *  - Transposed-ligature corruption (الحقيقة → احلقيقة, في → يف, etc.) baked
+ *    into the source typesetting. Mapped back to real Arabic with a fast
+ *    text-only Claude pass when the classifier sees it.
+ *
+ * Returns the cleaned, joined content ready for sectionize().
+ */
+export async function processBrowserExtractedPages(
+  pages: string[],
+): Promise<{ content: string; repaired: boolean }> {
+  const cleaned = stripRunningHeadersFooters(pages.map((p) => p.trim()));
+  const stripped = stripTatweel(cleaned.join("\n\n"));
+  const verdict = classifyArabicLayer(stripped, Math.max(1, pages.length));
+
+  if (verdict === "transposed") {
+    try {
+      const fixed = await fixTransposedArabic(stripped);
+      return { content: normalizeArabic(fixed), repaired: true };
+    } catch (e) {
+      console.error("[pdf-extract] browser-extracted repair failed; using raw text", e);
+      return { content: normalizeArabic(stripped), repaired: false };
+    }
+  }
+  return { content: normalizeArabic(stripped), repaired: false };
+}
+
+/**
+ * Strip Arabic tatweel/kashida (U+0640). It's a visual stretch character used
+ * in justified typesetting and shouldn't appear in reading text — extractors
+ * sometimes pull it through and it splits words like "تغييرًا" into "تغيـرًا".
+ */
+function stripTatweel(text: string): string {
+  return text.replace(/ـ/g, "");
+}
+
 /* ─────────────────────── shared text normalization ─────────────────────── */
 
 /**
