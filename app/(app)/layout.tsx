@@ -104,10 +104,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
 
           <nav className="ml-auto flex items-center gap-0.5 text-sm font-semibold">
-            <NavLink href="/path" icon={<Sparkles className="h-4 w-4" />}>
-              Path
-            </NavLink>
-            <NavLink href="/library" icon={<BookOpen className="h-4 w-4" />}>
+            <NavLink href="/path" icon={<BookOpen className="h-4 w-4" />}>
               Read
             </NavLink>
             <NavLink href="/practice" icon={<MessagesSquare className="h-4 w-4" />}>
