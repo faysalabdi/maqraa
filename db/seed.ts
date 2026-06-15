@@ -39,6 +39,12 @@ async function main() {
 
   console.log("seeding books...");
   for (const b of BOOKS) {
+    // Free the (level, orderInLevel) slot if it's occupied by a different slug,
+    // so the upsert below doesn't hit the secondary unique constraint.
+    await db.execute(
+      sql`UPDATE books SET order_in_level = order_in_level + 10000
+          WHERE level = ${b.level} AND order_in_level = ${b.orderInLevel} AND slug != ${b.slug}`,
+    );
     await db
       .insert(schema.books)
       .values({
