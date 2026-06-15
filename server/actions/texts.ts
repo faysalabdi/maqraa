@@ -78,6 +78,57 @@ export async function importTextFromPaste(
   return { id: row.id };
 }
 
+/**
+ * Import a PDF whose text the browser already extracted via PDF.js. Skips the
+ * whole chunking / background-extraction pipeline — the text is already in
+ * logical-order Arabic, so we sectionize and persist as `ready` immediately.
+ * Cap is generous: a 1000-page book is ~1 MB of text.
+ */
+export async function importTextFromBrowserExtract(
+  title: string,
+  content: string,
+  pageCount: number,
+): Promise<{ id: string } | { error: string }> {
+  const user = await requireUser();
+
+  const cleanTitle = title.trim().slice(0, 200);
+  const cleanContent = content.trim().slice(0, 4_000_000);
+  if (!cleanTitle) return { error: "Give the book a title" };
+  if (cleanContent.length < 40) return { error: "PDF text is too short to import" };
+  if (!/[؀-ۿ]/.test(cleanContent)) {
+    return { error: "No Arabic text found in this PDF" };
+  }
+
+  const { sectionize } = await import("@/lib/reading/sections");
+  const sections = sectionize(cleanContent);
+  const level = await userLevel(user.id);
+
+  const [row] = await db
+    .insert(schema.userTexts)
+    .values({
+      userId: user.id,
+      title: cleanTitle,
+      kind: "pdf",
+      level,
+      contentAr: cleanContent,
+      wordCount: countWords(cleanContent),
+      totalSections: Math.max(1, sections.length),
+      extractionStatus: "ready",
+      pagesTotal: pageCount > 0 ? pageCount : null,
+      pagesDone: pageCount > 0 ? pageCount : 0,
+    })
+    .returning({ id: schema.userTexts.id });
+
+  await logEvent("text_pdf_imported", {
+    sizeBytes: cleanContent.length,
+    pages: pageCount,
+    chunks: 0,
+    path: "browser-extract",
+  });
+  revalidatePath("/texts");
+  return { id: row.id };
+}
+
 export async function deleteText(id: string): Promise<void> {
   const user = await requireUser();
   // Reclaim any preserved source upload (a still-processing PDF holds onto
