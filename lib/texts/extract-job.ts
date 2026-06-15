@@ -4,7 +4,7 @@ import {
   extractArabicPdf,
   MissingMistralKeyError,
   ocrPdfPageRange,
-  repairArabicTextChunk,
+  normalizeBrowserExtractedText,
 } from "@/lib/ai/pdf-extract";
 import { sectionize } from "@/lib/reading/sections";
 
@@ -317,7 +317,7 @@ async function processOneBatch(textId: string): Promise<"stop" | number> {
         const bytes = new Uint8Array(Buffer.from(chunk.pdfBase64, "base64"));
         // Three possible shapes for an empty PDF payload:
         //  - contentAr already populated → browser-extracted text awaiting
-        //    Claude transposed-ligature repair (no OCR).
+        //    normalization only (fast path, never calls Claude).
         //  - contentAr empty → pdf-lib couldn't slice the range; OCR from the
         //    preserved source upload.
         //  - bytes present → normal PDF chunk path.
@@ -325,7 +325,7 @@ async function processOneBatch(textId: string): Promise<"stop" | number> {
         let extractedTitle: string | null = null;
         if (bytes.length < 500) {
           if (chunk.contentAr && chunk.contentAr.trim().length > 0) {
-            extractedContent = await repairArabicTextChunk(chunk.contentAr);
+            extractedContent = normalizeBrowserExtractedText(chunk.contentAr);
           } else {
             const ocr = await ocrFromSource(textId, chunk.pageStart, chunk.pageEnd);
             extractedContent = ocr.content_ar;

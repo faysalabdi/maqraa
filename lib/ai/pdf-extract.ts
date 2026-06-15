@@ -160,15 +160,26 @@ Rewrite the user's text with the corruption fixed. Rules:
  * module stays importable without env configuration (unit tests).
  */
 /**
- * Repair Arabic text that's stored in real codepoints but transposed at the
- * ligature level (الحقيقة → احلقيقة, في → يف, …). Returns the input untouched
- * if classification says it's already clean. Used by the background extractor
- * to repair browser-extracted chunks one at a time so each call stays well
- * inside a single function budget.
+ * Normalize browser-extracted Arabic text without Claude repair. Strips
+ * tatweel and applies safe cleanup only — no transposed-ligature detection or
+ * model-based repair. Used by the fast path when PDF bytes are too small to
+ * extract from directly, ensuring the fast path is always non-Claude.
  */
-export async function repairArabicTextChunk(text: string): Promise<string> {
+export function normalizeBrowserExtractedText(text: string): string {
   const stripped = stripTatweel(text);
-  const verdict = classifyArabicLayer(stripped, 1);
+  return normalizeArabic(stripped);
+}
+
+/**
+ * Repair Arabic text that's stored in real codepoints but transposed at the
+ * ligature level (الحقيقة → احلقيقة, في → يف, …). Classifies using the full
+ * content and correct page count, then repairs transposed layers via Claude.
+ * Used by the background extractor for chunks that were successfully extracted
+ * and are large enough to warrant potentially expensive repair.
+ */
+export async function repairArabicTextChunk(text: string, pageCount: number): Promise<string> {
+  const stripped = stripTatweel(text);
+  const verdict = classifyArabicLayer(stripped, pageCount);
   if (verdict !== "transposed") return normalizeArabic(stripped);
   const fixed = await fixTransposedArabic(stripped);
   return normalizeArabic(fixed);
