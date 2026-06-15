@@ -2,17 +2,10 @@ import { notFound } from "next/navigation";
 import { and, count, countDistinct, desc, eq, gte, sql } from "drizzle-orm";
 import { createClient } from "@/lib/supabase/server";
 import { db, schema } from "@/lib/db";
-import { env } from "@/lib/env";
+import { isAdmin } from "@/lib/admin";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
-
-function isAdmin(email: string | null | undefined) {
-  if (!email || !env.ADMIN_EMAILS) return false;
-  return env.ADMIN_EMAILS.split(",")
-    .map((s) => s.trim().toLowerCase())
-    .includes(email.toLowerCase());
-}
 
 export default async function AdminAnalyticsPage() {
   const supabase = await createClient();

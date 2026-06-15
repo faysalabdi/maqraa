@@ -62,10 +62,7 @@ export async function updateSession(request: NextRequest) {
   const isPublic =
     PUBLIC_PATHS.includes(pathname) ||
     pathname.startsWith("/_next") ||
-    pathname.startsWith("/api/public") ||
-    // Server-to-server self-call for background PDF extraction. No session
-    // cookie travels with it; the route enforces x-internal-secret itself.
-    pathname === "/api/texts/extract";
+    pathname.startsWith("/api/public");
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
