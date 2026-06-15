@@ -119,11 +119,6 @@ export function BookNode({ book, side }: { book: BookNodeData; side: "left" | "r
               >
                 {labelForGenre(book.genre)}
               </span>
-              {book.hasFullText && (
-                <span className="inline-flex rounded-full bg-brand px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-brand-fg">
-                  Read here
-                </span>
-              )}
               {statusChip && (
                 <span
                   className={cn(

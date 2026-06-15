@@ -2,15 +2,15 @@ import { cn } from "@/lib/utils";
 import { Lock } from "lucide-react";
 import type { LevelData } from "@/lib/db/queries/path";
 
-const STAGE_COLOR: Record<number, string> = {
-  1: "from-emerald-100 to-emerald-50 text-emerald-900",
-  2: "from-sky-100 to-sky-50 text-sky-900",
-  3: "from-violet-100 to-violet-50 text-violet-900",
-  4: "from-amber-100 to-amber-50 text-amber-900",
-  5: "from-orange-100 to-orange-50 text-orange-900",
-  6: "from-rose-100 to-rose-50 text-rose-900",
-  7: "from-fuchsia-100 to-fuchsia-50 text-fuchsia-900",
-  8: "from-yellow-200 to-amber-100 text-amber-950",
+const STAGE_ACCENT: Record<number, string> = {
+  1: "bg-emerald-500",
+  2: "bg-sky-500",
+  3: "bg-violet-500",
+  4: "bg-amber-500",
+  5: "bg-orange-500",
+  6: "bg-rose-500",
+  7: "bg-fuchsia-500",
+  8: "bg-yellow-500",
 };
 
 export function StageBanner({
@@ -22,34 +22,40 @@ export function StageBanner({
   isLocked: boolean;
   completedCount: number;
 }) {
+  const accent = STAGE_ACCENT[level.level] ?? "bg-zinc-500";
+
   return (
     <div
       className={cn(
-        "relative my-6 overflow-hidden rounded-3xl bg-gradient-to-b p-6 shadow-sm ring-1 ring-border",
-        STAGE_COLOR[level.level] ?? "from-zinc-100 to-zinc-50 text-zinc-900",
-        isLocked && "opacity-60",
+        "sticky top-[57px] z-10 -mx-4 mb-2 mt-8 flex items-center gap-3 bg-bg/85 px-4 py-2.5 backdrop-blur first:mt-0",
+        isLocked && "opacity-70",
       )}
     >
-      <div className="flex items-baseline justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-widest opacity-70">
-            Stage {level.level}
-          </p>
-          <h2 className="mt-1 text-2xl font-extrabold">{level.nameEn}</h2>
-          <p className="font-arabic text-xl opacity-80" dir="rtl">
-            {level.nameAr}
-          </p>
-        </div>
-        {isLocked ? (
-          <Lock className="h-8 w-8 opacity-60" />
-        ) : (
-          <div className="rounded-full bg-white/70 px-3 py-1 text-sm font-bold backdrop-blur">
-            {completedCount} / {level.booksRequiredToClear}
-          </div>
+      <span
+        className={cn(
+          "grid h-9 w-9 shrink-0 place-items-center rounded-xl text-sm font-black text-white shadow-soft",
+          accent,
         )}
+      >
+        {level.level}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <h2 className="truncate text-base font-extrabold leading-tight">{level.nameEn}</h2>
+          <span className="font-arabic shrink-0 text-sm text-fg-muted" dir="rtl">
+            {level.nameAr}
+          </span>
+        </div>
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-fg-muted">
+          Stage {level.level}
+        </p>
       </div>
-      {!isLocked && (
-        <p className="mt-3 max-w-prose text-sm leading-relaxed opacity-90">{level.description}</p>
+      {isLocked ? (
+        <Lock className="h-4 w-4 shrink-0 text-fg-muted" />
+      ) : (
+        <span className="shrink-0 rounded-full bg-bg-muted px-2.5 py-1 text-xs font-bold text-fg-muted">
+          {completedCount}/{level.booksRequiredToClear >= 99 ? "∞" : level.booksRequiredToClear}
+        </span>
       )}
     </div>
   );
