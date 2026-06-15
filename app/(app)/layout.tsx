@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
+import { isAdmin } from "@/lib/admin";
 import {
   Flame,
   BookOpen,
@@ -13,6 +14,7 @@ import {
   Trophy,
   Zap,
   MessagesSquare,
+  Shield,
 } from "lucide-react";
 import { StatPill } from "@/components/chrome/StatPill";
 import { Logo } from "@/components/brand/Logo";
@@ -69,6 +71,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const avatarLetter =
     (displayName?.[0] ?? user?.email?.[0] ?? "?").toUpperCase();
+  const admin = isAdmin(user?.email);
 
   return (
     <div
@@ -128,6 +131,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <NavLink href="/settings" icon={<SettingsIcon className="h-4 w-4" />}>
               Settings
             </NavLink>
+            {admin && (
+              <NavLink href="/admin/books" icon={<Shield className="h-4 w-4" />}>
+                Admin
+              </NavLink>
+            )}
           </nav>
 
           {user && (

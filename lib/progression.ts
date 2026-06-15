@@ -1,13 +1,12 @@
-import { and, count, eq, sql } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { grantXp } from "@/lib/xp/grant";
 import { XP_REWARDS } from "@/lib/xp/rewards";
 
 /**
- * Count everything that clears stages at a given level: catalogue books the
- * user passed the whole-book test on, plus personal texts (generated stories,
- * imported PDFs, pasted texts) where every section's comprehension check was
- * passed.
+ * Count the catalogue books the user has completed at a given level. Completing
+ * the books on the curated path is what clears a stage and moves the path
+ * forward.
  */
 export async function completedAtLevel(userId: string, level: number): Promise<number> {
   const [books] = await db
@@ -22,19 +21,7 @@ export async function completedAtLevel(userId: string, level: number): Promise<n
       ),
     );
 
-  const [texts] = await db
-    .select({ cnt: count() })
-    .from(schema.userTexts)
-    .where(
-      and(
-        eq(schema.userTexts.userId, userId),
-        eq(schema.userTexts.level, level),
-        sql`${schema.userTexts.totalSections} > 0`,
-        sql`jsonb_array_length(${schema.userTexts.completedSections}) >= ${schema.userTexts.totalSections}`,
-      ),
-    );
-
-  return Number(books?.cnt ?? 0) + Number(texts?.cnt ?? 0);
+  return Number(books?.cnt ?? 0);
 }
 
 /**
@@ -55,7 +42,7 @@ export async function maybeLevelUp(userId: string, atLevel: number): Promise<num
     .from(schema.profiles)
     .where(eq(schema.profiles.id, userId))
     .limit(1);
-  // Only books/texts at the user's current level move the path forward.
+  // Only books at the user's current level move the path forward.
   if (!profile || profile.currentLevel !== atLevel) return null;
 
   const cleared = await completedAtLevel(userId, atLevel);

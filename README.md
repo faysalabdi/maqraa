@@ -33,6 +33,7 @@ pnpm dev                             # open http://localhost:3000
 - M6 ✅ Flashcard review (`/review`): SM-2 scheduling, flip animation, Again/Hard/Good/Easy with keyboard shortcuts, XP per review
 - M7 ✅ Word collection (`/words`): every saved word grouped by strength (New / Weak / Learning / Strong / Mastered) derived from SRS state
 - M8 ✅ Stats page: XP, rank progress bar, streak, vocab strength distribution, recent XP feed. Streak tracking on every XP grant.
+- M9 ✅ **Curated preloaded books**: reading material lives only in the public `books` + `book_chapters` catalogue. Admins add books and paste chapter text from `/admin/books` (gated by `ADMIN_EMAILS`); a book turns readable in-app the moment it has a chapter. The per-user PDF-upload / AI-story import pipeline was removed in favour of this curated, exposure-first path.
 - 🚧 Whole-book comprehension tests for non-readable books (scaffold in `lib/ai/test-generator.ts`)
 - 🚧 Achievements engine, onboarding/placement quiz
 - 🚧 Listening & speaking practice (future: audio, conversation drills)
