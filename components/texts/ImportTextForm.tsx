@@ -74,10 +74,11 @@ export function ImportTextForm() {
         }
 
         if (extracted.kind === "text") {
-          // Server post-processes: strips running headers/footers, runs a
-          // Claude text-repair pass when the layer is transposed-ligature
-          // gibberish. Takes a moment but yields clean readable Arabic.
-          setBusy("cleaning");
+          // Server returns quickly: either persists immediately (clean text
+          // layer) or queues a background Claude repair (transposed text) and
+          // redirects to the reader, which streams pages in as repair lands.
+          // Either way the user can close the tab.
+          setBusy("saving");
           const totalPages = extracted.pages.length;
           const cleanTitle = title.trim() || file.name.replace(/\.pdf$/i, "");
           result = await importTextFromBrowserExtract(
