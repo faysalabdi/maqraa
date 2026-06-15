@@ -4,6 +4,7 @@ import {
   extractArabicPdf,
   MissingMistralKeyError,
   ocrPdfPageRange,
+  repairArabicTextChunk,
 } from "@/lib/ai/pdf-extract";
 import { sectionize } from "@/lib/reading/sections";
 
@@ -314,13 +315,28 @@ async function processOneBatch(textId: string): Promise<"stop" | number> {
     claimed.map(async (chunk) => {
       try {
         const bytes = new Uint8Array(Buffer.from(chunk.pdfBase64, "base64"));
-        // An empty payload means pdf-lib couldn't slice this page range from
-        // the source at import time. Recover by OCR'ing that range straight
-        // from the preserved source upload, so we don't drop real content.
-        const extracted =
-          bytes.length < 500
-            ? await ocrFromSource(textId, chunk.pageStart, chunk.pageEnd)
-            : await extractArabicPdf(bytes);
+        // Three possible shapes for an empty PDF payload:
+        //  - contentAr already populated → browser-extracted text awaiting
+        //    Claude transposed-ligature repair (no OCR).
+        //  - contentAr empty → pdf-lib couldn't slice the range; OCR from the
+        //    preserved source upload.
+        //  - bytes present → normal PDF chunk path.
+        let extractedContent: string;
+        let extractedTitle: string | null = null;
+        if (bytes.length < 500) {
+          if (chunk.contentAr && chunk.contentAr.trim().length > 0) {
+            extractedContent = await repairArabicTextChunk(chunk.contentAr);
+          } else {
+            const ocr = await ocrFromSource(textId, chunk.pageStart, chunk.pageEnd);
+            extractedContent = ocr.content_ar;
+            extractedTitle = ocr.title_ar ?? null;
+          }
+        } else {
+          const ex = await extractArabicPdf(bytes);
+          extractedContent = ex.content_ar;
+          extractedTitle = ex.title_ar ?? null;
+        }
+        const extracted = { content_ar: extractedContent, title_ar: extractedTitle };
         await db
           .update(schema.textChunks)
           .set({

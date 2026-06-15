@@ -79,12 +79,18 @@ export async function importTextFromPaste(
 }
 
 /**
- * Import a PDF whose text the browser already extracted via PDF.js. Skips the
- * whole chunking / background-extraction pipeline: server post-processing
- * runs synchronously (strip headers/footers, repair transposed-ligature
- * encoding when present), then we sectionize and persist as `ready`. For a
- * 200-page book this is a few seconds clean, 30-60s when transposed-repair
- * is needed.
+ * Import a PDF whose text the browser already extracted via PDF.js.
+ *
+ * Two paths:
+ *  - Clean text layer (most modern Arabic books) → sectionize + persist as
+ *    `ready` immediately. Lands in seconds.
+ *  - Transposed-ligature layer (legacy typesetting) → split into per-page
+ *    chunks, persist as `processing`, queue background Claude repair via the
+ *    existing chunk pipeline. Reader page polls and renders pages as they
+ *    finish repairing, so the user can close the tab and come back.
+ *
+ * Either way the action returns within a few seconds — no synchronous Claude
+ * call that can outlive a function budget.
  */
 export async function importTextFromBrowserExtract(
   title: string,
@@ -98,8 +104,6 @@ export async function importTextFromBrowserExtract(
   if (!Array.isArray(pages) || pages.length === 0) {
     return { error: "No PDF pages provided" };
   }
-  // Cap protects against runaway uploads — a 1500-page Arabic book is well
-  // under this, JSON-encoded.
   const rawJoined = pages.join("\n\n");
   if (rawJoined.length > 6_000_000) {
     return { error: "That PDF is too large to import all at once" };
@@ -107,15 +111,60 @@ export async function importTextFromBrowserExtract(
   if (rawJoined.trim().length < 40) return { error: "PDF text is too short to import" };
   if (!/[؀-ۿ]/.test(rawJoined)) return { error: "No Arabic text found in this PDF" };
 
-  const { processBrowserExtractedPages } = await import("@/lib/ai/pdf-extract");
-  const { content: cleanContent, repaired } = await processBrowserExtractedPages(pages);
-  if (cleanContent.length < 40) {
-    return { error: "PDF text was almost entirely headers/page numbers" };
+  const { stripRunningHeadersFooters, classifyArabicLayer } = await import(
+    "@/lib/ai/pdf-extract"
+  );
+
+  // Strip headers/footers/page numbers per page first — works on text from
+  // either path and removes one common kind of noise before classification.
+  const cleanedPages = stripRunningHeadersFooters(pages.map((p) => p.trim()));
+  const sampleForClassification = cleanedPages.join("\n\n").slice(0, 16_000);
+  const verdict = classifyArabicLayer(
+    sampleForClassification,
+    Math.max(1, Math.min(pages.length, 16_000 / Math.max(1, sampleForClassification.length / pages.length))),
+  );
+
+  const level = await userLevel(user.id);
+
+  if (verdict !== "transposed") {
+    // Fast path: text is clean (or close enough) — persist and return.
+    const { processBrowserExtractedPages } = await import("@/lib/ai/pdf-extract");
+    const { content: finalContent } = await processBrowserExtractedPages(cleanedPages);
+    if (finalContent.length < 40) {
+      return { error: "PDF text was almost entirely headers/page numbers" };
+    }
+    const { sectionize } = await import("@/lib/reading/sections");
+    const sections = sectionize(finalContent);
+    const [row] = await db
+      .insert(schema.userTexts)
+      .values({
+        userId: user.id,
+        title: cleanTitle,
+        kind: "pdf",
+        level,
+        contentAr: finalContent,
+        wordCount: countWords(finalContent),
+        totalSections: Math.max(1, sections.length),
+        extractionStatus: "ready",
+        pagesTotal: pageCount > 0 ? pageCount : null,
+        pagesDone: pageCount > 0 ? pageCount : 0,
+      })
+      .returning({ id: schema.userTexts.id });
+    await logEvent("text_pdf_imported", {
+      sizeBytes: finalContent.length,
+      pages: pageCount,
+      chunks: 0,
+      path: "browser-extract-clean",
+    });
+    revalidatePath("/texts");
+    return { id: row.id };
   }
 
-  const { sectionize } = await import("@/lib/reading/sections");
-  const sections = sectionize(cleanContent);
-  const level = await userLevel(user.id);
+  // Transposed-ligature path: chunk by page groups, queue background repair.
+  const chunkRecords = chunkPagesForRepair(cleanedPages);
+  if (chunkRecords.length === 0) {
+    return { error: "PDF text was almost entirely headers/page numbers" };
+  }
 
   const [row] = await db
     .insert(schema.userTexts)
@@ -124,23 +173,72 @@ export async function importTextFromBrowserExtract(
       title: cleanTitle,
       kind: "pdf",
       level,
-      contentAr: cleanContent,
-      wordCount: countWords(cleanContent),
-      totalSections: Math.max(1, sections.length),
-      extractionStatus: "ready",
-      pagesTotal: pageCount > 0 ? pageCount : null,
-      pagesDone: pageCount > 0 ? pageCount : 0,
+      contentAr: "",
+      wordCount: 0,
+      totalSections: 1,
+      extractionStatus: "processing",
+      pagesTotal: pageCount > 0 ? pageCount : pages.length,
+      pagesDone: 0,
     })
     .returning({ id: schema.userTexts.id });
+  const textRowId = row.id;
+
+  const BATCH = 5;
+  for (let i = 0; i < chunkRecords.length; i += BATCH) {
+    await db.insert(schema.textChunks).values(
+      chunkRecords.slice(i, i + BATCH).map((c, j) => ({
+        textId: textRowId,
+        chunkIndex: i + j,
+        pageStart: c.pageStart,
+        pageEnd: c.pageEnd,
+        // No PDF bytes — content_ar carries the raw transposed text and
+        // signals the extractor to run Claude repair on it.
+        pdfBase64: "",
+        contentAr: c.text,
+      })),
+    );
+  }
 
   await logEvent("text_pdf_imported", {
-    sizeBytes: cleanContent.length,
+    sizeBytes: rawJoined.length,
     pages: pageCount,
-    chunks: 0,
-    path: repaired ? "browser-extract-repaired" : "browser-extract",
+    chunks: chunkRecords.length,
+    path: "browser-extract-transposed",
   });
+
+  const { triggerExtraction } = await import("@/lib/texts/extract-job");
+  const origin = await requestOrigin();
+  after(() => triggerExtraction(textRowId, origin));
+
   revalidatePath("/texts");
-  return { id: row.id };
+  return { id: textRowId };
+}
+
+/**
+ * Group cleaned pages into per-chunk text payloads sized for one Claude
+ * repair call (~4k chars). Page boundaries are preserved so progress
+ * (pagesDone/pagesTotal in the reader) tracks real reading-page progress.
+ */
+function chunkPagesForRepair(
+  pages: string[],
+): { pageStart: number; pageEnd: number; text: string }[] {
+  const TARGET = 4000;
+  const chunks: { pageStart: number; pageEnd: number; text: string }[] = [];
+  let start = 0;
+  let buffer = "";
+  for (let i = 0; i < pages.length; i++) {
+    const p = pages[i].trim();
+    if (!p) continue;
+    if (buffer && buffer.length + p.length + 2 > TARGET) {
+      chunks.push({ pageStart: start, pageEnd: i, text: buffer });
+      start = i;
+      buffer = p;
+    } else {
+      buffer = buffer ? `${buffer}\n\n${p}` : p;
+    }
+  }
+  if (buffer) chunks.push({ pageStart: start, pageEnd: pages.length, text: buffer });
+  return chunks;
 }
 
 export async function deleteText(id: string): Promise<void> {

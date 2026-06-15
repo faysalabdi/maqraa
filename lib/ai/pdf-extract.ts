@@ -159,6 +159,21 @@ Rewrite the user's text with the corruption fixed. Rules:
  * few at a time in parallel. Anthropic client is imported lazily so this
  * module stays importable without env configuration (unit tests).
  */
+/**
+ * Repair Arabic text that's stored in real codepoints but transposed at the
+ * ligature level (الحقيقة → احلقيقة, في → يف, …). Returns the input untouched
+ * if classification says it's already clean. Used by the background extractor
+ * to repair browser-extracted chunks one at a time so each call stays well
+ * inside a single function budget.
+ */
+export async function repairArabicTextChunk(text: string): Promise<string> {
+  const stripped = stripTatweel(text);
+  const verdict = classifyArabicLayer(stripped, 1);
+  if (verdict !== "transposed") return normalizeArabic(stripped);
+  const fixed = await fixTransposedArabic(stripped);
+  return normalizeArabic(fixed);
+}
+
 async function fixTransposedArabic(text: string): Promise<string> {
   const { anthropic, FALLBACK_MODEL } = await import("./anthropic");
   const segments = segmentParagraphs(text, 4000);

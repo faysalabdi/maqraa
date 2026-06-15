@@ -239,12 +239,12 @@ export function TextReader({
           ) : (
             <>
               <Loader2 className="mx-auto h-12 w-12 animate-spin text-brand" />
-              <h1 className="mt-4 text-2xl font-extrabold">Reading your PDF…</h1>
+              <h1 className="mt-4 text-2xl font-extrabold">Cleaning up your PDF…</h1>
               <p className="mx-auto mt-2 max-w-sm text-sm text-fg-muted">
-                Extracting{" "}
+                Repairing{" "}
                 {text.pagesTotal ? `all ${text.pagesTotal} pages` : "the pages"} so the
-                Arabic comes out in the right order. The first pages will appear here in a
-                moment — you can start reading before the rest is done.
+                Arabic reads in the right order. New pages appear here as they finish —
+                you can close this tab and come back later; the job keeps running.
               </p>
               <div className="mx-auto mt-6 h-2.5 max-w-xs overflow-hidden rounded-full bg-bg-muted ring-1 ring-border">
                 <motion.div
