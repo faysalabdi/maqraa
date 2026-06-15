@@ -415,7 +415,7 @@ export async function processBrowserExtractedPages(
  * in justified typesetting and shouldn't appear in reading text — extractors
  * sometimes pull it through and it splits words like "تغييرًا" into "تغيـرًا".
  */
-function stripTatweel(text: string): string {
+export function stripTatweel(text: string): string {
   return text.replace(/ـ/g, "");
 }
 
@@ -427,7 +427,7 @@ function stripTatweel(text: string): string {
  * spacing, single newlines mid-paragraph — without any model call. Mistral OCR
  * output is already logical-order and well-segmented, so this is light-touch.
  */
-function normalizeArabic(text: string): string {
+export function normalizeArabic(text: string): string {
   return text
     .split(/\n{2,}/)
     .map((para) =>

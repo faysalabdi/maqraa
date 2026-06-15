@@ -118,18 +118,17 @@ export async function importTextFromBrowserExtract(
   // Strip headers/footers/page numbers per page first — works on text from
   // either path and removes one common kind of noise before classification.
   const cleanedPages = stripRunningHeadersFooters(pages.map((p) => p.trim()));
-  const sampleForClassification = cleanedPages.join("\n\n").slice(0, 16_000);
-  const verdict = classifyArabicLayer(
-    sampleForClassification,
-    Math.max(1, Math.min(pages.length, 16_000 / Math.max(1, sampleForClassification.length / pages.length))),
-  );
+  const joined = cleanedPages.join("\n\n");
+  const verdict = classifyArabicLayer(joined, pages.length);
 
   const level = await userLevel(user.id);
 
   if (verdict !== "transposed") {
-    // Fast path: text is clean (or close enough) — persist and return.
-    const { processBrowserExtractedPages } = await import("@/lib/ai/pdf-extract");
-    const { content: finalContent } = await processBrowserExtractedPages(cleanedPages);
+    // Fast path: text is clean (or close enough) — normalize without Claude
+    // (transposed text is handled via chunking + background repair below).
+    const { stripTatweel, normalizeArabic } = await import("@/lib/ai/pdf-extract");
+    const stripped = stripTatweel(joined);
+    const finalContent = normalizeArabic(stripped);
     if (finalContent.length < 40) {
       return { error: "PDF text was almost entirely headers/page numbers" };
     }
