@@ -113,6 +113,45 @@ export async function addChapter(input: AddChapterInput): Promise<{ id: string }
   return { id: row.id };
 }
 
+export async function addChapters(
+  bookId: string,
+  chapters: { titleAr: string; titleEn: string; contentAr: string }[],
+): Promise<{ count: number }> {
+  await requireAdmin();
+
+  const cleaned = chapters
+    .map((c) => ({
+      titleAr: clean(c.titleAr),
+      titleEn: clean(c.titleEn),
+      contentAr: c.contentAr.trim(),
+    }))
+    .filter((c) => c.contentAr.length > 0);
+  if (cleaned.length === 0) throw new Error("no chapters to add");
+
+  const [{ start }] = await db
+    .select({ start: sql<number>`coalesce(max(${schema.bookChapters.chapterNumber}), 0)` })
+    .from(schema.bookChapters)
+    .where(eq(schema.bookChapters.bookId, bookId));
+  const base = Number(start);
+
+  await db.insert(schema.bookChapters).values(
+    cleaned.map((c, i) => ({
+      bookId,
+      chapterNumber: base + i + 1,
+      titleAr: c.titleAr || `الفصل ${base + i + 1}`,
+      titleEn: c.titleEn || `Chapter ${base + i + 1}`,
+      contentAr: c.contentAr,
+      source: "public_domain" as const,
+    })),
+  );
+
+  await db.update(schema.books).set({ hasFullText: true }).where(eq(schema.books.id, bookId));
+
+  revalidatePath("/admin/books");
+  revalidatePath("/library");
+  return { count: cleaned.length };
+}
+
 export async function deleteChapter(chapterId: string, bookId: string): Promise<void> {
   await requireAdmin();
 

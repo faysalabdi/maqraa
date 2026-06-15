@@ -29,7 +29,7 @@ pnpm dev                             # open http://localhost:3000
 - M2 ✅ Supabase auth (magic link) + middleware + Drizzle schema with RLS-ready tables
 - M3 ✅ Seed data: 8 levels, ~50 books across Islamic, Arabic literature, translated novels, and classical works
 - M4 ✅ Duolingo-style winding path with stage banners + book nodes (locked / unlocked / in-progress / completed states)
-- M5 ✅ **In-app reader**: chapter-based reading with tap-to-translate on every word (Claude-powered, globally cached lookups), save-word-to-flashcards, per-chapter comprehension quizzes generated from the actual chapter text, sequential chapter unlocking. Seeded with الأربعون النووية (10 hadith chapters) and an original beginner series رحلة سامر. In-app text is public-domain or original content only.
+- M5 ✅ **In-app reader**: chapter-based reading with tap-to-translate on every word (Claude-powered, globally cached lookups), save-word-to-flashcards, per-chapter comprehension quizzes generated from the actual chapter text, sequential chapter unlocking. Seeded with real public-domain text: الأربعون النووية (full 42 hadith) and الأربعون القدسية (40 hadith qudsi), sourced from a CC0 dataset, plus an original beginner series رحلة سامر. In-app text is public-domain or original content only.
 - M6 ✅ Flashcard review (`/review`): SM-2 scheduling, flip animation, Again/Hard/Good/Easy with keyboard shortcuts, XP per review
 - M7 ✅ Word collection (`/words`): every saved word grouped by strength (New / Weak / Learning / Strong / Mastered) derived from SRS state
 - M8 ✅ Stats page: XP, rank progress bar, streak, vocab strength distribution, recent XP feed. Streak tracking on every XP grant.

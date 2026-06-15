@@ -3,13 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { BookOpen, ChevronDown, Plus, Trash2 } from "lucide-react";
-import {
-  addChapter,
-  createBook,
-  deleteBook,
-  deleteChapter,
-  type Genre,
-} from "@/server/actions/admin";
+import { addChapter, createBook, deleteBook, deleteChapter, type Genre } from "@/server/actions/admin";
+import { ImportPanel } from "@/components/admin/ImportPanel";
 
 export type AdminBook = {
   id: string;
@@ -53,31 +48,51 @@ export function BookAdmin({
   chapters: AdminChapter[];
   levels: LevelOption[];
 }) {
+  const [showNew, setShowNew] = useState(false);
+  const usedLevels = levels.filter((l) => books.some((b) => b.level === l.level));
+
   return (
     <div className="space-y-8">
-      <NewBookForm levels={levels} />
-      <section className="space-y-3">
-        <h2 className="text-lg font-bold">
-          Books <span className="text-fg-muted">({books.length})</span>
-        </h2>
-        {books.map((b) => (
-          <BookRow
-            key={b.id}
-            book={b}
-            chapters={chapters.filter((c) => c.bookId === b.id)}
-          />
-        ))}
-        {books.length === 0 && (
-          <p className="rounded-2xl bg-bg-muted p-6 text-center text-sm text-fg-muted">
-            No books yet. Add one above.
-          </p>
+      <div>
+        {showNew ? (
+          <NewBookForm levels={levels} onDone={() => setShowNew(false)} />
+        ) : (
+          <button
+            onClick={() => setShowNew(true)}
+            className="inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-3 font-semibold text-brand-fg shadow-glow-brand transition hover:bg-brand-dark"
+          >
+            <Plus className="h-4 w-4" /> New book
+          </button>
         )}
-      </section>
+      </div>
+
+      {usedLevels.map((l) => (
+        <section key={l.level} className="space-y-3">
+          <h2 className="text-sm font-bold uppercase tracking-widest text-fg-muted">
+            Stage {l.level} · {l.nameEn}
+          </h2>
+          {books
+            .filter((b) => b.level === l.level)
+            .map((b) => (
+              <BookRow
+                key={b.id}
+                book={b}
+                chapters={chapters.filter((c) => c.bookId === b.id)}
+              />
+            ))}
+        </section>
+      ))}
+
+      {books.length === 0 && (
+        <p className="rounded-2xl bg-bg-muted p-6 text-center text-sm text-fg-muted">
+          No books yet. Add one above, then upload an EPUB to fill it with chapters.
+        </p>
+      )}
     </div>
   );
 }
 
-function NewBookForm({ levels }: { levels: LevelOption[] }) {
+function NewBookForm({ levels, onDone }: { levels: LevelOption[]; onDone: () => void }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -114,17 +129,8 @@ function NewBookForm({ levels }: { levels: LevelOption[] }) {
           recommendedPages: form.recommendedPages ? Number(form.recommendedPages) : undefined,
           blurb: form.blurb,
         });
-        setForm((f) => ({
-          ...f,
-          slug: "",
-          titleAr: "",
-          titleEn: "",
-          authorAr: "",
-          authorEn: "",
-          recommendedPages: "",
-          blurb: "",
-        }));
         router.refresh();
+        onDone();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to create book");
       }
@@ -240,13 +246,21 @@ function NewBookForm({ levels }: { levels: LevelOption[] }) {
         </div>
       </div>
       {error && <p className="mt-3 text-sm font-medium text-red-600">{error}</p>}
-      <button
-        onClick={submit}
-        disabled={pending}
-        className="mt-4 inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-3 font-semibold text-brand-fg shadow-glow-brand transition hover:bg-brand-dark disabled:opacity-60"
-      >
-        <Plus className="h-4 w-4" /> {pending ? "Creating…" : "Create book"}
-      </button>
+      <div className="mt-4 flex gap-2">
+        <button
+          onClick={submit}
+          disabled={pending}
+          className="inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-3 font-semibold text-brand-fg shadow-glow-brand transition hover:bg-brand-dark disabled:opacity-60"
+        >
+          <Plus className="h-4 w-4" /> {pending ? "Creating…" : "Create book"}
+        </button>
+        <button
+          onClick={onDone}
+          className="rounded-xl border border-border px-5 py-3 font-semibold transition hover:bg-bg-muted"
+        >
+          Cancel
+        </button>
+      </div>
     </section>
   );
 }
@@ -267,7 +281,7 @@ function BookRow({ book, chapters }: { book: AdminBook; chapters: AdminChapter[]
             {book.titleAr}
           </p>
           <p className="truncate text-xs text-fg-muted">
-            {book.titleEn} · Stage {book.level} · {book.chapterCount} chapters ·{" "}
+            {book.titleEn} · {book.chapterCount} chapters ·{" "}
             <span className={book.hasFullText ? "text-brand" : "text-amber-600"}>
               {book.hasFullText ? "readable" : "no text yet"}
             </span>
@@ -280,7 +294,8 @@ function BookRow({ book, chapters }: { book: AdminBook; chapters: AdminChapter[]
       {open && (
         <div className="space-y-4 border-t border-border p-4">
           <ChapterList chapters={chapters} bookId={book.id} />
-          <AddChapterForm bookId={book.id} />
+          <ImportPanel bookId={book.id} />
+          <ManualAddChapter bookId={book.id} />
           <DeleteBookButton bookId={book.id} />
         </div>
       )}
@@ -292,11 +307,12 @@ function ChapterList({ chapters, bookId }: { chapters: AdminChapter[]; bookId: s
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   if (chapters.length === 0) {
-    return <p className="text-sm text-fg-muted">No chapters yet.</p>;
+    return <p className="text-sm text-fg-muted">No chapters yet. Upload an EPUB below.</p>;
   }
   return (
     <ul className="space-y-2">
       {chapters
+        .slice()
         .sort((a, b) => a.chapterNumber - b.chapterNumber)
         .map((c) => (
           <li
@@ -327,7 +343,7 @@ function ChapterList({ chapters, bookId }: { chapters: AdminChapter[]; bookId: s
   );
 }
 
-function AddChapterForm({ bookId }: { bookId: string }) {
+function ManualAddChapter({ bookId }: { bookId: string }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -351,43 +367,47 @@ function AddChapterForm({ bookId }: { bookId: string }) {
   }
 
   return (
-    <div className="space-y-3 rounded-xl border border-dashed border-border p-3">
-      <p className="text-sm font-semibold">Add chapter</p>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <input
-          className={`${inputCls} font-arabic`}
+    <details className="rounded-2xl border border-dashed border-border">
+      <summary className="cursor-pointer px-4 py-2.5 text-sm font-semibold text-fg-muted">
+        Add a single chapter manually
+      </summary>
+      <div className="space-y-3 border-t border-border p-3">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <input
+            className={`${inputCls} font-arabic`}
+            dir="rtl"
+            placeholder="عنوان الفصل"
+            value={titleAr}
+            onChange={(e) => setTitleAr(e.target.value)}
+          />
+          <input
+            className={inputCls}
+            placeholder="Chapter title (English)"
+            value={titleEn}
+            onChange={(e) => setTitleEn(e.target.value)}
+          />
+        </div>
+        <textarea
+          className={`${inputCls} min-h-32 font-arabic text-lg leading-loose`}
           dir="rtl"
-          placeholder="عنوان الفصل"
-          value={titleAr}
-          onChange={(e) => setTitleAr(e.target.value)}
+          placeholder="نص الفصل…"
+          value={contentAr}
+          onChange={(e) => setContentAr(e.target.value)}
         />
-        <input
-          className={inputCls}
-          placeholder="Chapter title (English)"
-          value={titleEn}
-          onChange={(e) => setTitleEn(e.target.value)}
-        />
+        {error && <p className="text-sm font-medium text-red-600">{error}</p>}
+        <button
+          onClick={submit}
+          disabled={pending}
+          className="inline-flex items-center gap-2 rounded-xl border border-border bg-white px-4 py-2.5 text-sm font-semibold transition hover:bg-bg-muted disabled:opacity-60"
+        >
+          <Plus className="h-4 w-4" /> {pending ? "Saving…" : "Add chapter"}
+        </button>
       </div>
-      <textarea
-        className={`${inputCls} min-h-40 font-arabic text-lg leading-loose`}
-        dir="rtl"
-        placeholder="ألصق نص الفصل هنا…"
-        value={contentAr}
-        onChange={(e) => setContentAr(e.target.value)}
-      />
-      {error && <p className="text-sm font-medium text-red-600">{error}</p>}
-      <button
-        onClick={submit}
-        disabled={pending}
-        className="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-brand-fg transition hover:bg-brand-dark disabled:opacity-60"
-      >
-        <Plus className="h-4 w-4" /> {pending ? "Saving…" : "Add chapter"}
-      </button>
-    </div>
+    </details>
   );
 }
 
-function DeleteBookButton({ bookId }: { bookId: string; disabled?: boolean }) {
+function DeleteBookButton({ bookId }: { bookId: string }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);

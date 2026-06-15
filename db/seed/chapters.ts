@@ -1,3 +1,5 @@
+import { NAWAWI_EXTRA, QUDSI_CHAPTERS } from "./chapters.hadith";
+
 export type SeedChapter = {
   bookSlug: string;
   chapterNumber: number;
@@ -333,4 +335,8 @@ export const CHAPTERS: SeedChapter[] = [
 
 لَعِبَ سَامِرٌ مَعَهُمْ، وَسَجَّلَ هَدَفًا، وَضَحِكَ كَثِيرًا. وَفِي نِهَايَةِ الْيَوْمِ، سَأَلَهُ يَزِيدُ: «أَيْنَ تَسْكُنُ؟». فَأَجَابَ سَامِرٌ: «قُرْبَ بَيْتِ رَجُلٍ عَجُوزٍ عِنْدَهُ مَكْتَبَةٌ كَبِيرَةٌ». فَتَحَ يَزِيدُ عَيْنَيْهِ وَقَالَ: «عَمُّ إِبْرَاهِيمُ؟! إِنَّهُ جَدِّي!».`,
   },
+
+  // Real public-domain hadith text, generated from a CC0 dataset.
+  ...NAWAWI_EXTRA,
+  ...QUDSI_CHAPTERS,
 ];
