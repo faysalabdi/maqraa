@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { eq, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { requireAdmin } from "@/lib/admin";
+import { slugify } from "@/lib/utils";
 
 export type Genre =
   | "islamic"
@@ -32,8 +33,11 @@ function clean(s: string) {
 export async function createBook(input: CreateBookInput): Promise<{ id: string }> {
   await requireAdmin();
 
-  const slug = clean(input.slug);
-  if (!slug) throw new Error("slug is required");
+  const slug = slugify(input.slug);
+  if (!slug)
+    throw new Error(
+      "slug must contain Latin letters or numbers (e.g. animal-farm) — it becomes part of the book's URL",
+    );
   if (!clean(input.titleAr) || !clean(input.titleEn)) throw new Error("title is required");
 
   const [{ nextOrder }] = await db
@@ -64,7 +68,7 @@ export async function createBook(input: CreateBookInput): Promise<{ id: string }
     .returning({ id: schema.books.id });
 
   revalidatePath("/admin/books");
-  revalidatePath("/library");
+  revalidatePath("/path");
   return { id: row.id };
 }
 
@@ -108,7 +112,7 @@ export async function addChapter(input: AddChapterInput): Promise<{ id: string }
     .where(eq(schema.books.id, input.bookId));
 
   revalidatePath("/admin/books");
-  revalidatePath("/library");
+  revalidatePath("/path");
   revalidatePath(`/book`);
   return { id: row.id };
 }
@@ -148,7 +152,7 @@ export async function addChapters(
   await db.update(schema.books).set({ hasFullText: true }).where(eq(schema.books.id, bookId));
 
   revalidatePath("/admin/books");
-  revalidatePath("/library");
+  revalidatePath("/path");
   return { count: cleaned.length };
 }
 
@@ -167,7 +171,7 @@ export async function deleteChapter(chapterId: string, bookId: string): Promise<
   }
 
   revalidatePath("/admin/books");
-  revalidatePath("/library");
+  revalidatePath("/path");
 }
 
 export async function updateChapter(input: {
@@ -208,5 +212,5 @@ export async function deleteBook(bookId: string): Promise<void> {
   await db.delete(schema.books).where(eq(schema.books.id, bookId));
 
   revalidatePath("/admin/books");
-  revalidatePath("/library");
+  revalidatePath("/path");
 }
