@@ -5,6 +5,7 @@ import { eq, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { requireAdmin } from "@/lib/admin";
 import { slugify } from "@/lib/utils";
+import { analyzeBook, type BookAnalysis } from "@/lib/ai/book-analyze";
 
 export type Genre =
   | "islamic"
@@ -142,6 +143,28 @@ export async function createBookWithChapters(
   revalidatePath("/upload");
   revalidatePath("/path");
   return { id: book.id, slug, chapters: cleaned.length };
+}
+
+/**
+ * Ask Claude to read a sample of the uploaded book and suggest its reading
+ * stage, genre, difficulty, a blurb, and cleaned chapter titles. Only excerpts
+ * are sent to the model, never the whole book.
+ */
+export async function analyzeBookDraft(
+  titleHint: string,
+  chapters: { titleAr: string; contentAr: string }[],
+): Promise<BookAnalysis> {
+  await requireAdmin();
+  if (chapters.length === 0) throw new Error("no chapters to analyze");
+  const sample = chapters
+    .map((c) => c.contentAr)
+    .join("\n")
+    .slice(0, 2000);
+  return analyzeBook({
+    titleHint,
+    sample,
+    chapters: chapters.map((c) => ({ title: c.titleAr, excerpt: c.contentAr.slice(0, 200) })),
+  });
 }
 
 export type AddChapterInput = {

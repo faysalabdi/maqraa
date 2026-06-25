@@ -2,10 +2,10 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { BookUp, Check, FileText, Loader2, Plus, Trash2, X } from "lucide-react";
+import { BookUp, Check, FileText, Loader2, Plus, Sparkles, Trash2, X } from "lucide-react";
 import { parseEpubBook } from "@/lib/books/epub";
 import { splitIntoChapters, type DraftChapter, type SplitMode } from "@/lib/books/split";
-import { createBookWithChapters, type Genre } from "@/server/actions/admin";
+import { analyzeBookDraft, createBookWithChapters, type Genre } from "@/server/actions/admin";
 import { slugify } from "@/lib/utils";
 
 const GENRES: { value: Genre; label: string }[] = [
@@ -25,6 +25,7 @@ export function AddBook({ levels }: { levels: { level: number; nameEn: string }[
   const fileRef = useRef<HTMLInputElement>(null);
   const [saving, startSaving] = useTransition();
   const [busy, setBusy] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
 
@@ -96,6 +97,25 @@ export function AddBook({ levels }: { levels: { level: number; nameEn: string }[
     }
     setError(null);
     setDrafts(res);
+  }
+
+  async function runAi() {
+    if (!drafts || drafts.length === 0) return;
+    setAiBusy(true);
+    setError(null);
+    try {
+      const a = await analyzeBookDraft(form.titleEn || form.titleAr || "Untitled", drafts);
+      setForm((f) => ({ ...f, level: a.level, genre: a.genre, difficulty: a.difficulty, blurb: a.blurb_en }));
+      if (a.titles?.length) {
+        setDrafts((d) =>
+          d ? d.map((c, i) => (a.titles![i] ? { ...c, titleAr: a.titles![i].ar, titleEn: a.titles![i].en } : c)) : d,
+        );
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "AI analysis failed.");
+    } finally {
+      setAiBusy(false);
+    }
   }
 
   function patch(i: number, p: Partial<DraftChapter>) {
@@ -221,6 +241,15 @@ export function AddBook({ levels }: { levels: { level: number; nameEn: string }[
           <X className="h-4 w-4" /> Start over
         </button>
       </div>
+
+      <button
+        onClick={runAi}
+        disabled={aiBusy}
+        className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-iris to-brand py-3 text-sm font-bold text-brand-fg shadow-soft transition hover:opacity-95 disabled:opacity-60"
+      >
+        {aiBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+        {aiBusy ? "Reading the book…" : "Auto-fill level, genre & chapter titles with AI"}
+      </button>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
