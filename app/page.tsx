@@ -10,25 +10,25 @@ export default function Home() {
           اِقْرَأْ
         </p>
         <h1 className="text-balance text-4xl font-extrabold tracking-tight sm:text-6xl">
-          Read Arabic. Level up. <span className="text-brand">Finish books.</span>
+          Read real Arabic books. <span className="text-brand">Tap any word.</span>
         </h1>
         <p className="mx-auto max-w-2xl text-balance text-lg text-fg-muted sm:text-xl">
-          A gamified path from children&apos;s stories to Ibn al-Qayyim. Real
-          comprehension tests, XP, streaks, and a vocab review queue that turns the
-          words you didn&apos;t know into the words you do.
+          Start on short graded readers, tap any word for an instant translation, and grow a
+          vocabulary that sticks with spaced repetition. When you&apos;re ready, bring your own
+          books.
         </p>
         <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
           <Link
             href="/sign-in"
             className="inline-flex items-center gap-2 rounded-2xl bg-brand px-7 py-4 text-base font-extrabold text-brand-fg shadow-glow-brand transition hover:bg-brand-dark"
           >
-            Start your path <ArrowRight className="h-4 w-4" />
+            Start reading <ArrowRight className="h-4 w-4" />
           </Link>
           <Link
             href="/preview"
             className="inline-flex items-center gap-2 rounded-2xl border border-border bg-white px-7 py-4 text-base font-semibold text-fg shadow-soft transition hover:bg-bg-muted"
           >
-            See the path
+            See how it works
           </Link>
         </div>
       </section>
@@ -38,42 +38,38 @@ export default function Home() {
         <FeatureCard
           icon={<Sparkles className="h-6 w-6" />}
           tone="emerald"
-          title="Whole-book tests"
-          body="Finish a book, take a 12-question comprehension test generated from Claude's knowledge of it. No upload, no excerpts."
+          title="Tap to translate"
+          body="Tap any Arabic word for its dictionary form and meaning in context, then save it to your deck. Read page by page, no dictionary juggling."
         />
         <FeatureCard
           icon={<BookOpen className="h-6 w-6" />}
           tone="amber"
-          title="Eight stages"
-          body="Children's stories to classical scholarship. 50+ books across Islamic, literary, translated, and graded readers."
+          title="Bring your own books"
+          body="Begin on a curated graded shelf. Once you've finished a couple, upload any EPUB — real chapters and difficulty are detected automatically."
         />
         <FeatureCard
           icon={<Brain className="h-6 w-6" />}
           tone="sky"
           title="Spaced repetition"
-          body="Words you miss on a test get added to an SM-2 review queue. Daily reviews, no flashcard tedium."
+          body="Every word you save enters an SM-2 review queue. A few minutes a day turns words you didn't know into words you do."
         />
       </section>
 
       {/* Streak / addictive hook */}
       <section className="w-full max-w-3xl rounded-3xl bg-gradient-to-br from-orange-100 via-amber-50 to-white p-8 text-center shadow-lift ring-1 ring-orange-200">
         <span className="inline-flex items-center gap-2 rounded-full bg-white/80 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-orange-700 ring-1 ring-orange-200">
-          <Flame className="h-3.5 w-3.5" /> Streaks · daily goal · XP
+          <Flame className="h-3.5 w-3.5" /> Streak · words learned · books finished
         </span>
-        <h2 className="mt-4 text-3xl font-extrabold">
-          Consistency is the reward.
-        </h2>
+        <h2 className="mt-4 text-3xl font-extrabold">Showing up is the win.</h2>
         <p className="mx-auto mt-2 max-w-xl text-fg-muted">
-          One unknown word should not derail reading. This app makes showing up the
-          win — XP for tests, vocab graduations, daily streaks, and 12 achievements
-          for the long game.
+          One unknown word shouldn&apos;t derail reading. Build a streak, watch your saved words
+          climb, and finish real books — progress you can actually see, no fake levels.
         </p>
       </section>
 
       {/* Book strip */}
-      <p className="max-w-2xl text-balance text-center text-sm text-fg-muted">
-        قصص النبيين · Animal Farm · Harry Potter · رياض الصالحين · ثلاثية القاهرة
-        · مدارج السالكين · The Little Prince · Brothers Karamazov
+      <p className="font-arabic max-w-2xl text-balance text-center text-base text-fg-muted" dir="rtl">
+        رحلة سامر · الأربعون النووية · الأربعون القدسية · كليلة ودمنة
       </p>
     </main>
   );
