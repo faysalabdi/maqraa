@@ -29,7 +29,7 @@ export default function Home() {
         </p>
         <div className="mt-1 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <Link
-            href="/sign-in"
+            href="/sign-in?new=1"
             className="inline-flex items-center gap-2 rounded-2xl bg-brand px-7 py-3.5 text-base font-bold text-brand-fg shadow-glow-brand transition hover:bg-brand-dark"
           >
             Start reading — free <ArrowRight className="h-4 w-4" />

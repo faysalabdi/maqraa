@@ -6,7 +6,7 @@ import { db, schema } from "@/lib/db";
 import { getOrGenerateChapterQuiz, type ChapterQuiz } from "@/lib/ai/chapter-quiz";
 import { grantXp, recordActivity, todayXp } from "@/lib/xp/grant";
 import { bookCompletionXp, DAILY_CAPS, XP_REWARDS } from "@/lib/xp/rewards";
-import { checkAndGrantAchievements } from "@/lib/achievements/check";
+import { consumeAiQuota } from "@/lib/ai/quota";
 
 async function requireUser() {
   const supabase = await createClient();
@@ -22,7 +22,8 @@ export type ClientQuiz = {
 };
 
 export async function getChapterQuiz(chapterId: string): Promise<ClientQuiz> {
-  await requireUser();
+  const user = await requireUser();
+  await consumeAiQuota(user.id, "quiz");
 
   const rows = await db
     .select({
@@ -192,7 +193,6 @@ export async function markChapterRead(chapterId: string): Promise<void> {
         refHash: `book_completed:${bookId}`,
       });
     }
-    await checkAndGrantAchievements(user.id);
   } else {
     await db
       .insert(schema.userBooks)
@@ -223,9 +223,14 @@ export async function markChapterReading(chapterId: string): Promise<void> {
         set: { updatedAt: new Date() },
       });
   }
+}
 
-  // Reading itself keeps the streak alive (plus a little daily-capped XP), even
-  // before a chapter is finished — "showing up to read" is the habit.
+/**
+ * Genuine reading activity — called when the reader turns a page (not on bare
+ * chapter-open). Keeps the streak alive plus a little daily-capped XP.
+ */
+export async function creditReadingActivity(): Promise<void> {
+  const user = await requireUser();
   const todayPages = await todayXp(user.id, "page_logged");
   const grantable = Math.min(XP_REWARDS.pageLogged, Math.max(0, DAILY_CAPS.pageLogged - todayPages));
   if (grantable > 0) {

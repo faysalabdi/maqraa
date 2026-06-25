@@ -5,6 +5,7 @@ import { db, schema } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import { getBookBySlug, getUserBook } from "@/lib/db/queries/path";
 import { fetchOrGenerateTest } from "@/lib/test/fetch-or-generate";
+import { consumeAiQuota } from "@/lib/ai/quota";
 import TestRunner from "@/components/book/TestRunner";
 import { AlertTriangle, ArrowLeft } from "lucide-react";
 
@@ -43,6 +44,7 @@ export default async function TestPage({ params }: { params: Promise<{ slug: str
       .where(and(eq(schema.userBooks.userId, user.id), eq(schema.userBooks.bookId, book.id)));
   }
 
+  await consumeAiQuota(user.id, "test");
   const result = await fetchOrGenerateTest(book.id, user.id);
 
   if ("error" in result) {

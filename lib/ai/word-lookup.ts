@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { anthropic, FALLBACK_MODEL } from "./anthropic";
 import { lookupKey, vocalizedKey } from "@/lib/arabic";
+import { consumeAiQuota } from "./quota";
 
 export const LookupSchema = z.object({
   lemma_ar: z.string(),
@@ -40,7 +41,11 @@ const SUBMIT_LOOKUP_TOOL = {
   },
 } as const;
 
-export async function lookupArabicWord(surface: string, context: string): Promise<WordLookup> {
+export async function lookupArabicWord(
+  surface: string,
+  context: string,
+  userId?: string,
+): Promise<WordLookup> {
   // Cache on the vocalized form so differently-voweled homographs stay distinct;
   // fall back to the de-diacritized key only to detect "no Arabic letters".
   const key = vocalizedKey(surface);
@@ -60,6 +65,9 @@ export async function lookupArabicWord(surface: string, context: string): Promis
       example_ar: cached[0].exampleAr,
     };
   }
+
+  // Cache miss = an actual Claude call; meter it against the user's daily quota.
+  if (userId) await consumeAiQuota(userId, "lookup");
 
   const response = await anthropic.messages.create({
     model: FALLBACK_MODEL,

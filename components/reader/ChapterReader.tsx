@@ -20,13 +20,14 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { cleanWord, isArabicWord, paragraphs, tokenizeParagraph, lookupKey } from "@/lib/arabic";
-import { lookupWord, saveWord } from "@/server/actions/vocab";
+import { cleanWord, isArabicWord, paragraphs, tokenizeParagraph, lookupKey, vocalizedKey } from "@/lib/arabic";
+import { lookupWord, saveWord, cachedLookups, type CachedLookup } from "@/server/actions/vocab";
 import {
   getChapterQuiz,
   submitChapterQuiz,
   markChapterReading,
   markChapterRead,
+  creditReadingActivity,
   type ClientQuiz,
   type QuizResult,
 } from "@/server/actions/chapters";
@@ -83,6 +84,8 @@ export function ChapterReader(props: Props) {
   const [pageIdx, setPageIdx] = useState(0);
   const [hint, setHint] = useState(false);
   const readMarked = useRef(false);
+  const credited = useRef(false);
+  const lookupCache = useRef<Record<string, CachedLookup>>({});
 
   // Split the chapter into screen-sized pages, keeping paragraphs whole.
   const pages = useMemo(() => {
@@ -108,7 +111,23 @@ export function ChapterReader(props: Props) {
 
   useEffect(() => {
     markChapterReading(chapter.id).catch(() => {});
-  }, [chapter.id]);
+    // Warm the cache with this chapter's already-known words (no Claude cost) so
+    // taps on them are instant.
+    const keys = Array.from(
+      new Set(
+        paragraphs(chapter.contentAr)
+          .flatMap(tokenizeParagraph)
+          .filter(isArabicWord)
+          .map(vocalizedKey),
+      ),
+    );
+    lookupCache.current = {};
+    cachedLookups(keys)
+      .then((m) => {
+        lookupCache.current = m;
+      })
+      .catch(() => {});
+  }, [chapter.id, chapter.contentAr]);
 
   // First-read coach mark: show once until the reader taps a word.
   useEffect(() => {
@@ -149,6 +168,10 @@ export function ChapterReader(props: Props) {
 
   function goPage(next: number) {
     setSelected(null);
+    if (next > pageIdx && !credited.current) {
+      credited.current = true;
+      creditReadingActivity().catch(() => {});
+    }
     setPageIdx(Math.max(0, Math.min(pages.length - 1, next)));
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -157,11 +180,24 @@ export function ChapterReader(props: Props) {
     if (!isArabicWord(surface)) return;
     if (hint) dismissHint();
     setSelected({ surface, context });
-    setLookup(null);
     setLookupError(false);
+    // Instant if we already have it cached for this chapter.
+    const cached = lookupCache.current[vocalizedKey(surface)];
+    if (cached) {
+      setLookup({ surface, ...cached });
+      return;
+    }
+    setLookup(null);
     startTransition(async () => {
       try {
-        setLookup(await lookupWord(surface, context));
+        const res = await lookupWord(surface, context);
+        lookupCache.current[vocalizedKey(surface)] = {
+          lemma_ar: res.lemma_ar,
+          gloss_en: res.gloss_en,
+          pos: res.pos ?? null,
+          example_ar: res.example_ar ?? null,
+        };
+        setLookup(res);
       } catch {
         setLookupError(true);
       }
@@ -450,7 +486,10 @@ export function ChapterReader(props: Props) {
                   </div>
                   {sessionSaved > 0 && (
                     <p className="mt-3 text-xs text-fg-muted">
-                      {sessionSaved} new {sessionSaved === 1 ? "word" : "words"} saved this session
+                      {sessionSaved} new {sessionSaved === 1 ? "word" : "words"} saved ·{" "}
+                      <Link href="/review" className="font-semibold text-brand hover:underline">
+                        review now
+                      </Link>
                     </p>
                   )}
                 </div>

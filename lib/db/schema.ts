@@ -413,3 +413,18 @@ export const listeningExercises = pgTable(
     levelIdx: index("listening_level_idx").on(t.level),
   }),
 );
+
+// Per-user, per-day counter for rate-limiting AI calls (lookups, quiz/test
+// generation, upload analysis). Bounds runaway Claude cost / abuse.
+export const aiUsage = pgTable(
+  "ai_usage",
+  {
+    userId: uuid("user_id").notNull(),
+    day: date("day").notNull(),
+    kind: text("kind").notNull(),
+    count: integer("count").notNull().default(0),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.userId, t.day, t.kind] }),
+  }),
+);

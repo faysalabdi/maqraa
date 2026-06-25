@@ -6,6 +6,7 @@ import { db, schema } from "@/lib/db";
 import { requireAdmin, requireUploader } from "@/lib/admin";
 import { slugify } from "@/lib/utils";
 import { analyzeBook, type BookAnalysis } from "@/lib/ai/book-analyze";
+import { consumeAiQuota } from "@/lib/ai/quota";
 
 export type Genre =
   | "islamic"
@@ -157,8 +158,9 @@ export async function analyzeBookDraft(
   titleHint: string,
   chapters: { titleAr: string; contentAr: string }[],
 ): Promise<BookAnalysis> {
-  await requireUploader();
+  const uploader = await requireUploader();
   if (chapters.length === 0) throw new Error("no chapters to analyze");
+  await consumeAiQuota(uploader.userId, "analyze");
   const sample = chapters
     .map((c) => c.contentAr)
     .join("\n")

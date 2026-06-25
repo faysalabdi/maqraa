@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { KeyRound, Loader2, LogIn, Mail, UserPlus } from "lucide-react";
 import { LogoMark } from "@/components/brand/Logo";
@@ -16,6 +16,11 @@ export default function SignInPage() {
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  // "Start reading — free" lands here as ?new=1 → open in create-account mode.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("new")) setMode("signup");
+  }, []);
 
   async function passwordAuth(e: React.FormEvent) {
     e.preventDefault();
@@ -98,11 +103,11 @@ export default function SignInPage() {
         <div className="absolute -top-32 left-1/2 h-96 w-96 -translate-x-1/2 rounded-full bg-brand/15 blur-3xl" />
         <div className="absolute bottom-0 right-0 h-96 w-96 rounded-full bg-accent/15 blur-3xl" />
       </div>
-      <div className="w-full max-w-sm rounded-3xl bg-white p-8 shadow-lift ring-1 ring-border">
+      <div className="w-full max-w-sm rounded-3xl bg-surface p-8 shadow-lift ring-1 ring-border">
         <div className="mb-6 text-center">
           <LogoMark className="mx-auto mb-3 h-14 w-14" />
           <p className="font-arabic text-3xl text-brand" dir="rtl">
-            اِقْرَأْ
+            مَقْرَأ
           </p>
           <h1 className="mt-2 text-2xl font-extrabold">
             {mode === "signup" ? "Create your account" : "Sign in"}
@@ -125,7 +130,7 @@ export default function SignInPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
-              className="w-full rounded-xl border border-border bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-brand"
+              className="w-full rounded-xl border border-border bg-surface px-4 py-3 outline-none focus:ring-2 focus:ring-brand"
             />
             <input
               type="password"
@@ -135,7 +140,7 @@ export default function SignInPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Password (6+ characters)"
-              className="w-full rounded-xl border border-border bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-brand"
+              className="w-full rounded-xl border border-border bg-surface px-4 py-3 outline-none focus:ring-2 focus:ring-brand"
             />
             <button
               type="submit"
@@ -187,7 +192,7 @@ export default function SignInPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
-              className="w-full rounded-xl border border-border bg-white px-4 py-3 outline-none focus:ring-2 focus:ring-brand"
+              className="w-full rounded-xl border border-border bg-surface px-4 py-3 outline-none focus:ring-2 focus:ring-brand"
             />
             <button
               type="submit"
@@ -225,7 +230,7 @@ export default function SignInPage() {
               value={otp}
               onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
               placeholder="000000"
-              className="w-full rounded-xl border border-border bg-white px-4 py-3 text-center text-2xl font-bold tracking-[0.4em] outline-none focus:ring-2 focus:ring-brand"
+              className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-center text-2xl font-bold tracking-[0.4em] outline-none focus:ring-2 focus:ring-brand"
             />
             <button
               type="submit"

@@ -8,7 +8,6 @@ import { type GeneratedTest } from "@/lib/ai/test-generator";
 import { anthropic, FALLBACK_MODEL } from "@/lib/ai/anthropic";
 import { grantXp, recordActivity } from "@/lib/xp/grant";
 import { XP_REWARDS, testPassedXp, bookCompletionXp } from "@/lib/xp/rewards";
-import { checkAndGrantAchievements } from "@/lib/achievements/check";
 import { z } from "zod";
 import type { PerQuestionResult, SubmitResult } from "./test-types";
 
@@ -249,7 +248,6 @@ export async function submitAttempt(
 
   await seedWrongVocab(user.id, perQuestion, bookId);
   await recordActivity(user.id);
-  await checkAndGrantAchievements(user.id);
   revalidatePath(`/book/${bookSlug}`);
   revalidatePath("/path");
 

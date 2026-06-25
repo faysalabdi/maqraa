@@ -2,9 +2,17 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { db, schema } from "@/lib/db";
+import { eq, inArray } from "drizzle-orm";
 import { lookupArabicWord, type WordLookup } from "@/lib/ai/word-lookup";
 import { grantXp, recordActivity } from "@/lib/xp/grant";
 import { lookupKey } from "@/lib/arabic";
+
+export type CachedLookup = {
+  lemma_ar: string;
+  gloss_en: string;
+  pos: string | null;
+  example_ar: string | null;
+};
 
 async function requireUser() {
   const supabase = await createClient();
@@ -16,8 +24,28 @@ async function requireUser() {
 }
 
 export async function lookupWord(surface: string, context: string): Promise<WordLookup> {
+  const user = await requireUser();
+  return lookupArabicWord(surface.slice(0, 50), context.slice(0, 300), user.id);
+}
+
+/**
+ * Return the subset of `keys` (vocalized word keys) already in the global lookup
+ * cache. Read-only, no Claude — used to warm a chapter so taps on previously-seen
+ * words are instant.
+ */
+export async function cachedLookups(keys: string[]): Promise<Record<string, CachedLookup>> {
   await requireUser();
-  return lookupArabicWord(surface.slice(0, 50), context.slice(0, 300));
+  const uniq = [...new Set(keys.filter(Boolean))].slice(0, 800);
+  if (uniq.length === 0) return {};
+  const rows = await db
+    .select()
+    .from(schema.wordLookups)
+    .where(inArray(schema.wordLookups.key, uniq));
+  const out: Record<string, CachedLookup> = {};
+  for (const r of rows) {
+    out[r.key] = { lemma_ar: r.lemmaAr, gloss_en: r.glossEn, pos: r.pos, example_ar: r.exampleAr };
+  }
+  return out;
 }
 
 export async function saveWord(input: {

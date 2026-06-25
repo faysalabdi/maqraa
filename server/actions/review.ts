@@ -7,7 +7,6 @@ import { and, eq } from "drizzle-orm";
 import { rate, SRS_GRADUATED_INTERVAL_DAYS } from "@/lib/srs/sm2";
 import { grantXp, todayXp, recordActivity } from "@/lib/xp/grant";
 import { XP_REWARDS, DAILY_CAPS } from "@/lib/xp/rewards";
-import { checkAndGrantAchievements } from "@/lib/achievements/check";
 
 export type GradeResult =
   | {
@@ -83,7 +82,6 @@ export async function gradeCard(itemId: string, quality: number): Promise<GradeR
   }
 
   await recordActivity(user.id);
-  await checkAndGrantAchievements(user.id);
   revalidatePath("/review");
 
   return {

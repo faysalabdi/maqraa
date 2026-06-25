@@ -61,6 +61,11 @@ export function AddBook({ levels }: { levels: { level: number; nameEn: string }[
     if (!file) return;
     setError(null);
     setDone(null);
+    if (file.size > 30 * 1024 * 1024) {
+      setError("That file is over 30 MB — too large to parse in the browser. Try a smaller EPUB.");
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
     const name = file.name.toLowerCase();
     try {
       setBusy(true);
