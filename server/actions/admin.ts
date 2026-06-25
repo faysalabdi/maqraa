@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { requireAdmin, requireUploader } from "@/lib/admin";
 import { slugify } from "@/lib/utils";
@@ -294,18 +294,39 @@ export async function updateChapter(input: {
 }
 
 export async function deleteBook(bookId: string): Promise<void> {
-  await requireAdmin();
+  const uploader = await requireUploader();
 
-  // Only allow deleting books no user has interacted with, to avoid orphaning
-  // progress, tests, or XP refs.
-  const [{ refs }] = await db
-    .select({ refs: sql<number>`count(*)` })
-    .from(schema.userBooks)
-    .where(eq(schema.userBooks.bookId, bookId));
-  if (Number(refs) > 0) {
-    throw new Error("book has reader progress and cannot be deleted");
+  const [book] = await db
+    .select({ id: schema.books.id, ownerId: schema.books.ownerId })
+    .from(schema.books)
+    .where(eq(schema.books.id, bookId))
+    .limit(1);
+  if (!book) return;
+  // Admins delete any book; everyone else only their own uploads.
+  if (!uploader.isAdmin && book.ownerId !== uploader.userId) throw new Error("forbidden");
+
+  // Cascade: remove everything that references the book or its chapters, then
+  // the book. (XP events keep a loose jsonb ref with no FK — left alone.)
+  const chapterRows = await db
+    .select({ id: schema.bookChapters.id })
+    .from(schema.bookChapters)
+    .where(eq(schema.bookChapters.bookId, bookId));
+  const chapterIds = chapterRows.map((c) => c.id);
+
+  await db
+    .delete(schema.comprehensionAttempts)
+    .where(eq(schema.comprehensionAttempts.bookId, bookId));
+  await db.delete(schema.comprehensionTests).where(eq(schema.comprehensionTests.bookId, bookId));
+  await db.delete(schema.readingSessions).where(eq(schema.readingSessions.bookId, bookId));
+  await db.delete(schema.userBooks).where(eq(schema.userBooks.bookId, bookId));
+  if (chapterIds.length > 0) {
+    await db
+      .delete(schema.userChapterProgress)
+      .where(inArray(schema.userChapterProgress.chapterId, chapterIds));
+    await db
+      .delete(schema.chapterQuizzes)
+      .where(inArray(schema.chapterQuizzes.chapterId, chapterIds));
   }
-
   await db.delete(schema.bookChapters).where(eq(schema.bookChapters.bookId, bookId));
   await db.delete(schema.books).where(eq(schema.books.id, bookId));
 
