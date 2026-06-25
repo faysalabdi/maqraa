@@ -1,6 +1,6 @@
 "use server";
 
-import { eq, and } from "drizzle-orm";
+import { eq, and, ne, count } from "drizzle-orm";
 import { createClient } from "@/lib/supabase/server";
 import { db, schema } from "@/lib/db";
 import { getOrGenerateChapterQuiz, type ChapterQuiz } from "@/lib/ai/chapter-quiz";
@@ -108,6 +108,76 @@ export async function submitChapterQuiz(
   await recordActivity(user.id);
 
   return { score, correctCount, total: quiz.questions.length, perQuestion };
+}
+
+/**
+ * Mark a chapter finished by reading it through (no quiz required). When every
+ * chapter of the book is read, the book flips to reading_done so the forced
+ * whole-book comprehension test unlocks.
+ */
+export async function markChapterRead(chapterId: string): Promise<void> {
+  const user = await requireUser();
+
+  await db
+    .insert(schema.userChapterProgress)
+    .values({ userId: user.id, chapterId, status: "completed", completedAt: new Date() })
+    .onConflictDoUpdate({
+      target: [schema.userChapterProgress.userId, schema.userChapterProgress.chapterId],
+      set: { status: "completed", completedAt: new Date() },
+    });
+
+  await grantXp({
+    userId: user.id,
+    delta: 5,
+    reason: "page_logged",
+    refHash: `chapter_read:${chapterId}`,
+    ref: { chapterId },
+  });
+  await recordActivity(user.id);
+
+  const ch = await db
+    .select({ bookId: schema.bookChapters.bookId })
+    .from(schema.bookChapters)
+    .where(eq(schema.bookChapters.id, chapterId))
+    .limit(1);
+  if (!ch[0]) return;
+  const bookId = ch[0].bookId;
+
+  const [{ total }] = await db
+    .select({ total: count() })
+    .from(schema.bookChapters)
+    .where(eq(schema.bookChapters.bookId, bookId));
+  const [{ done }] = await db
+    .select({ done: count() })
+    .from(schema.userChapterProgress)
+    .innerJoin(schema.bookChapters, eq(schema.userChapterProgress.chapterId, schema.bookChapters.id))
+    .where(
+      and(
+        eq(schema.bookChapters.bookId, bookId),
+        eq(schema.userChapterProgress.userId, user.id),
+        eq(schema.userChapterProgress.status, "completed"),
+      ),
+    );
+
+  if (Number(done) >= Number(total)) {
+    // All chapters read — make the book ready for its whole-book test, unless
+    // it's already been passed.
+    await db
+      .update(schema.userBooks)
+      .set({ status: "reading_done", updatedAt: new Date() })
+      .where(
+        and(
+          eq(schema.userBooks.userId, user.id),
+          eq(schema.userBooks.bookId, bookId),
+          ne(schema.userBooks.status, "completed"),
+        ),
+      );
+  } else {
+    await db
+      .insert(schema.userBooks)
+      .values({ userId: user.id, bookId, status: "in_progress", startedAt: new Date() })
+      .onConflictDoNothing();
+  }
 }
 
 export async function markChapterReading(chapterId: string): Promise<void> {

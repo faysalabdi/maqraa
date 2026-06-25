@@ -2,12 +2,15 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
   ArrowRight,
   BookmarkPlus,
   Check,
+  ChevronLeft,
+  ChevronRight,
   Loader2,
   Minus,
   PartyPopper,
@@ -23,6 +26,7 @@ import {
   getChapterQuiz,
   submitChapterQuiz,
   markChapterReading,
+  markChapterRead,
   type ClientQuiz,
   type QuizResult,
 } from "@/server/actions/chapters";
@@ -46,17 +50,18 @@ type Props = {
   alreadyCompleted: boolean;
 };
 
-// Reader comfort settings, persisted locally so a reader's choices stick.
 const TINTS = {
   paper: { name: "Paper", page: "oklch(1 0 0)", ink: "var(--color-fg)" },
   sepia: { name: "Sepia", page: "oklch(0.97 0.025 85)", ink: "oklch(0.28 0.04 60)" },
   mint: { name: "Mint", page: "oklch(0.98 0.02 160)", ink: "oklch(0.26 0.03 200)" },
 } as const;
 type TintKey = keyof typeof TINTS;
-const SIZES = [1.25, 1.4, 1.6, 1.8, 2.05]; // rem, the reading body text
+const SIZES = [1.25, 1.4, 1.6, 1.8, 2.05];
+const PAGE_CHARS = 1100; // target characters per on-screen page
 
 export function ChapterReader(props: Props) {
   const { chapter } = props;
+  const router = useRouter();
   const [phase, setPhase] = useState<Phase>("reading");
   const [selected, setSelected] = useState<{ surface: string; context: string } | null>(null);
   const [lookup, setLookup] = useState<WordLookup | null>(null);
@@ -68,20 +73,40 @@ export function ChapterReader(props: Props) {
   const [isPending, startTransition] = useTransition();
   const [quizLoading, setQuizLoading] = useState(false);
   const [lookupError, setLookupError] = useState(false);
+  const [finishing, setFinishing] = useState(false);
 
   const [sizeIdx, setSizeIdx] = useState(2);
   const [tint, setTint] = useState<TintKey>("paper");
   const [prefsOpen, setPrefsOpen] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const contentRef = useRef<HTMLDivElement>(null);
+  const [pageIdx, setPageIdx] = useState(0);
+  const readMarked = useRef(false);
 
-  const paras = useMemo(() => paragraphs(chapter.contentAr), [chapter.contentAr]);
+  // Split the chapter into screen-sized pages, keeping paragraphs whole.
+  const pages = useMemo(() => {
+    const paras = paragraphs(chapter.contentAr);
+    const out: string[][] = [];
+    let cur: string[] = [];
+    let len = 0;
+    for (const p of paras) {
+      if (len > 0 && len + p.length > PAGE_CHARS) {
+        out.push(cur);
+        cur = [];
+        len = 0;
+      }
+      cur.push(p);
+      len += p.length;
+    }
+    if (cur.length) out.push(cur);
+    return out.length ? out : [[]];
+  }, [chapter.contentAr]);
+
+  const lastPage = pageIdx >= pages.length - 1;
+  const isLastChapter = props.nextChapterNumber === null;
 
   useEffect(() => {
     markChapterReading(chapter.id).catch(() => {});
   }, [chapter.id]);
 
-  // Restore saved reading prefs.
   useEffect(() => {
     try {
       const raw = localStorage.getItem("reader-prefs");
@@ -98,21 +123,19 @@ export function ChapterReader(props: Props) {
     } catch {}
   }, [sizeIdx, tint]);
 
-  // Track reading progress through the chapter body.
+  // Reaching the last page = finished reading this chapter.
   useEffect(() => {
-    if (phase !== "reading") return;
-    const onScroll = () => {
-      const el = contentRef.current;
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-      const total = el.offsetHeight - window.innerHeight + 240;
-      const passed = -rect.top + 120;
-      setProgress(Math.max(0, Math.min(1, total > 0 ? passed / total : 1)));
-    };
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, [phase, paras.length]);
+    if (lastPage && !readMarked.current) {
+      readMarked.current = true;
+      markChapterRead(chapter.id).catch(() => {});
+    }
+  }, [lastPage, chapter.id]);
+
+  function goPage(next: number) {
+    setSelected(null);
+    setPageIdx(Math.max(0, Math.min(pages.length - 1, next)));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   function handleWordClick(surface: string, context: string) {
     if (!isArabicWord(surface)) return;
@@ -165,13 +188,20 @@ export function ChapterReader(props: Props) {
       .finally(() => setQuizLoading(false));
   }
 
+  function finishBook() {
+    setFinishing(true);
+    markChapterRead(chapter.id)
+      .catch(() => {})
+      .finally(() => router.push(`/book/${props.bookSlug}/test`));
+  }
+
   const isLookupSaved = lookup ? savedKeys.has(lookupKey(lookup.lemma_ar)) : false;
   const t = TINTS[tint];
   const bodySize = SIZES[sizeIdx];
+  const pageProgress = Math.round(((pageIdx + 1) / pages.length) * 100);
 
   return (
     <div className="min-h-screen">
-      {/* Sticky reading bar */}
       <div className="sticky top-0 z-30 border-b border-border/70 bg-bg/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 py-2.5">
           <Link
@@ -179,12 +209,13 @@ export function ChapterReader(props: Props) {
             className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-sm font-medium text-fg-muted transition hover:bg-bg-muted hover:text-fg"
           >
             <ArrowLeft className="h-4 w-4" />
-            <span className="font-arabic max-w-[8rem] truncate" dir="rtl">
+            <span className="font-arabic max-w-[7rem] truncate" dir="rtl">
               {props.bookTitleAr}
             </span>
           </Link>
           <span className="mx-auto rounded-full bg-bg-muted px-3 py-1 text-xs font-semibold text-fg-muted">
-            {chapter.chapterNumber} / {props.totalChapters}
+            Ch {chapter.chapterNumber}/{props.totalChapters}
+            {phase === "reading" && pages.length > 1 ? ` · p${pageIdx + 1}/${pages.length}` : ""}
           </span>
           <div className="relative">
             <button
@@ -248,10 +279,7 @@ export function ChapterReader(props: Props) {
         </div>
         {phase === "reading" && (
           <div className="h-0.5 w-full bg-border/50">
-            <div
-              className="h-full bg-brand transition-[width] duration-150"
-              style={{ width: `${Math.round(progress * 100)}%` }}
-            />
+            <div className="h-full bg-brand transition-[width] duration-200" style={{ width: `${pageProgress}%` }} />
           </div>
         )}
       </div>
@@ -259,43 +287,31 @@ export function ChapterReader(props: Props) {
       <main className="mx-auto max-w-2xl px-4 pb-40 pt-6" onClick={() => prefsOpen && setPrefsOpen(false)}>
         <AnimatePresence mode="wait">
           {phase === "reading" && (
-            <motion.div
-              key="reading"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -12 }}
-              ref={contentRef}
-            >
+            <motion.div key={`reading-${pageIdx}`} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
               <article
                 className="rounded-[1.75rem] px-6 py-10 shadow-card ring-1 ring-border/70 sm:px-12 sm:py-14"
                 style={{ background: t.page, color: t.ink }}
               >
-                {/* Chapter opener */}
-                <header className="mb-10 text-center">
-                  <p className="text-xs font-bold uppercase tracking-[0.25em] opacity-50">
-                    Chapter {chapter.chapterNumber}
-                  </p>
-                  <h1 className="font-arabic mt-3 text-3xl font-bold leading-snug sm:text-4xl" dir="rtl">
-                    {chapter.titleAr}
-                  </h1>
-                  {chapter.titleEn && (
-                    <p className="mt-2 text-sm opacity-60">{chapter.titleEn}</p>
-                  )}
-                  <div className="mt-6 flex items-center justify-center gap-3 opacity-40">
-                    <span className="h-px w-12 bg-current" />
-                    <span className="text-lg leading-none">۞</span>
-                    <span className="h-px w-12 bg-current" />
-                  </div>
-                </header>
+                {pageIdx === 0 && (
+                  <header className="mb-10 text-center">
+                    <p className="text-xs font-bold uppercase tracking-[0.25em] opacity-50">
+                      Chapter {chapter.chapterNumber}
+                    </p>
+                    <h1 className="font-arabic mt-3 text-3xl font-bold leading-snug sm:text-4xl" dir="rtl">
+                      {chapter.titleAr}
+                    </h1>
+                    {chapter.titleEn && <p className="mt-2 text-sm opacity-60">{chapter.titleEn}</p>}
+                    <div className="mt-6 flex items-center justify-center gap-3 opacity-40">
+                      <span className="h-px w-12 bg-current" />
+                      <span className="text-lg leading-none">۞</span>
+                      <span className="h-px w-12 bg-current" />
+                    </div>
+                  </header>
+                )}
 
                 <div className="space-y-6">
-                  {paras.map((p, pi) => (
-                    <p
-                      key={pi}
-                      dir="rtl"
-                      className="font-arabic"
-                      style={{ fontSize: `${bodySize}rem`, lineHeight: 2.1 }}
-                    >
+                  {pages[pageIdx].map((p, pi) => (
+                    <p key={pi} dir="rtl" className="font-arabic" style={{ fontSize: `${bodySize}rem`, lineHeight: 2.1 }}>
                       {tokenizeParagraph(p).map((w, wi) => {
                         const known = savedKeys.has(cleanWord(w));
                         const isSel = selected?.surface === w;
@@ -307,8 +323,7 @@ export function ChapterReader(props: Props) {
                                 handleWordClick(w, p);
                               }}
                               className={cn(
-                                "cursor-pointer rounded-md px-0.5 transition",
-                                "hover:bg-accent/25",
+                                "cursor-pointer rounded-md px-0.5 transition hover:bg-accent/25",
                                 known && "underline decoration-brand/60 decoration-2 underline-offset-[6px]",
                                 isSel && "bg-accent/40",
                               )}
@@ -323,20 +338,68 @@ export function ChapterReader(props: Props) {
                 </div>
               </article>
 
-              <div className="mt-8 flex flex-col items-center gap-3">
+              {/* Page navigation */}
+              <div className="mt-6 flex items-center justify-between gap-3">
                 <button
-                  onClick={startQuiz}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-brand px-8 py-4 text-lg font-bold text-brand-fg shadow-glow-brand transition hover:-translate-y-0.5 hover:bg-brand-dark"
+                  onClick={() => goPage(pageIdx - 1)}
+                  disabled={pageIdx === 0}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold text-fg transition hover:bg-bg-muted disabled:opacity-40"
                 >
-                  <Sparkles className="h-5 w-5" />
-                  {props.alreadyCompleted ? "Re-take the quiz" : "I finished — quiz me"}
+                  <ChevronRight className="h-4 w-4" /> Previous
                 </button>
-                {sessionSaved > 0 && (
-                  <p className="text-sm text-fg-muted">
-                    {sessionSaved} new {sessionSaved === 1 ? "word" : "words"} saved this session
-                  </p>
+                <span className="text-xs font-semibold text-fg-muted">
+                  Page {pageIdx + 1} of {pages.length}
+                </span>
+                {!lastPage ? (
+                  <button
+                    onClick={() => goPage(pageIdx + 1)}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-brand-fg shadow-glow-brand transition hover:bg-brand-dark"
+                  >
+                    Next <ChevronLeft className="h-4 w-4" />
+                  </button>
+                ) : (
+                  <span className="w-[5.5rem]" />
                 )}
               </div>
+
+              {/* End of chapter */}
+              {lastPage && (
+                <div className="mt-6 rounded-2xl bg-surface p-5 text-center shadow-card ring-1 ring-border">
+                  <p className="text-sm font-semibold text-fg-muted">
+                    End of chapter {chapter.chapterNumber}
+                  </p>
+                  <div className="mt-3 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+                    {isLastChapter ? (
+                      <button
+                        onClick={finishBook}
+                        disabled={finishing}
+                        className="inline-flex items-center gap-2 rounded-2xl bg-brand px-6 py-3 font-bold text-brand-fg shadow-glow-brand transition hover:bg-brand-dark disabled:opacity-60"
+                      >
+                        {finishing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
+                        Finish book — take the test
+                      </button>
+                    ) : (
+                      <Link
+                        href={`/book/${props.bookSlug}/read/${props.nextChapterNumber}`}
+                        className="inline-flex items-center gap-2 rounded-2xl bg-brand px-6 py-3 font-bold text-brand-fg shadow-glow-brand transition hover:bg-brand-dark"
+                      >
+                        Next chapter <ArrowRight className="h-4 w-4" />
+                      </Link>
+                    )}
+                    <button
+                      onClick={startQuiz}
+                      className="text-sm font-semibold text-fg-muted underline-offset-4 hover:text-fg hover:underline"
+                    >
+                      Quiz me on this chapter (optional)
+                    </button>
+                  </div>
+                  {sessionSaved > 0 && (
+                    <p className="mt-3 text-xs text-fg-muted">
+                      {sessionSaved} new {sessionSaved === 1 ? "word" : "words"} saved this session
+                    </p>
+                  )}
+                </div>
+              )}
             </motion.div>
           )}
 
@@ -380,13 +443,21 @@ export function ChapterReader(props: Props) {
                       </div>
                     </div>
                   ))}
-                  <button
-                    onClick={submitQuiz}
-                    disabled={quizLoading || Object.keys(answers).length < quiz.questions.length}
-                    className="w-full rounded-2xl bg-brand py-4 text-lg font-bold text-brand-fg transition hover:bg-brand-dark disabled:opacity-50"
-                  >
-                    {quizLoading ? "Grading…" : "Submit answers"}
-                  </button>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setPhase("reading")}
+                      className="rounded-2xl border border-border px-5 py-4 font-bold transition hover:bg-bg-muted"
+                    >
+                      Back
+                    </button>
+                    <button
+                      onClick={submitQuiz}
+                      disabled={quizLoading || Object.keys(answers).length < quiz.questions.length}
+                      className="flex-1 rounded-2xl bg-brand py-4 text-lg font-bold text-brand-fg transition hover:bg-brand-dark disabled:opacity-50"
+                    >
+                      {quizLoading ? "Grading…" : "Submit answers"}
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <p className="text-fg-muted">Could not load the quiz. Try again.</p>
@@ -408,22 +479,16 @@ export function ChapterReader(props: Props) {
                   transition={{ type: "spring", delay: 0.2 }}
                   className={cn(
                     "mx-auto mb-4 grid h-20 w-20 place-items-center rounded-full",
-                    result.correctCount === result.total
-                      ? "bg-accent/20 text-accent-fg"
-                      : "bg-brand/15 text-brand",
+                    result.correctCount === result.total ? "bg-accent/20 text-accent-fg" : "bg-brand/15 text-brand",
                   )}
                 >
-                  {result.correctCount === result.total ? (
-                    <PartyPopper className="h-10 w-10" />
-                  ) : (
-                    <Check className="h-10 w-10" />
-                  )}
+                  {result.correctCount === result.total ? <PartyPopper className="h-10 w-10" /> : <Check className="h-10 w-10" />}
                 </motion.div>
                 <h2 className="text-3xl font-extrabold">
                   {result.correctCount} / {result.total}
                 </h2>
                 <p className="mt-1 text-fg-muted">
-                  {result.correctCount === result.total ? "Perfect! +25 XP" : "Chapter complete! +15 XP"}
+                  {result.correctCount === result.total ? "Perfect!" : "Nice work"}
                 </p>
               </div>
 
@@ -434,10 +499,7 @@ export function ChapterReader(props: Props) {
                   return (
                     <div
                       key={q.id}
-                      className={cn(
-                        "rounded-xl border p-4",
-                        pq.correct ? "border-brand/30 bg-brand/5" : "border-rose-200 bg-rose-50",
-                      )}
+                      className={cn("rounded-xl border p-4", pq.correct ? "border-brand/30 bg-brand/5" : "border-rose-200 bg-rose-50")}
                     >
                       <p className="font-arabic text-lg font-semibold" dir="rtl">
                         {q.prompt_ar}
@@ -463,17 +525,17 @@ export function ChapterReader(props: Props) {
                   </Link>
                 ) : (
                   <Link
-                    href={`/book/${props.bookSlug}`}
+                    href={`/book/${props.bookSlug}/test`}
                     className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-brand py-4 font-bold text-brand-fg transition hover:bg-brand-dark"
                   >
-                    Book finished — back to book
+                    Finish book — take the test
                   </Link>
                 )}
                 <Link
-                  href="/review"
+                  href={`/book/${props.bookSlug}`}
                   className="flex flex-1 items-center justify-center rounded-2xl border border-border py-4 font-bold transition hover:bg-bg-muted"
                 >
-                  Review saved words
+                  Back to book
                 </Link>
               </div>
             </motion.div>
@@ -481,7 +543,6 @@ export function ChapterReader(props: Props) {
         </AnimatePresence>
       </main>
 
-      {/* word lookup bottom sheet */}
       <AnimatePresence>
         {selected && phase === "reading" && (
           <motion.div
@@ -496,10 +557,7 @@ export function ChapterReader(props: Props) {
                 <p className="font-arabic text-3xl font-bold" dir="rtl">
                   {selected.surface}
                 </p>
-                <button
-                  onClick={() => setSelected(null)}
-                  className="rounded-full p-1.5 text-fg-muted transition hover:bg-bg-muted"
-                >
+                <button onClick={() => setSelected(null)} className="rounded-full p-1.5 text-fg-muted transition hover:bg-bg-muted">
                   <X className="h-5 w-5" />
                 </button>
               </div>
@@ -529,9 +587,7 @@ export function ChapterReader(props: Props) {
                     disabled={isLookupSaved}
                     className={cn(
                       "mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl py-3 font-semibold transition",
-                      isLookupSaved
-                        ? "bg-brand/15 text-brand"
-                        : "bg-brand text-brand-fg hover:bg-brand-dark",
+                      isLookupSaved ? "bg-brand/15 text-brand" : "bg-brand text-brand-fg hover:bg-brand-dark",
                     )}
                   >
                     {isLookupSaved ? (
