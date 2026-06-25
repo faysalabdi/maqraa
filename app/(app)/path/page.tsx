@@ -4,6 +4,7 @@ import { db, schema } from "@/lib/db";
 import { eq, asc } from "drizzle-orm";
 import { ArrowRight, BookOpen, Check, Flame, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { isAdmin } from "@/lib/admin";
 import { BookCover } from "@/components/book/BookCover";
 import type { BookStatus } from "@/lib/db/queries/path";
 
@@ -77,6 +78,9 @@ export default async function ReadPage() {
     for (const r of userBookRows) userBookMap.set(r.bookId, r.status);
   }
 
+  // Owners and admins can always open their own/curated books regardless of stage.
+  const admin = isAdmin(user?.email);
+
   const shelves = levels
     .map((lv) => ({
       level: lv.level,
@@ -99,7 +103,7 @@ export default async function ReadPage() {
           mine: !!b.ownerId,
           status: userBookMap.has(b.id)
             ? (userBookMap.get(b.id) as BookStatus)
-            : b.level <= userLevel
+            : b.level <= userLevel || !!b.ownerId || admin
               ? "unlocked"
               : "locked",
         })),

@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { BookUp, Check, FileText, Loader2, Plus, Sparkles, Trash2, X } from "lucide-react";
+import { BookUp, Check, Eye, FileText, Loader2, Plus, Sparkles, Trash2, X } from "lucide-react";
 import { parseEpubBook } from "@/lib/books/epub";
 import { splitIntoChapters, type DraftChapter, type SplitMode } from "@/lib/books/split";
 import { analyzeBookDraft, createBookWithChapters, type Genre } from "@/server/actions/admin";
@@ -28,6 +28,7 @@ export function AddBook({ levels }: { levels: { level: number; nameEn: string }[
   const [aiBusy, setAiBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  const [previewIdx, setPreviewIdx] = useState<number | null>(null);
 
   const [drafts, setDrafts] = useState<DraftChapter[] | null>(null);
   const [slugEdited, setSlugEdited] = useState(false);
@@ -103,13 +104,33 @@ export function AddBook({ levels }: { levels: { level: number; nameEn: string }[
     if (!drafts || drafts.length === 0) return;
     setAiBusy(true);
     setError(null);
+    const pages = drafts;
     try {
-      const a = await analyzeBookDraft(form.titleEn || form.titleAr || "Untitled", drafts);
+      const a = await analyzeBookDraft(form.titleEn || form.titleAr || "Untitled", pages);
       setForm((f) => ({ ...f, level: a.level, genre: a.genre, difficulty: a.difficulty, blurb: a.blurb_en }));
-      if (a.titles?.length) {
-        setDrafts((d) =>
-          d ? d.map((c, i) => (a.titles![i] ? { ...c, titleAr: a.titles![i].ar, titleEn: a.titles![i].en } : c)) : d,
-        );
+
+      // Rebuild chapters by merging the page ranges the AI returned, but only if
+      // the partition is valid (contiguous, covers every page once). Otherwise
+      // keep the pages as-is so no text is ever lost.
+      const ranges = [...a.chapters].sort((x, y) => x.first_page - y.first_page);
+      let ok = ranges.length > 0 && ranges[0].first_page === 1;
+      for (let i = 0; ok && i < ranges.length; i++) {
+        const r = ranges[i];
+        if (r.last_page < r.first_page || r.last_page > pages.length) ok = false;
+        if (i > 0 && r.first_page !== ranges[i - 1].last_page + 1) ok = false;
+      }
+      if (ok && ranges[ranges.length - 1].last_page === pages.length) {
+        const merged: DraftChapter[] = ranges.map((r) => ({
+          titleAr: r.title_ar,
+          titleEn: r.title_en,
+          contentAr: pages
+            .slice(r.first_page - 1, r.last_page)
+            .map((p) => p.contentAr)
+            .join("\n\n"),
+        }));
+        setDrafts(merged);
+      } else {
+        setError("AI couldn't cleanly re-chapter this book; kept the original split. Level/genre still applied.");
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "AI analysis failed.");
@@ -318,22 +339,40 @@ export function AddBook({ levels }: { levels: { level: number; nameEn: string }[
         </p>
         <ul className="max-h-80 divide-y divide-border overflow-y-auto">
           {drafts.map((c, i) => (
-            <li key={i} className="flex items-center gap-3 px-3 py-2">
-              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-bg-muted text-xs font-bold text-fg-muted">
-                {i + 1}
-              </span>
-              <input
-                className="font-arabic min-w-0 flex-1 rounded-lg border border-transparent bg-transparent px-2 py-1.5 text-right outline-none transition focus:border-border"
-                dir="rtl"
-                value={c.titleAr}
-                onChange={(e) => patch(i, { titleAr: e.target.value })}
-              />
-              <span className="hidden shrink-0 text-[11px] text-fg-muted sm:inline">
-                {c.contentAr.length.toLocaleString()} ch
-              </span>
-              <button onClick={() => removeChapter(i)} className="shrink-0 text-fg-muted transition hover:text-danger">
-                <Trash2 className="h-4 w-4" />
-              </button>
+            <li key={i} className="px-3 py-2">
+              <div className="flex items-center gap-3">
+                <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-bg-muted text-xs font-bold text-fg-muted">
+                  {i + 1}
+                </span>
+                <input
+                  className="font-arabic min-w-0 flex-1 rounded-lg border border-transparent bg-transparent px-2 py-1.5 text-right outline-none transition focus:border-border"
+                  dir="rtl"
+                  value={c.titleAr}
+                  onChange={(e) => patch(i, { titleAr: e.target.value })}
+                />
+                <span className="hidden shrink-0 text-[11px] text-fg-muted sm:inline">
+                  {c.contentAr.length.toLocaleString()} ch
+                </span>
+                <button
+                  onClick={() => setPreviewIdx((p) => (p === i ? null : i))}
+                  title="Preview text"
+                  className={`shrink-0 transition ${previewIdx === i ? "text-brand" : "text-fg-muted hover:text-brand"}`}
+                >
+                  <Eye className="h-4 w-4" />
+                </button>
+                <button onClick={() => removeChapter(i)} className="shrink-0 text-fg-muted transition hover:text-danger">
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+              {previewIdx === i && (
+                <div
+                  className="font-arabic mt-2 max-h-60 overflow-y-auto rounded-xl bg-bg-muted p-3 text-base leading-loose"
+                  dir="rtl"
+                >
+                  {c.contentAr.slice(0, 2000)}
+                  {c.contentAr.length > 2000 ? " …" : ""}
+                </div>
+              )}
             </li>
           ))}
         </ul>

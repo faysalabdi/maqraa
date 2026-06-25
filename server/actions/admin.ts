@@ -166,7 +166,7 @@ export async function analyzeBookDraft(
   return analyzeBook({
     titleHint,
     sample,
-    chapters: chapters.map((c) => ({ title: c.titleAr, excerpt: c.contentAr.slice(0, 200) })),
+    pages: chapters.map((c) => ({ excerpt: c.contentAr.slice(0, 300) })),
   });
 }
 
