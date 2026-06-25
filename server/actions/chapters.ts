@@ -23,7 +23,13 @@ export type ClientQuiz = {
 
 export async function getChapterQuiz(chapterId: string): Promise<ClientQuiz> {
   const user = await requireUser();
-  await consumeAiQuota(user.id, "quiz");
+  // Only meter an actual generation, not a cached re-open.
+  const existingQuiz = await db
+    .select({ id: schema.chapterQuizzes.id })
+    .from(schema.chapterQuizzes)
+    .where(eq(schema.chapterQuizzes.chapterId, chapterId))
+    .limit(1);
+  if (!existingQuiz[0]) await consumeAiQuota(user.id, "quiz");
 
   const rows = await db
     .select({

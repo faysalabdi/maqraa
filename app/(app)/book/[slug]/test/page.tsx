@@ -44,7 +44,13 @@ export default async function TestPage({ params }: { params: Promise<{ slug: str
       .where(and(eq(schema.userBooks.userId, user.id), eq(schema.userBooks.bookId, book.id)));
   }
 
-  await consumeAiQuota(user.id, "test");
+  // Only meter an actual generation, not a cached re-open.
+  const [existingTest] = await db
+    .select({ id: schema.comprehensionTests.id })
+    .from(schema.comprehensionTests)
+    .where(eq(schema.comprehensionTests.bookId, book.id))
+    .limit(1);
+  if (!existingTest) await consumeAiQuota(user.id, "test");
   const result = await fetchOrGenerateTest(book.id, user.id);
 
   if ("error" in result) {

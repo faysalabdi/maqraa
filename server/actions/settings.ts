@@ -9,8 +9,6 @@ import { z } from "zod";
 const InputSchema = z.object({
   displayName: z.string().trim().max(80).optional().nullable(),
   fontScale: z.coerce.number().min(0.7).max(1.5),
-  prefersRtl: z.boolean(),
-  dailyXpGoal: z.coerce.number().int().min(10).max(1000),
 });
 
 export type UpdateSettingsInput = z.input<typeof InputSchema>;
@@ -25,15 +23,13 @@ export async function updateSettings(input: UpdateSettingsInput) {
   const parsed = InputSchema.safeParse(input);
   if (!parsed.success) return { error: "Invalid input" };
 
-  const { displayName, fontScale, prefersRtl, dailyXpGoal } = parsed.data;
+  const { displayName, fontScale } = parsed.data;
 
   await db
     .update(schema.profiles)
     .set({
       displayName: displayName?.trim() || null,
       fontScale: fontScale.toString(),
-      prefersRtl,
-      dailyXpGoal,
       updatedAt: new Date(),
     })
     .where(eq(schema.profiles.id, user.id));

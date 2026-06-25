@@ -9,8 +9,6 @@ type Props = {
   initial: {
     displayName: string | null;
     fontScale: number;
-    prefersRtl: boolean;
-    dailyXpGoal: number;
   };
   streak: {
     currentDays: number;
@@ -26,13 +24,9 @@ const FONT_SCALES = [
   { v: 1.3, label: "X-Large" },
 ];
 
-const GOAL_PRESETS = [20, 50, 100, 200, 400];
-
 export default function SettingsForm({ initial, streak }: Props) {
   const [displayName, setDisplayName] = useState(initial.displayName ?? "");
   const [fontScale, setFontScale] = useState(initial.fontScale);
-  const [prefersRtl, setPrefersRtl] = useState(initial.prefersRtl);
-  const [dailyXpGoal, setDailyXpGoal] = useState(initial.dailyXpGoal);
   const [saved, setSaved] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -44,8 +38,6 @@ export default function SettingsForm({ initial, streak }: Props) {
       const res = await updateSettings({
         displayName: displayName || null,
         fontScale,
-        prefersRtl,
-        dailyXpGoal,
       });
       if ("error" in res && res.error) {
         setError(res.error);
@@ -101,13 +93,12 @@ export default function SettingsForm({ initial, streak }: Props) {
           onChange={(e) => setDisplayName(e.target.value)}
           placeholder="e.g. Faysal"
           maxLength={80}
-          className="w-full rounded-xl border border-border bg-white px-4 py-3 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/30"
+          className="w-full rounded-xl border border-border bg-surface px-4 py-3 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/30"
         />
       </Section>
 
       {/* Reading */}
-      <Section title="Reading" description="Text size and layout.">
-        <Label>Font scale</Label>
+      <Section title="Interface text size" description="Scales the whole app. (The reader has its own text-size and page-tint controls while you read.)">
         <div className="flex flex-wrap gap-2">
           {FONT_SCALES.map((s) => (
             <button
@@ -117,72 +108,13 @@ export default function SettingsForm({ initial, streak }: Props) {
               className={
                 fontScale === s.v
                   ? "rounded-xl bg-brand px-4 py-2 text-sm font-bold text-brand-fg shadow-glow-brand"
-                  : "rounded-xl bg-bg-muted px-4 py-2 text-sm font-bold text-fg-muted ring-1 ring-border hover:bg-white"
+                  : "rounded-xl bg-bg-muted px-4 py-2 text-sm font-bold text-fg-muted ring-1 ring-border hover:bg-surface"
               }
               style={{ fontSize: `${s.v}rem` }}
             >
               {s.label}
             </button>
           ))}
-        </div>
-
-        <div className="mt-4">
-          <Label>Direction</Label>
-          <button
-            type="button"
-            onClick={() => setPrefersRtl(!prefersRtl)}
-            className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold transition ${
-              prefersRtl
-                ? "bg-brand text-brand-fg shadow-glow-brand"
-                : "bg-bg-muted text-fg-muted ring-1 ring-border"
-            }`}
-          >
-            <span
-              className={`inline-block h-4 w-7 rounded-full transition ${
-                prefersRtl ? "bg-white/30" : "bg-zinc-300"
-              }`}
-            >
-              <span
-                className={`block h-4 w-4 rounded-full bg-white transition ${
-                  prefersRtl ? "translate-x-3" : ""
-                }`}
-              />
-            </span>
-            Prefer RTL for Arabic
-          </button>
-        </div>
-      </Section>
-
-      {/* Goals */}
-      <Section title="Goals" description="Your daily XP target.">
-        <Label>Daily XP goal</Label>
-        <div className="flex flex-wrap gap-2">
-          {GOAL_PRESETS.map((g) => (
-            <button
-              key={g}
-              type="button"
-              onClick={() => setDailyXpGoal(g)}
-              className={
-                dailyXpGoal === g
-                  ? "rounded-xl bg-brand px-4 py-2 text-sm font-bold text-brand-fg shadow-glow-brand"
-                  : "rounded-xl bg-bg-muted px-4 py-2 text-sm font-bold text-fg-muted ring-1 ring-border hover:bg-white"
-              }
-            >
-              {g} XP
-            </button>
-          ))}
-        </div>
-        <div className="mt-3 flex items-center gap-3">
-          <input
-            type="range"
-            min={10}
-            max={500}
-            step={10}
-            value={dailyXpGoal}
-            onChange={(e) => setDailyXpGoal(Number(e.target.value))}
-            className="flex-1 accent-[color:var(--color-brand)]"
-          />
-          <span className="w-16 text-right text-sm font-bold">{dailyXpGoal}</span>
         </div>
       </Section>
 
@@ -200,7 +132,7 @@ export default function SettingsForm({ initial, streak }: Props) {
             placeholder="New password (6+ characters)"
             autoComplete="new-password"
             minLength={6}
-            className="min-w-0 flex-1 rounded-xl border border-border bg-white px-4 py-3 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/30"
+            className="min-w-0 flex-1 rounded-xl border border-border bg-surface px-4 py-3 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/30"
           />
           <button
             type="button"
@@ -280,7 +212,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-2xl bg-white p-5 shadow-soft ring-1 ring-border">
+    <section className="rounded-2xl bg-surface p-5 shadow-soft ring-1 ring-border">
       <div className="mb-3">
         <h2 className="text-lg font-extrabold">{title}</h2>
         <p className="text-sm text-fg-muted">{description}</p>

@@ -75,7 +75,7 @@ export function ChapterReader(props: Props) {
   const [result, setResult] = useState<QuizResult | null>(null);
   const [isPending, startTransition] = useTransition();
   const [quizLoading, setQuizLoading] = useState(false);
-  const [lookupError, setLookupError] = useState(false);
+  const [lookupError, setLookupError] = useState<string | null>(null);
   const [finishing, setFinishing] = useState(false);
 
   const [sizeIdx, setSizeIdx] = useState(2);
@@ -180,7 +180,7 @@ export function ChapterReader(props: Props) {
     if (!isArabicWord(surface)) return;
     if (hint) dismissHint();
     setSelected({ surface, context });
-    setLookupError(false);
+    setLookupError(null);
     // Instant if we already have it cached for this chapter.
     const cached = lookupCache.current[vocalizedKey(surface)];
     if (cached) {
@@ -198,8 +198,8 @@ export function ChapterReader(props: Props) {
           example_ar: res.example_ar ?? null,
         };
         setLookup(res);
-      } catch {
-        setLookupError(true);
+      } catch (e) {
+        setLookupError(e instanceof Error ? e.message : "Lookup failed — tap the word again.");
       }
     });
   }
@@ -661,7 +661,7 @@ export function ChapterReader(props: Props) {
                   <Loader2 className="h-4 w-4 animate-spin" /> Looking up…
                 </div>
               ) : lookupError ? (
-                <p className="py-3 text-sm text-danger">Lookup failed — tap the word again.</p>
+                <p className="py-3 text-sm text-danger">{lookupError}</p>
               ) : lookup ? (
                 <div className="mt-1">
                   <p className="text-lg font-semibold">{lookup.gloss_en}</p>

@@ -55,8 +55,6 @@ export default async function SettingsPage() {
         initial={{
           displayName: profile.displayName,
           fontScale: Number(profile.fontScale),
-          prefersRtl: profile.prefersRtl,
-          dailyXpGoal: profile.dailyXpGoal,
         }}
         streak={
           streak
