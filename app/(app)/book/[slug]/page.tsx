@@ -7,6 +7,8 @@ import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { ArrowLeft, BookOpen, Check, CircleDot, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BookCover, tierFor } from "@/components/book/BookCover";
+import { getPlan, canReadTier } from "@/lib/entitlement";
+import { ProBlock } from "@/components/paywall/ProBlock";
 import { BookStatusBanner } from "@/components/book/BookStatusBanner";
 import { AttemptHistory, type AttemptRow } from "@/components/book/AttemptHistory";
 
@@ -40,6 +42,20 @@ export default async function BookPage({ params }: { params: Promise<{ slug: str
 
   // Private uploads are visible only to their owner.
   if (book.ownerId && book.ownerId !== user?.id) notFound();
+
+  // Curated books above the free tier require Pro.
+  if (user && !book.ownerId) {
+    const plan = await getPlan(user.id, user.email);
+    if (!canReadTier(plan, book.level)) {
+      return (
+        <ProBlock
+          title={`“${book.titleEn}” is a Pro book`}
+          body="This title is above the free Beginner shelf. Upgrade to Pro to read every curated book at every level — plus bring your own."
+          bullets={["Every curated book, every level", "Bring your own EPUBs", "Higher daily translation limits"]}
+        />
+      );
+    }
+  }
 
   const userBook = user ? await getUserBook(user.id, book.id) : null;
 

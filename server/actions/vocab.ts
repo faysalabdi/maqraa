@@ -2,9 +2,10 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { db, schema } from "@/lib/db";
-import { eq, inArray } from "drizzle-orm";
+import { count, eq, inArray } from "drizzle-orm";
 import { lookupArabicWord, type WordLookup } from "@/lib/ai/word-lookup";
 import { grantXp, recordActivity } from "@/lib/xp/grant";
+import { getPlan, FREE } from "@/lib/entitlement";
 import { lookupKey } from "@/lib/arabic";
 
 export type CachedLookup = {
@@ -58,6 +59,20 @@ export async function saveWord(input: {
   const user = await requireUser();
   const lemma = input.lemmaAr.trim();
   if (!lemma || !input.glossEn.trim()) throw new Error("invalid word");
+
+  // Free decks are capped; Pro is unlimited. Checked before insert so the cap
+  // can't be raced past with parallel saves of new words.
+  if ((await getPlan(user.id, user.email)) === "free") {
+    const [{ n }] = await db
+      .select({ n: count() })
+      .from(schema.vocabItems)
+      .where(eq(schema.vocabItems.userId, user.id));
+    if (Number(n) >= FREE.maxSavedWords) {
+      throw new Error(
+        `Free saves up to ${FREE.maxSavedWords} words. Upgrade to Pro for an unlimited review deck.`,
+      );
+    }
+  }
 
   const inserted = await db
     .insert(schema.vocabItems)

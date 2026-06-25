@@ -1,7 +1,12 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Sparkles } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
+import { getPlan } from "@/lib/entitlement";
+import { billingEnabled } from "@/lib/stripe/server";
+import { ManageBillingButton } from "@/components/paywall/UpgradeButton";
 import SettingsForm from "@/components/settings/SettingsForm";
 import { ThemeSetting } from "@/components/chrome/ThemeSetting";
 
@@ -29,6 +34,7 @@ export default async function SettingsPage() {
 
   const profile = profileRows[0];
   const streak = streakRows[0];
+  const plan = await getPlan(user.id, user.email);
 
   if (!profile) {
     return (
@@ -46,6 +52,32 @@ export default async function SettingsPage() {
           Signed in as <span className="font-semibold">{user.email}</span>
         </p>
       </header>
+
+      <div className="mb-6 flex items-center justify-between gap-4 rounded-2xl bg-surface p-5 shadow-card ring-1 ring-border">
+        <div className="flex items-center gap-3">
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand/10 text-brand">
+            <Sparkles className="h-5 w-5" />
+          </span>
+          <div>
+            <p className="font-bold">{plan === "pro" ? "Maqra Pro" : "Free plan"}</p>
+            <p className="text-sm text-fg-muted">
+              {plan === "pro" ? "Every book, your own library, unlimited deck." : "The Beginner shelf, capped deck."}
+            </p>
+          </div>
+        </div>
+        {plan === "pro" ? (
+          billingEnabled() && (
+            <ManageBillingButton className="shrink-0 rounded-xl border border-border bg-surface px-4 py-2 text-sm font-semibold transition hover:shadow-soft" />
+          )
+        ) : (
+          <Link
+            href="/upgrade"
+            className="shrink-0 rounded-xl bg-brand px-4 py-2 text-sm font-bold text-brand-fg transition hover:bg-brand-dark"
+          >
+            Upgrade
+          </Link>
+        )}
+      </div>
 
       <div className="mb-6">
         <ThemeSetting />

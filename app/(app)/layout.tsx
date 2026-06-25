@@ -1,7 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { db, schema } from "@/lib/db";
 import { and, count, eq, lte } from "drizzle-orm";
-import { uploadUnlocked } from "@/lib/admin";
 import { AppShell } from "@/components/chrome/AppShell";
 import { PageViewTracker } from "@/components/analytics/PageViewTracker";
 
@@ -12,12 +11,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   } = await supabase.auth.getUser();
 
   let reviewDue = 0;
-  let booksDone = 0;
   let fontScale = 1.0;
   let displayName: string | null = null;
 
   if (user) {
-    const [profileRows, dueRows, doneRows] = await Promise.all([
+    const [profileRows, dueRows] = await Promise.all([
       db
         .select({ fontScale: schema.profiles.fontScale, displayName: schema.profiles.displayName })
         .from(schema.profiles)
@@ -27,10 +25,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         .select({ c: count() })
         .from(schema.vocabItems)
         .where(and(eq(schema.vocabItems.userId, user.id), lte(schema.vocabItems.dueAt, new Date()))),
-      db
-        .select({ c: count() })
-        .from(schema.userBooks)
-        .where(and(eq(schema.userBooks.userId, user.id), eq(schema.userBooks.status, "completed"))),
     ]);
     if (profileRows[0]) {
       fontScale = Number(profileRows[0].fontScale);
@@ -44,7 +38,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       displayName = user.email ?? null;
     }
     reviewDue = Number(dueRows[0]?.c ?? 0);
-    booksDone = Number(doneRows[0]?.c ?? 0);
   }
 
   const avatarLetter = (displayName?.[0] ?? user?.email?.[0] ?? "?").toUpperCase();
@@ -59,7 +52,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           email: user?.email ?? null,
           avatarLetter,
           reviewDue,
-          canUpload: !!user && uploadUnlocked(user.email, booksDone),
+          canUpload: !!user,
         }}
       >
         {children}

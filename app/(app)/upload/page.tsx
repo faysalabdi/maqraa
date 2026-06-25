@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { asc, count, eq } from "drizzle-orm";
-import { Lock } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { db, schema } from "@/lib/db";
-import { booksFinished, isAdmin, uploadUnlocked, UPLOAD_MIN_BOOKS } from "@/lib/admin";
+import { isAdmin } from "@/lib/admin";
+import { getPlan } from "@/lib/entitlement";
+import { ProBlock } from "@/components/paywall/ProBlock";
 import { BookCover } from "@/components/book/BookCover";
 import { AddBook } from "@/components/upload/AddBook";
 import {
@@ -24,31 +25,21 @@ export default async function UploadPage() {
   if (!user) redirect("/sign-in?redirect=/upload");
 
   const admin = isAdmin(user.email);
-  const finished = await booksFinished(user.id);
+  const plan = await getPlan(user.id, user.email);
 
-  // Earned gate: uploading your own books unlocks after finishing a couple.
-  if (!uploadUnlocked(user.email, finished)) {
+  // Bringing your own books is a Pro feature.
+  if (plan !== "pro" && !admin) {
     return (
-      <main className="mx-auto max-w-xl px-4 pb-24 pt-16 text-center">
-        <div className="rounded-3xl bg-surface p-10 shadow-card ring-1 ring-border">
-          <span className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-bg-muted text-fg-muted">
-            <Lock className="h-7 w-7" />
-          </span>
-          <h1 className="mt-4 font-serif text-2xl font-semibold tracking-tight">
-            Uploading unlocks after {UPLOAD_MIN_BOOKS} books
-          </h1>
-          <p className="mt-2 text-fg-muted">
-            Finish {UPLOAD_MIN_BOOKS} books from the starter shelf ({finished}/{UPLOAD_MIN_BOOKS}{" "}
-            done), then you can add your own EPUBs to a private shelf only you can read.
-          </p>
-          <Link
-            href="/path"
-            className="mt-5 inline-flex rounded-xl bg-brand px-5 py-3 font-bold text-brand-fg transition hover:bg-brand-dark"
-          >
-            Back to reading
-          </Link>
-        </div>
-      </main>
+      <ProBlock
+        title="Bring your own books with Pro"
+        body="Upload any EPUB and read it right here — tap-to-translate, flashcards and all — on a private shelf only you can see."
+        bullets={[
+          "Upload unlimited EPUBs",
+          "Auto chapters & difficulty",
+          "Higher daily translation limits",
+          "Every curated book, every level",
+        ]}
+      />
     );
   }
 

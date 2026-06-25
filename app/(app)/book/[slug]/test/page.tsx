@@ -6,6 +6,7 @@ import { eq, and } from "drizzle-orm";
 import { getBookBySlug, getUserBook } from "@/lib/db/queries/path";
 import { fetchOrGenerateTest } from "@/lib/test/fetch-or-generate";
 import { consumeAiQuota } from "@/lib/ai/quota";
+import { getPlan, canReadTier } from "@/lib/entitlement";
 import TestRunner from "@/components/book/TestRunner";
 import { AlertTriangle, ArrowLeft } from "lucide-react";
 
@@ -27,6 +28,9 @@ export default async function TestPage({ params }: { params: Promise<{ slug: str
   // The whole-book test is generated from Claude's knowledge of known books, so it
   // isn't meaningful for a reader's own upload — chapter quizzes cover those.
   if (book.ownerId) redirect(`/book/${slug}`);
+  // Curated books above the free tier require Pro.
+  const plan = await getPlan(user.id, user.email);
+  if (!canReadTier(plan, book.level)) redirect("/upgrade");
 
   const userBook = await getUserBook(user.id, book.id);
 

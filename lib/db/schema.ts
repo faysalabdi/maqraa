@@ -55,6 +55,18 @@ export const bookGenre = pgEnum("book_genre", [
 
 export const chapterStatus = pgEnum("chapter_status", ["unread", "reading", "completed"]);
 
+// Mirrors the Stripe subscription statuses we act on. "active"/"trialing" grant Pro.
+export const subscriptionStatus = pgEnum("subscription_status", [
+  "active",
+  "trialing",
+  "past_due",
+  "canceled",
+  "incomplete",
+  "incomplete_expired",
+  "unpaid",
+  "paused",
+]);
+
 /* ────────────────────────────── catalogue ────────────────────────────── */
 
 export const levels = pgTable("levels", {
@@ -428,3 +440,16 @@ export const aiUsage = pgTable(
     pk: primaryKey({ columns: [t.userId, t.day, t.kind] }),
   }),
 );
+
+// One row per user, kept in sync with Stripe by the webhook. Absence = free plan.
+export const subscriptions = pgTable("subscriptions", {
+  userId: uuid("user_id").primaryKey(), // = auth.users.id
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
+  status: subscriptionStatus("status"),
+  priceId: text("price_id"),
+  cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
+  currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});

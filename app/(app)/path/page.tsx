@@ -2,8 +2,9 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { db, schema } from "@/lib/db";
 import { eq, asc, and, count, inArray } from "drizzle-orm";
-import { ArrowRight, BookCheck, Check, Flame, Brain, Play, Library } from "lucide-react";
+import { ArrowRight, BookCheck, Check, Flame, Brain, Play, Library, Lock } from "lucide-react";
 import { BookCover, tierFor, TIERS } from "@/components/book/BookCover";
+import { getPlan, canReadTier, type Plan } from "@/lib/entitlement";
 import { StatPill } from "@/components/chrome/StatPill";
 import type { BookStatus } from "@/lib/db/queries/path";
 
@@ -31,6 +32,7 @@ type Card = {
   orderInLevel: number;
   status: BookStatus;
   mine: boolean;
+  locked: boolean;
 };
 
 export default async function ReadPage() {
@@ -79,8 +81,10 @@ export default async function ReadPage() {
     for (const r of userBookRows) userBookMap.set(r.bookId, r.status);
   }
 
-  // No locks. Curated books (no owner) are public; private uploads only show to
-  // their owner. Progress is by finishing books, not by clearing stages.
+  const plan: Plan = user ? await getPlan(user.id, user.email) : "free";
+
+  // Curated books (no owner) are public to browse; above the free tier they're
+  // Pro-locked. Private uploads only show to their owner and are never locked.
   const cards = allBooks
     .filter((b) => !b.ownerId || b.ownerId === user?.id)
     .map<Card>((b) => ({
@@ -94,6 +98,7 @@ export default async function ReadPage() {
       level: b.level,
       orderInLevel: b.orderInLevel,
       mine: !!b.ownerId,
+      locked: !b.ownerId && !canReadTier(plan, b.level),
       status: (userBookMap.get(b.id) as BookStatus) ?? "unlocked",
     }));
 
@@ -140,7 +145,7 @@ export default async function ReadPage() {
   }
 
   const current = cards
-    .filter((b) => b.status !== "completed")
+    .filter((b) => b.status !== "completed" && !b.locked)
     .sort(
       (a, b) =>
         RESUME_PRIORITY[a.status] - RESUME_PRIORITY[b.status] ||
@@ -355,8 +360,11 @@ function BookTile({ book, showBand }: { book: Card; showBand?: boolean }) {
   const completed = book.status === "completed";
   const inProgress = ["in_progress", "reading_done", "testing", "failed_retry"].includes(book.status);
 
+  // Pro-locked curated books link to the upgrade page and read as locked.
+  const href = book.locked ? "/upgrade" : `/book/${book.slug}`;
+
   return (
-    <Link href={`/book/${book.slug}`} className="group">
+    <Link href={href} className="group">
       <div className="relative">
         <BookCover
           titleAr={book.titleAr}
@@ -366,14 +374,21 @@ function BookTile({ book, showBand }: { book: Card; showBand?: boolean }) {
           level={book.level}
           showBand={showBand ?? !book.mine}
           size="md"
-          className="w-full transition group-hover:-translate-y-1 group-hover:shadow-lift"
+          className={`w-full transition group-hover:-translate-y-1 group-hover:shadow-lift ${book.locked ? "opacity-55 grayscale" : ""}`}
         />
+        {book.locked && (
+          <span className="absolute inset-0 grid place-items-center">
+            <span className="grid h-9 w-9 place-items-center rounded-full bg-black/55 text-white shadow-soft backdrop-blur-sm">
+              <Lock className="h-4 w-4" />
+            </span>
+          </span>
+        )}
         {completed && (
           <span className="absolute -right-1.5 -top-1.5 grid h-7 w-7 place-items-center rounded-full bg-brand text-brand-fg shadow-soft ring-2 ring-surface">
             <Check className="h-4 w-4" strokeWidth={3} />
           </span>
         )}
-        {inProgress && (
+        {inProgress && !book.locked && (
           <span className="absolute bottom-1.5 left-1.5 rounded-full bg-accent px-2 py-0.5 text-[10px] font-bold text-accent-fg shadow-soft">
             Reading
           </span>
