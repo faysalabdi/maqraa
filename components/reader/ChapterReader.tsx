@@ -49,6 +49,7 @@ type Props = {
   nextChapterNumber: number | null;
   initialSavedKeys: string[];
   alreadyCompleted: boolean;
+  showBookTest?: boolean;
 };
 
 const TINTS = {
@@ -80,6 +81,7 @@ export function ChapterReader(props: Props) {
   const [tint, setTint] = useState<TintKey>("paper");
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [pageIdx, setPageIdx] = useState(0);
+  const [hint, setHint] = useState(false);
   const readMarked = useRef(false);
 
   // Split the chapter into screen-sized pages, keeping paragraphs whole.
@@ -107,6 +109,19 @@ export function ChapterReader(props: Props) {
   useEffect(() => {
     markChapterReading(chapter.id).catch(() => {});
   }, [chapter.id]);
+
+  // First-read coach mark: show once until the reader taps a word.
+  useEffect(() => {
+    try {
+      if (!localStorage.getItem("reader-tap-hint")) setHint(true);
+    } catch {}
+  }, []);
+  function dismissHint() {
+    setHint(false);
+    try {
+      localStorage.setItem("reader-tap-hint", "1");
+    } catch {}
+  }
 
   useEffect(() => {
     try {
@@ -140,6 +155,7 @@ export function ChapterReader(props: Props) {
 
   function handleWordClick(surface: string, context: string) {
     if (!isArabicWord(surface)) return;
+    if (hint) dismissHint();
     setSelected({ surface, context });
     setLookup(null);
     setLookupError(false);
@@ -307,6 +323,14 @@ export function ChapterReader(props: Props) {
         <AnimatePresence mode="wait">
           {phase === "reading" && (
             <motion.div key={`reading-${pageIdx}`} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+              {hint && (
+                <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl bg-accent-soft px-4 py-2.5 text-sm font-medium text-accent-fg shadow-soft">
+                  <span>Tap any word to see its meaning — and save it to review later.</span>
+                  <button onClick={dismissHint} aria-label="Dismiss" className="shrink-0 rounded-full p-1 transition hover:bg-black/10">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
               <article
                 className="rounded-[1.75rem] px-6 py-10 shadow-card ring-1 ring-border/70 sm:px-12 sm:py-14"
                 style={{ background: t.page, color: t.ink }}
@@ -398,12 +422,14 @@ export function ChapterReader(props: Props) {
                           {finishing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Check className="h-5 w-5" />}
                           Finish book
                         </button>
-                        <Link
-                          href={`/book/${props.bookSlug}/test`}
-                          className="text-sm font-semibold text-fg-muted underline-offset-4 hover:text-fg hover:underline"
-                        >
-                          Test your comprehension (optional)
-                        </Link>
+                        {props.showBookTest && (
+                          <Link
+                            href={`/book/${props.bookSlug}/test`}
+                            className="text-sm font-semibold text-fg-muted underline-offset-4 hover:text-fg hover:underline"
+                          >
+                            Test your comprehension (optional)
+                          </Link>
+                        )}
                       </>
                     ) : (
                       <>

@@ -13,6 +13,16 @@ export function lookupKey(surface: string): string {
   return cleanWord(surface);
 }
 
+/**
+ * Cache key for a word lookup. Unlike `lookupKey`/`cleanWord`, this KEEPS the
+ * diacritics (only punctuation/whitespace stripped), so homographs that differ
+ * only by vocalization — عَلَم (flag) vs عِلْم (knowledge) — cache separately
+ * instead of the first sense winning for all of them.
+ */
+export function vocalizedKey(surface: string): string {
+  return surface.replace(PUNCTUATION, "").trim();
+}
+
 export function isArabicWord(s: string): boolean {
   return /[؀-ۿ]/.test(cleanWord(s));
 }

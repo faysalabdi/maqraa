@@ -82,7 +82,7 @@ export default async function UploadPage() {
   return (
     <main className="mx-auto max-w-3xl space-y-8 px-4 pb-24 pt-8">
       <header>
-        <h1 className="font-serif text-3xl font-semibold tracking-tight">Add a book</h1>
+        <h1 className="font-serif text-3xl font-semibold tracking-tight">Your library</h1>
         <p className="mt-1 text-fg-muted">
           Drop an EPUB — it&apos;s parsed in your browser, then AI fills the difficulty, genre, blurb
           and chapters. The whole book never leaves your device.{" "}
