@@ -66,6 +66,7 @@ export default async function ReadChapterPage({
       bookTitleAr={book.titleAr}
       chapter={current}
       totalChapters={chapters.length}
+      showBookTest={!book.ownerId}
       chapterList={chapters.map((c) => ({
         n: c.chapterNumber,
         titleAr: c.titleAr,

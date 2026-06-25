@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, BookOpen, Library, Brain, Repeat, Trophy } from "lucide-react";
+import { BarChart3, BookOpen, Library, Brain, Repeat } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/brand/Logo";
 import { ThemeToggle } from "./ThemeToggle";
@@ -18,23 +18,22 @@ export function Sidebar({
   name,
   email,
   avatarLetter,
-  wordsCount,
   reviewDue,
+  canUpload,
 }: {
   name: string | null;
   email: string | null;
   avatarLetter: string;
-  wordsCount: number;
   reviewDue: number;
+  canUpload: boolean;
 }) {
   const pathname = usePathname();
   const items: Item[] = [
     { href: "/path", label: "Read", Icon: BookOpen, reading: true },
-    { href: "/words", label: "Words", Icon: Brain, badge: wordsCount },
+    { href: "/words", label: "Words", Icon: Brain },
     { href: "/review", label: "Review", Icon: Repeat, badge: reviewDue },
     { href: "/stats", label: "Stats", Icon: BarChart3 },
-    { href: "/upload", label: "Library", Icon: Library },
-    { href: "/leaderboard", label: "Ranks", Icon: Trophy },
+    ...(canUpload ? [{ href: "/upload", label: "Library", Icon: Library } as Item] : []),
   ];
 
   return (

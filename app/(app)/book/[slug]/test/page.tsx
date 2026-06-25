@@ -23,6 +23,9 @@ export default async function TestPage({ params }: { params: Promise<{ slug: str
 
   // Private uploads are testable only by their owner.
   if (book.ownerId && book.ownerId !== user.id) notFound();
+  // The whole-book test is generated from Claude's knowledge of known books, so it
+  // isn't meaningful for a reader's own upload — chapter quizzes cover those.
+  if (book.ownerId) redirect(`/book/${slug}`);
 
   const userBook = await getUserBook(user.id, book.id);
 

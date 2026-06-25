@@ -178,7 +178,7 @@ export default async function BookPage({ params }: { params: Promise<{ slug: str
             </Link>
           )}
 
-          {chapters.length > 0 && (
+          {chapters.length > 0 && !book.ownerId && (
             <Link
               href={`/book/${book.slug}/test`}
               className="inline-flex items-center gap-2 rounded-xl border border-border px-5 py-3 font-semibold transition hover:bg-bg-muted"
