@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, BookOpen, Library, Brain, Repeat } from "lucide-react";
+import { BarChart3, BookOpen, Library, Brain, Repeat, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/brand/Logo";
 import { ThemeToggle } from "./ThemeToggle";
@@ -20,12 +20,14 @@ export function Sidebar({
   avatarLetter,
   reviewDue,
   canUpload,
+  isPro,
 }: {
   name: string | null;
   email: string | null;
   avatarLetter: string;
   reviewDue: number;
   canUpload: boolean;
+  isPro: boolean;
 }) {
   const pathname = usePathname();
   const items: Item[] = [
@@ -79,7 +81,14 @@ export function Sidebar({
             {avatarLetter}
           </span>
           <span className="min-w-0">
-            <span className="block truncate text-sm font-semibold">{name ?? "Reader"}</span>
+            <span className="flex items-center gap-1.5">
+              <span className="truncate text-sm font-semibold">{name ?? "Reader"}</span>
+              {isPro && (
+                <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-brand px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wide text-brand-fg">
+                  <Sparkles className="h-2.5 w-2.5" /> Pro
+                </span>
+              )}
+            </span>
             {email && <span className="block truncate text-xs text-fg-muted">{email}</span>}
           </span>
         </Link>

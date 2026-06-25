@@ -14,6 +14,7 @@ export type ShellData = {
   avatarLetter: string;
   reviewDue: number;
   canUpload: boolean;
+  isPro: boolean;
 };
 
 // The reader is distraction-free: it escapes the sidebar / tab bar / top bar and
@@ -32,6 +33,7 @@ export function AppShell({ children, data }: { children: React.ReactNode; data: 
         avatarLetter={data.avatarLetter}
         reviewDue={data.reviewDue}
         canUpload={data.canUpload}
+        isPro={data.isPro}
       />
 
       <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-border bg-bg/80 px-4 py-2.5 backdrop-blur-md md:hidden">

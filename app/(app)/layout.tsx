@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { db, schema } from "@/lib/db";
 import { and, count, eq, lte } from "drizzle-orm";
+import { getPlan } from "@/lib/entitlement";
 import { AppShell } from "@/components/chrome/AppShell";
 import { PageViewTracker } from "@/components/analytics/PageViewTracker";
 
@@ -13,6 +14,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   let reviewDue = 0;
   let fontScale = 1.0;
   let displayName: string | null = null;
+  let isPro = false;
 
   if (user) {
     const [profileRows, dueRows] = await Promise.all([
@@ -38,6 +40,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       displayName = user.email ?? null;
     }
     reviewDue = Number(dueRows[0]?.c ?? 0);
+    isPro = (await getPlan(user.id, user.email)) === "pro";
   }
 
   const avatarLetter = (displayName?.[0] ?? user?.email?.[0] ?? "?").toUpperCase();
@@ -53,6 +56,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           avatarLetter,
           reviewDue,
           canUpload: !!user,
+          isPro,
         }}
       >
         {children}
