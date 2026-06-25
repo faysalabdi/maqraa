@@ -109,17 +109,19 @@ export function AddBook({ levels }: { levels: { level: number; nameEn: string }[
       const a = await analyzeBookDraft(form.titleEn || form.titleAr || "Untitled", pages);
       setForm((f) => ({ ...f, level: a.level, genre: a.genre, difficulty: a.difficulty, blurb: a.blurb_en }));
 
-      // Rebuild chapters by merging the page ranges the AI returned, but only if
-      // the partition is valid (contiguous, covers every page once). Otherwise
-      // keep the pages as-is so no text is ever lost.
+      // Rebuild chapters by merging the page ranges the AI returned. The ranges
+      // must form ONE contiguous block (no gaps between chapters) so no real
+      // content is lost; the block may start/end inside the book, which drops
+      // leading/trailing junk (cover, copyright, TOC, about-the-author).
+      // If anything looks off, keep the original pages untouched.
       const ranges = [...a.chapters].sort((x, y) => x.first_page - y.first_page);
-      let ok = ranges.length > 0 && ranges[0].first_page === 1;
+      let ok = ranges.length > 0 && ranges[0].first_page >= 1;
       for (let i = 0; ok && i < ranges.length; i++) {
         const r = ranges[i];
         if (r.last_page < r.first_page || r.last_page > pages.length) ok = false;
         if (i > 0 && r.first_page !== ranges[i - 1].last_page + 1) ok = false;
       }
-      if (ok && ranges[ranges.length - 1].last_page === pages.length) {
+      if (ok) {
         const merged: DraftChapter[] = ranges.map((r) => ({
           titleAr: r.title_ar,
           titleEn: r.title_en,

@@ -9,6 +9,7 @@ import {
   ArrowRight,
   BookmarkPlus,
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Loader2,
@@ -45,6 +46,7 @@ type Props = {
     contentAr: string;
   };
   totalChapters: number;
+  chapterList: { n: number; titleAr: string; titleEn: string }[];
   nextChapterNumber: number | null;
   initialSavedKeys: string[];
   alreadyCompleted: boolean;
@@ -213,10 +215,28 @@ export function ChapterReader(props: Props) {
               {props.bookTitleAr}
             </span>
           </Link>
-          <span className="mx-auto rounded-full bg-bg-muted px-3 py-1 text-xs font-semibold text-fg-muted">
-            Ch {chapter.chapterNumber}/{props.totalChapters}
-            {phase === "reading" && pages.length > 1 ? ` · p${pageIdx + 1}/${pages.length}` : ""}
-          </span>
+          <div className="mx-auto flex items-center gap-2">
+            <div className="relative">
+              <select
+                value={chapter.chapterNumber}
+                onChange={(e) => router.push(`/book/${props.bookSlug}/read/${e.target.value}`)}
+                aria-label="Jump to chapter"
+                className="max-w-[11rem] cursor-pointer truncate rounded-full bg-bg-muted py-1 pl-3 pr-7 text-xs font-semibold text-fg-muted outline-none transition hover:bg-border focus:ring-2 focus:ring-brand/30"
+              >
+                {props.chapterList.map((c) => (
+                  <option key={c.n} value={c.n}>
+                    {c.n}. {c.titleEn || `Chapter ${c.n}`}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-fg-muted" />
+            </div>
+            {phase === "reading" && pages.length > 1 && (
+              <span className="hidden shrink-0 rounded-full bg-bg-muted px-2.5 py-1 text-xs font-semibold text-fg-muted sm:inline">
+                p{pageIdx + 1}/{pages.length}
+              </span>
+            )}
+          </div>
           <div className="relative">
             <button
               onClick={() => setPrefsOpen((o) => !o)}
@@ -345,7 +365,7 @@ export function ChapterReader(props: Props) {
                   disabled={pageIdx === 0}
                   className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold text-fg transition hover:bg-bg-muted disabled:opacity-40"
                 >
-                  <ChevronRight className="h-4 w-4" /> Previous
+                  <ChevronLeft className="h-4 w-4" /> Previous
                 </button>
                 <span className="text-xs font-semibold text-fg-muted">
                   Page {pageIdx + 1} of {pages.length}
@@ -355,7 +375,7 @@ export function ChapterReader(props: Props) {
                     onClick={() => goPage(pageIdx + 1)}
                     className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-brand-fg shadow-glow-brand transition hover:bg-brand-dark"
                   >
-                    Next <ChevronLeft className="h-4 w-4" />
+                    Next <ChevronRight className="h-4 w-4" />
                   </button>
                 ) : (
                   <span className="w-[5.5rem]" />

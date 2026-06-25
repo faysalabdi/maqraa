@@ -66,6 +66,11 @@ export default async function ReadChapterPage({
       bookTitleAr={book.titleAr}
       chapter={current}
       totalChapters={chapters.length}
+      chapterList={chapters.map((c) => ({
+        n: c.chapterNumber,
+        titleAr: c.titleAr,
+        titleEn: c.titleEn,
+      }))}
       nextChapterNumber={
         chapters.find((c) => c.chapterNumber > chapterNumber)?.chapterNumber ?? null
       }
