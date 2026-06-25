@@ -128,43 +128,18 @@ export default function ReviewSession({ initialDeck }: { initialDeck: ReviewCard
       {/* Actions */}
       <div className="mt-5">
         {stage === "front" ? (
-          <p className="text-center text-sm font-medium text-fg-muted">
-            Tap the card to see the meaning
-          </p>
+          <button
+            onClick={() => setStage("back")}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-4 text-base font-bold text-brand-fg shadow-glow-brand transition hover:bg-brand-dark"
+          >
+            Show answer
+          </button>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <GradeButton
-              onClick={() => grade(1)}
-              disabled={isPending}
-              tone="danger"
-              icon={<X className="h-4 w-4" />}
-              label="Again"
-              sub="< 1d"
-            />
-            <GradeButton
-              onClick={() => grade(3)}
-              disabled={isPending}
-              tone="warn"
-              icon={<CheckCircle2 className="h-4 w-4" />}
-              label="Hard"
-              sub="short"
-            />
-            <GradeButton
-              onClick={() => grade(4)}
-              disabled={isPending}
-              tone="brand"
-              icon={<CheckCircle2 className="h-4 w-4" />}
-              label="Good"
-              sub="normal"
-            />
-            <GradeButton
-              onClick={() => grade(5)}
-              disabled={isPending}
-              tone="gold"
-              icon={<Star className="h-4 w-4" />}
-              label="Easy"
-              sub="long"
-            />
+            <GradeButton onClick={() => grade(1)} disabled={isPending} tone="danger" icon={<X className="h-4 w-4" />} label="Again" sub="< 1d" />
+            <GradeButton onClick={() => grade(3)} disabled={isPending} tone="flame" icon={<CheckCircle2 className="h-4 w-4" />} label="Hard" sub="short" />
+            <GradeButton onClick={() => grade(4)} disabled={isPending} tone="brand" icon={<CheckCircle2 className="h-4 w-4" />} label="Good" sub="normal" />
+            <GradeButton onClick={() => grade(5)} disabled={isPending} tone="iris" icon={<Star className="h-4 w-4" />} label="Easy" sub="long" />
           </div>
         )}
       </div>
@@ -188,25 +163,25 @@ function GradeButton({
 }: {
   onClick: () => void;
   disabled: boolean;
-  tone: "danger" | "warn" | "brand" | "gold";
+  tone: "danger" | "flame" | "brand" | "iris";
   icon: React.ReactNode;
   label: string;
   sub: string;
 }) {
   const cls =
     tone === "danger"
-      ? "bg-red-500 hover:bg-red-600 shadow-glow-danger"
-      : tone === "warn"
-        ? "bg-amber-500 hover:bg-amber-600 shadow-glow-amber"
+      ? "bg-danger shadow-glow-danger"
+      : tone === "flame"
+        ? "bg-flame"
         : tone === "brand"
-          ? "bg-brand hover:bg-brand-dark shadow-glow-brand"
-          : "bg-yellow-400 hover:bg-yellow-500 shadow-glow-amber";
+          ? "bg-brand shadow-glow-brand"
+          : "bg-iris";
 
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`flex flex-col items-center gap-0.5 rounded-2xl py-3 font-extrabold text-white transition disabled:opacity-60 ${cls}`}
+      className={`flex flex-col items-center gap-0.5 rounded-2xl py-3 font-extrabold text-white transition hover:opacity-90 disabled:opacity-60 ${cls}`}
     >
       <span className="inline-flex items-center gap-1.5 text-sm">
         {icon} {label}
@@ -233,7 +208,7 @@ function DoneScreen({
         <span className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-brand text-brand-fg shadow-glow-brand">
           <Sparkles className="h-10 w-10" />
         </span>
-        <h1 className="mt-5 text-3xl font-extrabold">Done for today!</h1>
+        <h1 className="mt-5 font-serif text-3xl font-semibold tracking-tight">Done for today!</h1>
         <p className="mt-2 text-fg-muted">
           {reviewed === 0
             ? "No cards due. Come back tomorrow."

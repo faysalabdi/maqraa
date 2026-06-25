@@ -190,16 +190,24 @@ export function AddBook({ levels }: { levels: { level: number; nameEn: string }[
           type="button"
           onClick={() => fileRef.current?.click()}
           disabled={busy}
-          className="group flex w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-border bg-bg-muted/40 px-6 py-12 text-center transition hover:border-brand hover:bg-brand/5"
+          className="group flex w-full flex-col items-center justify-center gap-3 rounded-3xl border-2 border-dashed border-border bg-bg-muted/30 px-6 py-16 text-center transition hover:border-brand hover:bg-brand/5"
         >
           <span className="grid h-16 w-16 place-items-center rounded-2xl bg-brand/10 text-brand transition group-hover:scale-105">
             {busy ? <Loader2 className="h-7 w-7 animate-spin" /> : <BookUp className="h-7 w-7" />}
           </span>
-          <span className="text-lg font-bold">{busy ? "Reading the book…" : "Add a book"}</span>
-          <span className="max-w-sm text-sm text-fg-muted">
-            Drop an <strong>.epub</strong> and we&apos;ll pull the title, author and real chapters
-            automatically. Nothing to type.
-          </span>
+          {busy ? (
+            <span className="text-lg font-bold">Reading the book…</span>
+          ) : (
+            <>
+              <span className="text-xl font-bold">
+                Drop your <span className="text-brand">.epub</span> here
+              </span>
+              <span className="text-sm text-fg-muted">or click to browse — parsed locally with jszip</span>
+              <span className="mt-2 inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-brand-fg shadow-glow-brand transition group-hover:bg-brand-dark">
+                Choose file
+              </span>
+            </>
+          )}
         </button>
         <input
           ref={fileRef}

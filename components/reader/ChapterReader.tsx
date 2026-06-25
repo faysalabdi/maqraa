@@ -52,9 +52,9 @@ type Props = {
 };
 
 const TINTS = {
-  paper: { name: "Paper", page: "oklch(1 0 0)", ink: "var(--color-fg)" },
-  sepia: { name: "Sepia", page: "oklch(0.97 0.025 85)", ink: "oklch(0.28 0.04 60)" },
-  mint: { name: "Mint", page: "oklch(0.98 0.02 160)", ink: "oklch(0.26 0.03 200)" },
+  paper: { name: "Paper", page: "var(--read-page)", ink: "var(--read-ink)" },
+  sepia: { name: "Sepia", page: "#f6efdc", ink: "#3a2f1c" },
+  mint: { name: "Mint", page: "#e8f3ec", ink: "#1f3b30" },
 } as const;
 type TintKey = keyof typeof TINTS;
 const SIZES = [1.25, 1.4, 1.6, 1.8, 2.05];
@@ -342,9 +342,9 @@ export function ChapterReader(props: Props) {
                                 handleWordClick(w, p);
                               }}
                               className={cn(
-                                "cursor-pointer rounded-md px-0.5 transition hover:bg-accent/25",
-                                known && "underline decoration-brand/60 decoration-2 underline-offset-[6px]",
-                                isSel && "bg-accent/40",
+                                "cursor-pointer rounded px-0.5 underline decoration-dotted decoration-accent/45 underline-offset-[6px] transition hover:bg-accent-soft hover:decoration-accent",
+                                known && "decoration-solid decoration-brand decoration-2",
+                                isSel && "bg-accent-soft ring-1 ring-accent/40 decoration-transparent",
                               )}
                             >
                               {w}
@@ -625,7 +625,7 @@ export function ChapterReader(props: Props) {
                       </>
                     ) : (
                       <>
-                        <BookmarkPlus className="h-4 w-4" /> Save word (+2 XP)
+                        <BookmarkPlus className="h-4 w-4" /> Save word · +2 XP
                       </>
                     )}
                   </button>

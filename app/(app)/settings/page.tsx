@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import SettingsForm from "@/components/settings/SettingsForm";
+import { ThemeSetting } from "@/components/chrome/ThemeSetting";
 
 export const dynamic = "force-dynamic";
 
@@ -40,11 +41,15 @@ export default async function SettingsPage() {
   return (
     <main className="mx-auto max-w-2xl px-4 pb-24 pt-6">
       <header className="mb-6">
-        <h1 className="text-3xl font-extrabold">Settings</h1>
+        <h1 className="font-serif text-3xl font-semibold tracking-tight">Settings</h1>
         <p className="mt-1 text-sm text-fg-muted">
           Signed in as <span className="font-semibold">{user.email}</span>
         </p>
       </header>
+
+      <div className="mb-6">
+        <ThemeSetting />
+      </div>
 
       <SettingsForm
         initial={{

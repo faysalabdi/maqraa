@@ -6,7 +6,7 @@ import { db, schema } from "@/lib/db";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { ArrowLeft, BookOpen, Check, CircleDot, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { BookCover } from "@/components/book/BookCover";
+import { BookCover, bandFor } from "@/components/book/BookCover";
 import { BookStatusBanner } from "@/components/book/BookStatusBanner";
 import { AttemptHistory, type AttemptRow } from "@/components/book/AttemptHistory";
 
@@ -113,56 +113,55 @@ export default async function BookPage({ params }: { params: Promise<{ slug: str
         <ArrowLeft className="h-4 w-4" /> Back to library
       </Link>
 
-      <div className="rounded-3xl bg-surface p-6 shadow-card ring-1 ring-border sm:p-8">
-        <div className="flex gap-5 sm:gap-7">
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand/10 via-surface to-surface p-6 shadow-card ring-1 ring-border sm:p-8">
+        <span
+          aria-hidden
+          className="font-arabic pointer-events-none absolute -top-4 right-3 select-none text-7xl font-bold text-fg/[0.05] sm:text-8xl"
+          dir="rtl"
+        >
+          {book.titleAr}
+        </span>
+        <div className="relative flex gap-5 sm:gap-7">
           <BookCover
             titleAr={book.titleAr}
             authorAr={book.authorAr}
             authorEn={book.authorEn}
             genre={book.genre}
+            level={book.level}
             size="lg"
             className="w-28 sm:w-36"
           />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-accent-soft px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-accent-fg">
+                Band {bandFor(book.level)}
+              </span>
               <span
-                className={`rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-widest ring-1 ${GENRE_TINT[book.genre] ?? "bg-zinc-100 text-zinc-800 ring-zinc-200"}`}
+                className={`rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide ring-1 ${GENRE_TINT[book.genre] ?? "bg-zinc-100 text-zinc-800 ring-zinc-200"}`}
               >
                 {GENRE_LABEL[book.genre] ?? book.genre}
               </span>
-              {book.difficulty > 0 && (
-                <span className="rounded-full bg-bg-muted px-2.5 py-1 text-xs font-bold text-fg-muted ring-1 ring-border">
-                  {"★".repeat(book.difficulty)}
-                  <span className="opacity-30">{"★".repeat(Math.max(0, 5 - book.difficulty))}</span>
-                </span>
-              )}
             </div>
 
-            <h1 className="font-arabic mt-4 text-3xl font-bold leading-tight sm:text-4xl" dir="rtl">
-              {book.titleAr}
+            <h1 className="font-serif mt-4 text-3xl font-semibold leading-tight sm:text-4xl">
+              {book.titleEn}
             </h1>
-            <p className="mt-1 text-lg text-fg-muted">{book.titleEn}</p>
-            {(book.authorEn || book.authorAr) && (
-              <p className="mt-2 text-sm text-fg-muted">
-                {book.authorEn}
-                {book.authorAr && (
-                  <>
-                    {" "}
-                    · <span className="font-arabic">{book.authorAr}</span>
-                  </>
-                )}
-              </p>
-            )}
+            <p className="font-arabic mt-1 text-xl text-fg-muted" dir="rtl">
+              {book.titleAr}
+            </p>
+            <p className="mt-2 text-sm text-fg-muted">
+              {[
+                book.authorEn,
+                `${chapters.length} chapter${chapters.length === 1 ? "" : "s"}`,
+                book.recommendedPages ? `~${book.recommendedPages.toLocaleString()} pages` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
           </div>
         </div>
 
-        <p className="mt-6 text-base leading-relaxed">{book.blurb}</p>
-
-        {book.recommendedPages && (
-          <p className="mt-4 text-sm text-fg-muted">
-            ~{book.recommendedPages.toLocaleString()} pages
-          </p>
-        )}
+        <p className="mt-6 text-base leading-relaxed text-fg-muted">{book.blurb}</p>
 
         <div className="mt-8 flex flex-wrap gap-3">
           {chapters.length > 0 && firstUnfinished && (
@@ -192,9 +191,9 @@ export default async function BookPage({ params }: { params: Promise<{ slug: str
       </div>
 
       {chapters.length > 0 && (
-        <div className="rounded-3xl bg-white p-6 shadow-soft ring-1 ring-border">
+        <div className="rounded-3xl bg-surface p-6 shadow-card ring-1 ring-border">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-bold">Chapters</h2>
+            <h2 className="font-serif text-lg font-semibold">Chapters</h2>
             <span className="rounded-full bg-bg-muted px-3 py-1 text-xs font-semibold text-fg-muted">
               {completedChapters} / {chapters.length} complete
             </span>
