@@ -83,6 +83,9 @@ export const books = pgTable(
     authorEn: text("author_en"),
     blurb: text("blurb").notNull(),
     coverUrl: text("cover_url"),
+    // null = curated public catalogue book; otherwise the user who uploaded it
+    // (private to them). Public read = owner_id is null or owner_id = auth.uid().
+    ownerId: uuid("owner_id"),
     difficulty: smallint("difficulty").notNull().default(1), // 1..5 within level
     genre: bookGenre("genre").notNull().default("islamic"),
     isSelection: boolean("is_selection").notNull().default(false),

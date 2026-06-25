@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { BookOpen, ChevronDown, Plus, Trash2 } from "lucide-react";
-import { addChapter, createBook, deleteBook, deleteChapter, type Genre } from "@/server/actions/admin";
+import { addChapter, deleteBook, deleteChapter } from "@/server/actions/admin";
 import { ImportPanel } from "@/components/admin/ImportPanel";
 
 export type AdminBook = {
@@ -27,17 +27,8 @@ export type AdminChapter = {
 
 export type LevelOption = { level: number; nameEn: string };
 
-const GENRES: { value: Genre; label: string }[] = [
-  { value: "islamic", label: "Islamic" },
-  { value: "arabic_literature", label: "Arabic literature" },
-  { value: "translated", label: "Translated" },
-  { value: "graded_reader", label: "Graded reader" },
-  { value: "classical", label: "Classical" },
-];
-
 const inputCls =
-  "w-full rounded-xl border border-border bg-white px-4 py-3 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/30";
-const labelCls = "block text-sm font-semibold text-fg-muted";
+  "w-full rounded-xl border border-border bg-surface px-4 py-3 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/30";
 
 export function BookAdmin({
   books,
@@ -48,24 +39,18 @@ export function BookAdmin({
   chapters: AdminChapter[];
   levels: LevelOption[];
 }) {
-  const [showNew, setShowNew] = useState(false);
   const usedLevels = levels.filter((l) => books.some((b) => b.level === l.level));
+
+  if (books.length === 0) {
+    return (
+      <p className="rounded-2xl bg-bg-muted p-6 text-center text-sm text-fg-muted">
+        No books in your library yet. Add one above by dropping an EPUB.
+      </p>
+    );
+  }
 
   return (
     <div className="space-y-8">
-      <div>
-        {showNew ? (
-          <NewBookForm levels={levels} onDone={() => setShowNew(false)} />
-        ) : (
-          <button
-            onClick={() => setShowNew(true)}
-            className="inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-3 font-semibold text-brand-fg shadow-glow-brand transition hover:bg-brand-dark"
-          >
-            <Plus className="h-4 w-4" /> New book
-          </button>
-        )}
-      </div>
-
       {usedLevels.map((l) => (
         <section key={l.level} className="space-y-3">
           <h2 className="text-sm font-bold uppercase tracking-widest text-fg-muted">
@@ -82,186 +67,7 @@ export function BookAdmin({
             ))}
         </section>
       ))}
-
-      {books.length === 0 && (
-        <p className="rounded-2xl bg-bg-muted p-6 text-center text-sm text-fg-muted">
-          No books yet. Add one above, then upload an EPUB to fill it with chapters.
-        </p>
-      )}
     </div>
-  );
-}
-
-function NewBookForm({ levels, onDone }: { levels: LevelOption[]; onDone: () => void }) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState({
-    slug: "",
-    level: levels[0]?.level ?? 1,
-    genre: "islamic" as Genre,
-    difficulty: 1,
-    titleAr: "",
-    titleEn: "",
-    authorAr: "",
-    authorEn: "",
-    recommendedPages: "",
-    blurb: "",
-  });
-
-  function set<K extends keyof typeof form>(k: K, v: (typeof form)[K]) {
-    setForm((f) => ({ ...f, [k]: v }));
-  }
-
-  function submit() {
-    setError(null);
-    startTransition(async () => {
-      try {
-        await createBook({
-          slug: form.slug,
-          level: Number(form.level),
-          genre: form.genre,
-          difficulty: Number(form.difficulty),
-          titleAr: form.titleAr,
-          titleEn: form.titleEn,
-          authorAr: form.authorAr || undefined,
-          authorEn: form.authorEn || undefined,
-          recommendedPages: form.recommendedPages ? Number(form.recommendedPages) : undefined,
-          blurb: form.blurb,
-        });
-        router.refresh();
-        onDone();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Failed to create book");
-      }
-    });
-  }
-
-  return (
-    <section className="rounded-3xl bg-white p-6 shadow-soft ring-1 ring-border">
-      <h2 className="mb-4 text-lg font-bold">Add a book</h2>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label className={labelCls}>Slug</label>
-          <input
-            className={inputCls}
-            placeholder="e.g. qasas-al-nabiyeen"
-            value={form.slug}
-            onChange={(e) => set("slug", e.target.value)}
-          />
-        </div>
-        <div>
-          <label className={labelCls}>Stage / level</label>
-          <select
-            className={inputCls}
-            value={form.level}
-            onChange={(e) => set("level", Number(e.target.value))}
-          >
-            {levels.map((l) => (
-              <option key={l.level} value={l.level}>
-                {l.level} — {l.nameEn}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className={labelCls}>Title (Arabic)</label>
-          <input
-            className={`${inputCls} font-arabic`}
-            dir="rtl"
-            value={form.titleAr}
-            onChange={(e) => set("titleAr", e.target.value)}
-          />
-        </div>
-        <div>
-          <label className={labelCls}>Title (English)</label>
-          <input
-            className={inputCls}
-            value={form.titleEn}
-            onChange={(e) => set("titleEn", e.target.value)}
-          />
-        </div>
-        <div>
-          <label className={labelCls}>Author (Arabic)</label>
-          <input
-            className={`${inputCls} font-arabic`}
-            dir="rtl"
-            value={form.authorAr}
-            onChange={(e) => set("authorAr", e.target.value)}
-          />
-        </div>
-        <div>
-          <label className={labelCls}>Author (English)</label>
-          <input
-            className={inputCls}
-            value={form.authorEn}
-            onChange={(e) => set("authorEn", e.target.value)}
-          />
-        </div>
-        <div>
-          <label className={labelCls}>Genre</label>
-          <select
-            className={inputCls}
-            value={form.genre}
-            onChange={(e) => set("genre", e.target.value as Genre)}
-          >
-            {GENRES.map((g) => (
-              <option key={g.value} value={g.value}>
-                {g.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className={labelCls}>Difficulty (1–5)</label>
-            <input
-              type="number"
-              min={1}
-              max={5}
-              className={inputCls}
-              value={form.difficulty}
-              onChange={(e) => set("difficulty", Number(e.target.value))}
-            />
-          </div>
-          <div>
-            <label className={labelCls}>Pages</label>
-            <input
-              type="number"
-              min={0}
-              className={inputCls}
-              placeholder="optional"
-              value={form.recommendedPages}
-              onChange={(e) => set("recommendedPages", e.target.value)}
-            />
-          </div>
-        </div>
-        <div className="sm:col-span-2">
-          <label className={labelCls}>Blurb</label>
-          <textarea
-            className={`${inputCls} min-h-20`}
-            value={form.blurb}
-            onChange={(e) => set("blurb", e.target.value)}
-          />
-        </div>
-      </div>
-      {error && <p className="mt-3 text-sm font-medium text-red-600">{error}</p>}
-      <div className="mt-4 flex gap-2">
-        <button
-          onClick={submit}
-          disabled={pending}
-          className="inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-3 font-semibold text-brand-fg shadow-glow-brand transition hover:bg-brand-dark disabled:opacity-60"
-        >
-          <Plus className="h-4 w-4" /> {pending ? "Creating…" : "Create book"}
-        </button>
-        <button
-          onClick={onDone}
-          className="rounded-xl border border-border px-5 py-3 font-semibold transition hover:bg-bg-muted"
-        >
-          Cancel
-        </button>
-      </div>
-    </section>
   );
 }
 

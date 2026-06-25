@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -9,8 +9,11 @@ import {
   BookmarkPlus,
   Check,
   Loader2,
+  Minus,
   PartyPopper,
+  Plus,
   Sparkles,
+  Type,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -43,6 +46,15 @@ type Props = {
   alreadyCompleted: boolean;
 };
 
+// Reader comfort settings, persisted locally so a reader's choices stick.
+const TINTS = {
+  paper: { name: "Paper", page: "oklch(1 0 0)", ink: "var(--color-fg)" },
+  sepia: { name: "Sepia", page: "oklch(0.97 0.025 85)", ink: "oklch(0.28 0.04 60)" },
+  mint: { name: "Mint", page: "oklch(0.98 0.02 160)", ink: "oklch(0.26 0.03 200)" },
+} as const;
+type TintKey = keyof typeof TINTS;
+const SIZES = [1.25, 1.4, 1.6, 1.8, 2.05]; // rem, the reading body text
+
 export function ChapterReader(props: Props) {
   const { chapter } = props;
   const [phase, setPhase] = useState<Phase>("reading");
@@ -57,11 +69,50 @@ export function ChapterReader(props: Props) {
   const [quizLoading, setQuizLoading] = useState(false);
   const [lookupError, setLookupError] = useState(false);
 
+  const [sizeIdx, setSizeIdx] = useState(2);
+  const [tint, setTint] = useState<TintKey>("paper");
+  const [prefsOpen, setPrefsOpen] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const contentRef = useRef<HTMLDivElement>(null);
+
   const paras = useMemo(() => paragraphs(chapter.contentAr), [chapter.contentAr]);
 
   useEffect(() => {
     markChapterReading(chapter.id).catch(() => {});
   }, [chapter.id]);
+
+  // Restore saved reading prefs.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("reader-prefs");
+      if (raw) {
+        const p = JSON.parse(raw);
+        if (typeof p.sizeIdx === "number") setSizeIdx(Math.max(0, Math.min(SIZES.length - 1, p.sizeIdx)));
+        if (p.tint && p.tint in TINTS) setTint(p.tint);
+      }
+    } catch {}
+  }, []);
+  useEffect(() => {
+    try {
+      localStorage.setItem("reader-prefs", JSON.stringify({ sizeIdx, tint }));
+    } catch {}
+  }, [sizeIdx, tint]);
+
+  // Track reading progress through the chapter body.
+  useEffect(() => {
+    if (phase !== "reading") return;
+    const onScroll = () => {
+      const el = contentRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const total = el.offsetHeight - window.innerHeight + 240;
+      const passed = -rect.top + 120;
+      setProgress(Math.max(0, Math.min(1, total > 0 ? passed / total : 1)));
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [phase, paras.length]);
 
   function handleWordClick(surface: string, context: string) {
     if (!isArabicWord(surface)) return;
@@ -70,8 +121,7 @@ export function ChapterReader(props: Props) {
     setLookupError(false);
     startTransition(async () => {
       try {
-        const res = await lookupWord(surface, context);
-        setLookup(res);
+        setLookup(await lookupWord(surface, context));
       } catch {
         setLookupError(true);
       }
@@ -95,8 +145,10 @@ export function ChapterReader(props: Props) {
   }
 
   function startQuiz() {
+    setSelected(null);
     setPhase("quiz");
     setQuizLoading(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
     getChapterQuiz(chapter.id)
       .then(setQuiz)
       .finally(() => setQuizLoading(false));
@@ -114,245 +166,339 @@ export function ChapterReader(props: Props) {
   }
 
   const isLookupSaved = lookup ? savedKeys.has(lookupKey(lookup.lemma_ar)) : false;
+  const t = TINTS[tint];
+  const bodySize = SIZES[sizeIdx];
 
   return (
-    <main className="mx-auto max-w-2xl px-4 pb-40 pt-6">
-      {/* header */}
-      <div className="mb-6 flex items-center justify-between">
-        <Link
-          href={`/book/${props.bookSlug}`}
-          className="inline-flex items-center gap-1 text-sm text-fg-muted hover:text-fg"
-        >
-          <ArrowLeft className="h-4 w-4" /> {props.bookTitleAr}
-        </Link>
-        <span className="rounded-full bg-bg-muted px-3 py-1 text-xs font-semibold text-fg-muted">
-          Chapter {chapter.chapterNumber} / {props.totalChapters}
-        </span>
+    <div className="min-h-screen">
+      {/* Sticky reading bar */}
+      <div className="sticky top-0 z-30 border-b border-border/70 bg-bg/80 backdrop-blur-md">
+        <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 py-2.5">
+          <Link
+            href={`/book/${props.bookSlug}`}
+            className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-sm font-medium text-fg-muted transition hover:bg-bg-muted hover:text-fg"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span className="font-arabic max-w-[8rem] truncate" dir="rtl">
+              {props.bookTitleAr}
+            </span>
+          </Link>
+          <span className="mx-auto rounded-full bg-bg-muted px-3 py-1 text-xs font-semibold text-fg-muted">
+            {chapter.chapterNumber} / {props.totalChapters}
+          </span>
+          <div className="relative">
+            <button
+              onClick={() => setPrefsOpen((o) => !o)}
+              aria-label="Reading settings"
+              className={cn(
+                "grid h-9 w-9 place-items-center rounded-full transition",
+                prefsOpen ? "bg-brand text-brand-fg" : "text-fg-muted hover:bg-bg-muted hover:text-fg",
+              )}
+            >
+              <Type className="h-4 w-4" />
+            </button>
+            <AnimatePresence>
+              {prefsOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -6, scale: 0.96 }}
+                  className="absolute right-0 top-11 z-40 w-60 rounded-2xl border border-border bg-surface p-3 shadow-lift"
+                >
+                  <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-fg-muted">
+                    Text size
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setSizeIdx((i) => Math.max(0, i - 1))}
+                      className="grid h-9 flex-1 place-items-center rounded-xl bg-bg-muted text-fg-muted transition hover:bg-border"
+                    >
+                      <Minus className="h-4 w-4" />
+                    </button>
+                    <span className="w-10 text-center text-sm font-bold">{sizeIdx + 1}</span>
+                    <button
+                      onClick={() => setSizeIdx((i) => Math.min(SIZES.length - 1, i + 1))}
+                      className="grid h-9 flex-1 place-items-center rounded-xl bg-bg-muted text-fg-muted transition hover:bg-border"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <p className="mb-2 mt-3 text-[11px] font-bold uppercase tracking-wider text-fg-muted">
+                    Page
+                  </p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(Object.keys(TINTS) as TintKey[]).map((k) => (
+                      <button
+                        key={k}
+                        onClick={() => setTint(k)}
+                        className={cn(
+                          "rounded-xl border-2 px-2 py-2 text-xs font-semibold transition",
+                          tint === k ? "border-brand" : "border-border hover:border-fg-muted",
+                        )}
+                        style={{ background: TINTS[k].page }}
+                      >
+                        {TINTS[k].name}
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+        {phase === "reading" && (
+          <div className="h-0.5 w-full bg-border/50">
+            <div
+              className="h-full bg-brand transition-[width] duration-150"
+              style={{ width: `${Math.round(progress * 100)}%` }}
+            />
+          </div>
+        )}
       </div>
 
-      <AnimatePresence mode="wait">
-        {phase === "reading" && (
-          <motion.div
-            key="reading"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
-          >
-            <div className="rounded-3xl bg-white p-8 shadow-sm ring-1 ring-border">
-              <h1 className="font-arabic mb-2 text-3xl font-bold" dir="rtl">
-                {chapter.titleAr}
-              </h1>
-              <p className="mb-8 text-sm text-fg-muted">{chapter.titleEn}</p>
+      <main className="mx-auto max-w-2xl px-4 pb-40 pt-6" onClick={() => prefsOpen && setPrefsOpen(false)}>
+        <AnimatePresence mode="wait">
+          {phase === "reading" && (
+            <motion.div
+              key="reading"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              ref={contentRef}
+            >
+              <article
+                className="rounded-[1.75rem] px-6 py-10 shadow-card ring-1 ring-border/70 sm:px-12 sm:py-14"
+                style={{ background: t.page, color: t.ink }}
+              >
+                {/* Chapter opener */}
+                <header className="mb-10 text-center">
+                  <p className="text-xs font-bold uppercase tracking-[0.25em] opacity-50">
+                    Chapter {chapter.chapterNumber}
+                  </p>
+                  <h1 className="font-arabic mt-3 text-3xl font-bold leading-snug sm:text-4xl" dir="rtl">
+                    {chapter.titleAr}
+                  </h1>
+                  {chapter.titleEn && (
+                    <p className="mt-2 text-sm opacity-60">{chapter.titleEn}</p>
+                  )}
+                  <div className="mt-6 flex items-center justify-center gap-3 opacity-40">
+                    <span className="h-px w-12 bg-current" />
+                    <span className="text-lg leading-none">۞</span>
+                    <span className="h-px w-12 bg-current" />
+                  </div>
+                </header>
 
-              <div className="space-y-6">
-                {paras.map((p, pi) => (
-                  <p
-                    key={pi}
-                    dir="rtl"
-                    className="font-arabic text-2xl leading-loose text-fg"
-                  >
-                    {tokenizeParagraph(p).map((w, wi) => {
-                      const known = savedKeys.has(cleanWord(w));
-                      const isSelected = selected?.surface === w;
-                      return (
-                        <span key={wi}>
-                          <span
-                            onClick={() => handleWordClick(w, p)}
+                <div className="space-y-6">
+                  {paras.map((p, pi) => (
+                    <p
+                      key={pi}
+                      dir="rtl"
+                      className="font-arabic"
+                      style={{ fontSize: `${bodySize}rem`, lineHeight: 2.1 }}
+                    >
+                      {tokenizeParagraph(p).map((w, wi) => {
+                        const known = savedKeys.has(cleanWord(w));
+                        const isSel = selected?.surface === w;
+                        return (
+                          <span key={wi}>
+                            <span
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleWordClick(w, p);
+                              }}
+                              className={cn(
+                                "cursor-pointer rounded-md px-0.5 transition",
+                                "hover:bg-accent/25",
+                                known && "underline decoration-brand/60 decoration-2 underline-offset-[6px]",
+                                isSel && "bg-accent/40",
+                              )}
+                            >
+                              {w}
+                            </span>{" "}
+                          </span>
+                        );
+                      })}
+                    </p>
+                  ))}
+                </div>
+              </article>
+
+              <div className="mt-8 flex flex-col items-center gap-3">
+                <button
+                  onClick={startQuiz}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-brand px-8 py-4 text-lg font-bold text-brand-fg shadow-glow-brand transition hover:-translate-y-0.5 hover:bg-brand-dark"
+                >
+                  <Sparkles className="h-5 w-5" />
+                  {props.alreadyCompleted ? "Re-take the quiz" : "I finished — quiz me"}
+                </button>
+                {sessionSaved > 0 && (
+                  <p className="text-sm text-fg-muted">
+                    {sessionSaved} new {sessionSaved === 1 ? "word" : "words"} saved this session
+                  </p>
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {phase === "quiz" && (
+            <motion.div
+              key="quiz"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              className="rounded-[1.75rem] bg-surface p-8 shadow-card ring-1 ring-border/70"
+            >
+              <h2 className="mb-6 text-xl font-bold">Comprehension check</h2>
+              {quizLoading && !quiz ? (
+                <div className="flex flex-col items-center gap-3 py-12 text-fg-muted">
+                  <Loader2 className="h-8 w-8 animate-spin text-brand" />
+                  <p>Preparing your questions…</p>
+                </div>
+              ) : quiz ? (
+                <div className="space-y-8">
+                  {quiz.questions.map((q, qi) => (
+                    <div key={q.id}>
+                      <p className="font-arabic mb-3 text-xl font-semibold" dir="rtl">
+                        {qi + 1}. {q.prompt_ar}
+                      </p>
+                      <div className="space-y-2">
+                        {q.choices.map((c, ci) => (
+                          <button
+                            key={ci}
+                            onClick={() => setAnswers((a) => ({ ...a, [q.id]: ci }))}
+                            dir="rtl"
                             className={cn(
-                              "cursor-pointer rounded-md px-0.5 transition hover:bg-amber-100",
-                              known && "underline decoration-emerald-400 decoration-2 underline-offset-4",
-                              isSelected && "bg-amber-200",
+                              "font-arabic block w-full rounded-xl border px-4 py-3 text-right text-lg transition",
+                              answers[q.id] === ci
+                                ? "border-brand bg-brand/10 ring-2 ring-brand"
+                                : "border-border hover:bg-bg-muted",
                             )}
                           >
-                            {w}
-                          </span>{" "}
-                        </span>
-                      );
-                    })}
-                  </p>
-                ))}
-              </div>
-            </div>
-
-            <div className="mt-8 flex justify-center">
-              <button
-                onClick={startQuiz}
-                className="inline-flex items-center gap-2 rounded-2xl bg-brand px-8 py-4 text-lg font-bold text-brand-fg shadow-lg shadow-emerald-200 transition hover:scale-105 hover:bg-brand-dark"
-              >
-                <Sparkles className="h-5 w-5" />
-                {props.alreadyCompleted ? "Re-take the quiz" : "I finished — quiz me"}
-              </button>
-            </div>
-            {sessionSaved > 0 && (
-              <p className="mt-3 text-center text-sm text-fg-muted">
-                {sessionSaved} new {sessionSaved === 1 ? "word" : "words"} saved this session
-              </p>
-            )}
-          </motion.div>
-        )}
-
-        {phase === "quiz" && (
-          <motion.div
-            key="quiz"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
-            className="rounded-3xl bg-white p-8 shadow-sm ring-1 ring-border"
-          >
-            <h2 className="mb-6 text-xl font-bold">Comprehension check</h2>
-            {quizLoading && !quiz ? (
-              <div className="flex flex-col items-center gap-3 py-12 text-fg-muted">
-                <Loader2 className="h-8 w-8 animate-spin text-brand" />
-                <p>Preparing your questions…</p>
-              </div>
-            ) : quiz ? (
-              <div className="space-y-8">
-                {quiz.questions.map((q, qi) => (
-                  <div key={q.id}>
-                    <p className="font-arabic mb-3 text-xl font-semibold" dir="rtl">
-                      {qi + 1}. {q.prompt_ar}
-                    </p>
-                    <div className="space-y-2">
-                      {q.choices.map((c, ci) => (
-                        <button
-                          key={ci}
-                          onClick={() => setAnswers((a) => ({ ...a, [q.id]: ci }))}
-                          dir="rtl"
-                          className={cn(
-                            "font-arabic block w-full rounded-xl border px-4 py-3 text-right text-lg transition",
-                            answers[q.id] === ci
-                              ? "border-brand bg-emerald-50 ring-2 ring-brand"
-                              : "border-border hover:bg-bg-muted",
-                          )}
-                        >
-                          {c}
-                        </button>
-                      ))}
+                            {c}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
-                <button
-                  onClick={submitQuiz}
-                  disabled={
-                    quizLoading || Object.keys(answers).length < quiz.questions.length
-                  }
-                  className="w-full rounded-2xl bg-brand py-4 text-lg font-bold text-brand-fg transition hover:bg-brand-dark disabled:opacity-50"
-                >
-                  {quizLoading ? "Grading…" : "Submit answers"}
-                </button>
-              </div>
-            ) : (
-              <p className="text-fg-muted">Could not load the quiz. Try again.</p>
-            )}
-          </motion.div>
-        )}
-
-        {phase === "result" && result && quiz && (
-          <motion.div
-            key="result"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="rounded-3xl bg-white p-8 shadow-sm ring-1 ring-border"
-          >
-            <div className="mb-8 text-center">
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ type: "spring", delay: 0.2 }}
-                className={cn(
-                  "mx-auto mb-4 grid h-20 w-20 place-items-center rounded-full",
-                  result.correctCount === result.total
-                    ? "bg-amber-100 text-amber-600"
-                    : "bg-emerald-100 text-brand",
-                )}
-              >
-                {result.correctCount === result.total ? (
-                  <PartyPopper className="h-10 w-10" />
-                ) : (
-                  <Check className="h-10 w-10" />
-                )}
-              </motion.div>
-              <h2 className="text-3xl font-extrabold">
-                {result.correctCount} / {result.total}
-              </h2>
-              <p className="mt-1 text-fg-muted">
-                {result.correctCount === result.total
-                  ? "Perfect! +25 XP"
-                  : "Chapter complete! +15 XP"}
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              {quiz.questions.map((q) => {
-                const pq = result.perQuestion.find((p) => p.id === q.id);
-                if (!pq) return null;
-                return (
-                  <div
-                    key={q.id}
-                    className={cn(
-                      "rounded-xl border p-4",
-                      pq.correct ? "border-emerald-200 bg-emerald-50" : "border-rose-200 bg-rose-50",
-                    )}
+                  ))}
+                  <button
+                    onClick={submitQuiz}
+                    disabled={quizLoading || Object.keys(answers).length < quiz.questions.length}
+                    className="w-full rounded-2xl bg-brand py-4 text-lg font-bold text-brand-fg transition hover:bg-brand-dark disabled:opacity-50"
                   >
-                    <p className="font-arabic text-lg font-semibold" dir="rtl">
-                      {q.prompt_ar}
-                    </p>
-                    <p className="font-arabic mt-1 text-base" dir="rtl">
-                      {pq.correct ? "✓" : "✗"} {q.choices[pq.answerIndex]}
-                    </p>
-                    <p className="font-arabic mt-1 text-sm text-fg-muted" dir="rtl">
-                      {pq.rationaleAr}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              {props.nextChapterNumber ? (
-                <Link
-                  href={`/book/${props.bookSlug}/read/${props.nextChapterNumber}`}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-brand py-4 font-bold text-brand-fg transition hover:bg-brand-dark"
-                >
-                  Next chapter <ArrowRight className="h-4 w-4" />
-                </Link>
+                    {quizLoading ? "Grading…" : "Submit answers"}
+                  </button>
+                </div>
               ) : (
-                <Link
-                  href={`/book/${props.bookSlug}`}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-brand py-4 font-bold text-brand-fg transition hover:bg-brand-dark"
-                >
-                  Book finished — back to book page
-                </Link>
+                <p className="text-fg-muted">Could not load the quiz. Try again.</p>
               )}
-              <Link
-                href="/review"
-                className="flex flex-1 items-center justify-center rounded-2xl border border-border py-4 font-bold transition hover:bg-bg-muted"
-              >
-                Review saved words
-              </Link>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            </motion.div>
+          )}
+
+          {phase === "result" && result && quiz && (
+            <motion.div
+              key="result"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="rounded-[1.75rem] bg-surface p-8 shadow-card ring-1 ring-border/70"
+            >
+              <div className="mb-8 text-center">
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: "spring", delay: 0.2 }}
+                  className={cn(
+                    "mx-auto mb-4 grid h-20 w-20 place-items-center rounded-full",
+                    result.correctCount === result.total
+                      ? "bg-accent/20 text-accent-fg"
+                      : "bg-brand/15 text-brand",
+                  )}
+                >
+                  {result.correctCount === result.total ? (
+                    <PartyPopper className="h-10 w-10" />
+                  ) : (
+                    <Check className="h-10 w-10" />
+                  )}
+                </motion.div>
+                <h2 className="text-3xl font-extrabold">
+                  {result.correctCount} / {result.total}
+                </h2>
+                <p className="mt-1 text-fg-muted">
+                  {result.correctCount === result.total ? "Perfect! +25 XP" : "Chapter complete! +15 XP"}
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                {quiz.questions.map((q) => {
+                  const pq = result.perQuestion.find((p) => p.id === q.id);
+                  if (!pq) return null;
+                  return (
+                    <div
+                      key={q.id}
+                      className={cn(
+                        "rounded-xl border p-4",
+                        pq.correct ? "border-brand/30 bg-brand/5" : "border-rose-200 bg-rose-50",
+                      )}
+                    >
+                      <p className="font-arabic text-lg font-semibold" dir="rtl">
+                        {q.prompt_ar}
+                      </p>
+                      <p className="font-arabic mt-1 text-base" dir="rtl">
+                        {pq.correct ? "✓" : "✗"} {q.choices[pq.answerIndex]}
+                      </p>
+                      <p className="font-arabic mt-1 text-sm text-fg-muted" dir="rtl">
+                        {pq.rationaleAr}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                {props.nextChapterNumber ? (
+                  <Link
+                    href={`/book/${props.bookSlug}/read/${props.nextChapterNumber}`}
+                    className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-brand py-4 font-bold text-brand-fg transition hover:bg-brand-dark"
+                  >
+                    Next chapter <ArrowRight className="h-4 w-4" />
+                  </Link>
+                ) : (
+                  <Link
+                    href={`/book/${props.bookSlug}`}
+                    className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-brand py-4 font-bold text-brand-fg transition hover:bg-brand-dark"
+                  >
+                    Book finished — back to book
+                  </Link>
+                )}
+                <Link
+                  href="/review"
+                  className="flex flex-1 items-center justify-center rounded-2xl border border-border py-4 font-bold transition hover:bg-bg-muted"
+                >
+                  Review saved words
+                </Link>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </main>
 
       {/* word lookup bottom sheet */}
       <AnimatePresence>
         {selected && phase === "reading" && (
           <motion.div
-            initial={{ y: 120, opacity: 0 }}
+            initial={{ y: 140, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 120, opacity: 0 }}
-            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            exit={{ y: 140, opacity: 0 }}
+            transition={{ type: "spring", damping: 26, stiffness: 320 }}
             className="fixed inset-x-0 bottom-0 z-40 mx-auto max-w-2xl px-4 pb-4"
           >
-            <div className="rounded-3xl border border-border bg-white p-5 shadow-2xl">
+            <div className="rounded-[1.5rem] border border-border bg-surface p-5 shadow-lift">
               <div className="flex items-start justify-between">
-                <p className="font-arabic text-2xl font-bold" dir="rtl">
+                <p className="font-arabic text-3xl font-bold" dir="rtl">
                   {selected.surface}
                 </p>
                 <button
                   onClick={() => setSelected(null)}
-                  className="rounded-full p-1 text-fg-muted hover:bg-bg-muted"
+                  className="rounded-full p-1.5 text-fg-muted transition hover:bg-bg-muted"
                 >
                   <X className="h-5 w-5" />
                 </button>
@@ -384,7 +530,7 @@ export function ChapterReader(props: Props) {
                     className={cn(
                       "mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl py-3 font-semibold transition",
                       isLookupSaved
-                        ? "bg-emerald-100 text-emerald-700"
+                        ? "bg-brand/15 text-brand"
                         : "bg-brand text-brand-fg hover:bg-brand-dark",
                     )}
                   >
@@ -404,6 +550,6 @@ export function ChapterReader(props: Props) {
           </motion.div>
         )}
       </AnimatePresence>
-    </main>
+    </div>
   );
 }

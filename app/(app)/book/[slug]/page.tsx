@@ -6,6 +6,7 @@ import { db, schema } from "@/lib/db";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { ArrowLeft, BookOpen, Check, CircleDot, Lock, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BookCover } from "@/components/book/BookCover";
 import MarkFinishedButton from "@/components/book/MarkFinishedButton";
 import { BookStatusBanner } from "@/components/book/BookStatusBanner";
 import { AttemptHistory, type AttemptRow } from "@/components/book/AttemptHistory";
@@ -37,6 +38,9 @@ export default async function BookPage({ params }: { params: Promise<{ slug: str
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  // Private uploads are visible only to their owner.
+  if (book.ownerId && book.ownerId !== user?.id) notFound();
 
   const userBook = user ? await getUserBook(user.id, book.id) : null;
 
@@ -119,47 +123,54 @@ export default async function BookPage({ params }: { params: Promise<{ slug: str
         href="/path"
         className="inline-flex items-center gap-1 text-sm font-medium text-fg-muted transition hover:text-fg"
       >
-        <ArrowLeft className="h-4 w-4" /> Back to path
+        <ArrowLeft className="h-4 w-4" /> Back to library
       </Link>
 
-      <div className="rounded-3xl bg-white p-8 shadow-lift ring-1 ring-border">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full bg-bg-muted px-2.5 py-1 text-xs font-bold uppercase tracking-widest text-fg-muted ring-1 ring-border">
-            Stage {book.level}
-          </span>
-          <span
-            className={`rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-widest ring-1 ${GENRE_TINT[book.genre] ?? "bg-zinc-100 text-zinc-800 ring-zinc-200"}`}
-          >
-            {GENRE_LABEL[book.genre] ?? book.genre}
-          </span>
-          {book.hasFullText && (
-            <span className="rounded-full bg-brand px-2.5 py-1 text-xs font-bold uppercase tracking-widest text-brand-fg">
-              Readable in app
-            </span>
-          )}
-          {book.difficulty > 0 && (
-            <span className="rounded-full bg-bg-muted px-2.5 py-1 text-xs font-bold text-fg-muted ring-1 ring-border">
-              {"★".repeat(book.difficulty)}
-              <span className="opacity-30">{"★".repeat(Math.max(0, 5 - book.difficulty))}</span>
-            </span>
-          )}
-        </div>
+      <div className="rounded-3xl bg-surface p-6 shadow-card ring-1 ring-border sm:p-8">
+        <div className="flex gap-5 sm:gap-7">
+          <BookCover
+            titleAr={book.titleAr}
+            authorAr={book.authorAr}
+            authorEn={book.authorEn}
+            genre={book.genre}
+            size="lg"
+            className="w-28 sm:w-36"
+          />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-bg-muted px-2.5 py-1 text-xs font-bold uppercase tracking-widest text-fg-muted ring-1 ring-border">
+                Stage {book.level}
+              </span>
+              <span
+                className={`rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-widest ring-1 ${GENRE_TINT[book.genre] ?? "bg-zinc-100 text-zinc-800 ring-zinc-200"}`}
+              >
+                {GENRE_LABEL[book.genre] ?? book.genre}
+              </span>
+              {book.difficulty > 0 && (
+                <span className="rounded-full bg-bg-muted px-2.5 py-1 text-xs font-bold text-fg-muted ring-1 ring-border">
+                  {"★".repeat(book.difficulty)}
+                  <span className="opacity-30">{"★".repeat(Math.max(0, 5 - book.difficulty))}</span>
+                </span>
+              )}
+            </div>
 
-        <h1 className="font-arabic mt-4 text-4xl font-bold leading-tight" dir="rtl">
-          {book.titleAr}
-        </h1>
-        <p className="mt-1 text-lg text-fg-muted">{book.titleEn}</p>
-        {(book.authorEn || book.authorAr) && (
-          <p className="mt-2 text-sm text-fg-muted">
-            {book.authorEn}
-            {book.authorAr && (
-              <>
-                {" "}
-                · <span className="font-arabic">{book.authorAr}</span>
-              </>
+            <h1 className="font-arabic mt-4 text-3xl font-bold leading-tight sm:text-4xl" dir="rtl">
+              {book.titleAr}
+            </h1>
+            <p className="mt-1 text-lg text-fg-muted">{book.titleEn}</p>
+            {(book.authorEn || book.authorAr) && (
+              <p className="mt-2 text-sm text-fg-muted">
+                {book.authorEn}
+                {book.authorAr && (
+                  <>
+                    {" "}
+                    · <span className="font-arabic">{book.authorAr}</span>
+                  </>
+                )}
+              </p>
             )}
-          </p>
-        )}
+          </div>
+        </div>
 
         <p className="mt-6 text-base leading-relaxed">{book.blurb}</p>
 

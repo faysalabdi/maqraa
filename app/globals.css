@@ -4,30 +4,39 @@
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-arabic: var(--font-naskh), var(--font-amiri), "Noto Naskh Arabic", "Amiri", serif;
 
-  --color-bg: oklch(0.99 0.008 95);
-  --color-bg-muted: oklch(0.96 0.012 95);
-  --color-fg: oklch(0.18 0.025 250);
-  --color-fg-muted: oklch(0.5 0.025 250);
-  --color-border: oklch(0.9 0.012 95);
+  /* Neutrals — warm paper, cool ink. */
+  --color-bg: oklch(0.985 0.006 95);
+  --color-bg-muted: oklch(0.955 0.008 95);
+  --color-surface: oklch(1 0 0);
+  --color-fg: oklch(0.23 0.028 260);
+  --color-fg-muted: oklch(0.54 0.03 260);
+  --color-border: oklch(0.915 0.008 95);
 
-  --color-brand: oklch(0.66 0.19 145);
-  --color-brand-dark: oklch(0.55 0.2 145);
-  --color-brand-fg: oklch(0.99 0.012 145);
+  /* Brand — jewel emerald (reading / growth). */
+  --color-brand: oklch(0.62 0.16 158);
+  --color-brand-dark: oklch(0.5 0.15 158);
+  --color-brand-fg: oklch(0.99 0.01 158);
 
-  --color-accent: oklch(0.78 0.17 75);
-  --color-accent-fg: oklch(0.25 0.05 75);
-  --color-locked: oklch(0.7 0.012 250);
+  /* Accent — warm gold (highlights, CTA glow). */
+  --color-accent: oklch(0.8 0.14 78);
+  --color-accent-fg: oklch(0.3 0.06 78);
+
+  /* Secondary — calm indigo, for variety in stats. */
+  --color-iris: oklch(0.62 0.16 280);
+  --color-iris-fg: oklch(0.98 0.01 280);
+
+  --color-locked: oklch(0.72 0.012 260);
   --color-danger: oklch(0.62 0.22 25);
-  --color-success: oklch(0.66 0.19 145);
-  --color-warn: oklch(0.78 0.17 75);
+  --color-success: oklch(0.62 0.16 158);
+  --color-warn: oklch(0.8 0.14 78);
+  --color-flame: oklch(0.68 0.2 38);
 
-  --color-flame: oklch(0.7 0.21 40);
-
-  --shadow-soft: 0 1px 2px rgba(20, 28, 40, 0.04), 0 6px 16px -6px rgba(20, 28, 40, 0.08);
-  --shadow-lift: 0 2px 4px rgba(20, 28, 40, 0.05), 0 16px 32px -12px rgba(20, 28, 40, 0.18);
-  --shadow-glow-brand: 0 0 0 4px oklch(0.66 0.19 145 / 0.12), 0 6px 24px -6px oklch(0.66 0.19 145 / 0.4);
-  --shadow-glow-amber: 0 0 0 4px oklch(0.78 0.17 75 / 0.18), 0 6px 24px -6px oklch(0.78 0.17 75 / 0.45);
-  --shadow-glow-danger: 0 0 0 4px oklch(0.62 0.22 25 / 0.14), 0 6px 24px -6px oklch(0.62 0.22 25 / 0.35);
+  --shadow-soft: 0 1px 2px oklch(0.23 0.028 260 / 0.04), 0 8px 20px -8px oklch(0.23 0.028 260 / 0.1);
+  --shadow-lift: 0 2px 6px oklch(0.23 0.028 260 / 0.06), 0 20px 40px -16px oklch(0.23 0.028 260 / 0.2);
+  --shadow-card: 0 1px 3px oklch(0.23 0.028 260 / 0.06), 0 12px 28px -14px oklch(0.23 0.028 260 / 0.16);
+  --shadow-glow-brand: 0 0 0 4px oklch(0.62 0.16 158 / 0.14), 0 10px 28px -8px oklch(0.62 0.16 158 / 0.45);
+  --shadow-glow-amber: 0 0 0 4px oklch(0.8 0.14 78 / 0.2), 0 10px 28px -8px oklch(0.8 0.14 78 / 0.5);
+  --shadow-glow-danger: 0 0 0 4px oklch(0.62 0.22 25 / 0.14), 0 10px 28px -8px oklch(0.62 0.22 25 / 0.4);
 }
 
 @layer base {
@@ -41,19 +50,23 @@
   body {
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
     background-image:
-      radial-gradient(at 0% 0%, oklch(0.66 0.19 145 / 0.05) 0px, transparent 50%),
-      radial-gradient(at 100% 0%, oklch(0.78 0.17 75 / 0.06) 0px, transparent 50%),
-      radial-gradient(at 50% 100%, oklch(0.7 0.21 40 / 0.04) 0px, transparent 60%);
+      radial-gradient(at 0% 0%, oklch(0.62 0.16 158 / 0.06) 0px, transparent 55%),
+      radial-gradient(at 100% 0%, oklch(0.8 0.14 78 / 0.07) 0px, transparent 50%),
+      radial-gradient(at 50% 100%, oklch(0.62 0.16 280 / 0.04) 0px, transparent 60%);
     background-attachment: fixed;
     min-height: 100vh;
   }
   .font-arabic {
     font-family: var(--font-arabic);
-    line-height: 1.9;
+    line-height: 1.95;
   }
   [dir="rtl"] {
     text-align: right;
+  }
+  ::selection {
+    background: oklch(0.8 0.14 78 / 0.4);
   }
 }
 
@@ -64,6 +77,9 @@
   .shadow-lift {
     box-shadow: var(--shadow-lift);
   }
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
   .shadow-glow-brand {
     box-shadow: var(--shadow-glow-brand);
   }
@@ -72,5 +88,18 @@
   }
   .shadow-glow-danger {
     box-shadow: var(--shadow-glow-danger);
+  }
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .animate-rise {
+    animation: rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 }
