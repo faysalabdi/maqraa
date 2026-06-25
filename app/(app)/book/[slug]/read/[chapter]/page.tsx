@@ -40,6 +40,8 @@ export default async function ReadChapterPage({
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) notFound();
+  // Private uploads are readable only by their owner.
+  if (book.ownerId && book.ownerId !== user.id) notFound();
 
   const saved = await db
     .select({ lemmaAr: schema.vocabItems.lemmaAr })

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { eq, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
-import { requireAdmin } from "@/lib/admin";
+import { requireAdmin, requireUploader } from "@/lib/admin";
 import { slugify } from "@/lib/utils";
 import { analyzeBook, type BookAnalysis } from "@/lib/ai/book-analyze";
 
@@ -83,7 +83,9 @@ export async function createBookWithChapters(
   input: CreateBookInput,
   chapters: DraftChapterInput[],
 ): Promise<{ id: string; slug: string; chapters: number }> {
-  await requireAdmin();
+  // Admins add public/curated books; everyone else's uploads are private to them.
+  const uploader = await requireUploader();
+  const ownerId = uploader.isAdmin ? null : uploader.userId;
 
   const slug = slugify(input.slug);
   if (!slug)
@@ -126,6 +128,7 @@ export async function createBookWithChapters(
       genre: input.genre,
       recommendedPages: input.recommendedPages ?? null,
       hasFullText: true,
+      ownerId,
     })
     .returning({ id: schema.books.id });
 
@@ -154,7 +157,7 @@ export async function analyzeBookDraft(
   titleHint: string,
   chapters: { titleAr: string; contentAr: string }[],
 ): Promise<BookAnalysis> {
-  await requireAdmin();
+  await requireUploader();
   if (chapters.length === 0) throw new Error("no chapters to analyze");
   const sample = chapters
     .map((c) => c.contentAr)

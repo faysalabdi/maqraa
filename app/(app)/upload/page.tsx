@@ -1,8 +1,11 @@
-import { notFound } from "next/navigation";
+import Link from "next/link";
+import { redirect } from "next/navigation";
 import { asc, count, eq } from "drizzle-orm";
+import { Lock } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { db, schema } from "@/lib/db";
-import { isAdmin } from "@/lib/admin";
+import { isAdmin, uploadUnlocked } from "@/lib/admin";
+import { BookCover } from "@/components/book/BookCover";
 import { AddBook } from "@/components/upload/AddBook";
 import {
   BookAdmin,
@@ -18,61 +21,148 @@ export default async function UploadPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!isAdmin(user?.email)) notFound();
+  if (!user) redirect("/sign-in?redirect=/upload");
 
-  const [books, chapters, levels] = await Promise.all([
-    db
-      .select({
-        id: schema.books.id,
-        slug: schema.books.slug,
-        titleAr: schema.books.titleAr,
-        titleEn: schema.books.titleEn,
-        level: schema.books.level,
-        genre: schema.books.genre,
-        hasFullText: schema.books.hasFullText,
-        chapterCount: count(schema.bookChapters.id),
-      })
-      .from(schema.books)
-      .leftJoin(schema.bookChapters, eq(schema.bookChapters.bookId, schema.books.id))
-      .groupBy(schema.books.id)
-      .orderBy(asc(schema.books.level), asc(schema.books.orderInLevel)),
-    db
-      .select({
-        id: schema.bookChapters.id,
-        bookId: schema.bookChapters.bookId,
-        chapterNumber: schema.bookChapters.chapterNumber,
-        titleAr: schema.bookChapters.titleAr,
-        titleEn: schema.bookChapters.titleEn,
-      })
-      .from(schema.bookChapters),
-    db
-      .select({ level: schema.levels.level, nameEn: schema.levels.nameEn })
-      .from(schema.levels)
-      .orderBy(asc(schema.levels.level)),
-  ]);
+  const admin = isAdmin(user.email);
+  const [profile] = await db
+    .select({ lvl: schema.profiles.currentLevel })
+    .from(schema.profiles)
+    .where(eq(schema.profiles.id, user.id))
+    .limit(1);
+  const currentLevel = profile?.lvl ?? 1;
+
+  // Earned gate: uploading your own books unlocks after Stage 1.
+  if (!uploadUnlocked(user.email, currentLevel)) {
+    return (
+      <main className="mx-auto max-w-xl px-4 pb-24 pt-16 text-center">
+        <div className="rounded-3xl bg-surface p-10 shadow-card ring-1 ring-border">
+          <span className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-bg-muted text-fg-muted">
+            <Lock className="h-7 w-7" />
+          </span>
+          <h1 className="mt-4 text-2xl font-extrabold">Uploading unlocks at Stage 2</h1>
+          <p className="mt-2 text-fg-muted">
+            Finish the Stage 1 books on your path, then you can add your own EPUBs to a private
+            shelf only you can read.
+          </p>
+          <Link
+            href="/path"
+            className="mt-5 inline-flex rounded-xl bg-brand px-5 py-3 font-bold text-brand-fg transition hover:bg-brand-dark"
+          >
+            Back to reading
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
+  const levels = await db
+    .select({ level: schema.levels.level, nameEn: schema.levels.nameEn })
+    .from(schema.levels)
+    .orderBy(asc(schema.levels.level));
+
+  // Admins manage the whole curated catalogue; everyone else manages only their own uploads.
+  const bookRows = await db
+    .select({
+      id: schema.books.id,
+      slug: schema.books.slug,
+      titleAr: schema.books.titleAr,
+      titleEn: schema.books.titleEn,
+      level: schema.books.level,
+      genre: schema.books.genre,
+      authorAr: schema.books.authorAr,
+      authorEn: schema.books.authorEn,
+      ownerId: schema.books.ownerId,
+      hasFullText: schema.books.hasFullText,
+      chapterCount: count(schema.bookChapters.id),
+    })
+    .from(schema.books)
+    .leftJoin(schema.bookChapters, eq(schema.bookChapters.bookId, schema.books.id))
+    .groupBy(schema.books.id)
+    .orderBy(asc(schema.books.level), asc(schema.books.orderInLevel));
+
+  const myBooks = admin ? bookRows : bookRows.filter((b) => b.ownerId === user.id);
 
   return (
     <main className="mx-auto max-w-3xl space-y-8 px-4 pb-24 pt-8">
       <header>
-        <h1 className="text-3xl font-extrabold tracking-tight">Your library</h1>
+        <h1 className="text-3xl font-extrabold tracking-tight">
+          {admin ? "Your library" : "Add your own books"}
+        </h1>
         <p className="mt-1 text-fg-muted">
-          Drop an EPUB to add a readable book — title, author and chapters are pulled in
-          automatically. Everything you add appears on the reading path.
+          Drop an EPUB — title, author and real chapters are pulled in automatically, and one tap
+          of AI fills the level and tidies titles.{" "}
+          {admin
+            ? "Books you add join the public catalogue."
+            : "Your uploads are private — only you can read them."}
         </p>
       </header>
 
       <AddBook levels={levels} />
 
-      {books.length > 0 && (
-        <section className="space-y-4">
-          <h2 className="text-lg font-bold">Books in your library</h2>
-          <BookAdmin
-            books={books as AdminBook[]}
-            chapters={chapters as AdminChapter[]}
-            levels={levels as LevelOption[]}
-          />
-        </section>
-      )}
+      {myBooks.length > 0 &&
+        (admin ? (
+          <section className="space-y-4">
+            <h2 className="text-lg font-bold">Books in the catalogue</h2>
+            <ChaptersList bookIds={myBooks.map((b) => b.id)} levels={levels} adminBooks={myBooks} />
+          </section>
+        ) : (
+          <section className="space-y-4">
+            <h2 className="text-lg font-bold">Your uploads</h2>
+            <div className="grid grid-cols-3 gap-x-4 gap-y-6 sm:grid-cols-4">
+              {myBooks.map((b) => (
+                <Link key={b.id} href={`/book/${b.slug}`} className="group">
+                  <BookCover
+                    titleAr={b.titleAr}
+                    authorAr={b.authorAr}
+                    authorEn={b.authorEn}
+                    genre={b.genre}
+                    size="md"
+                    className="w-full transition group-hover:-translate-y-1 group-hover:shadow-lift"
+                  />
+                  <p className="mt-2 line-clamp-2 text-center text-xs font-semibold">{b.titleEn}</p>
+                </Link>
+              ))}
+            </div>
+          </section>
+        ))}
     </main>
+  );
+}
+
+async function ChaptersList({
+  bookIds,
+  levels,
+  adminBooks,
+}: {
+  bookIds: string[];
+  levels: LevelOption[];
+  adminBooks: {
+    id: string;
+    slug: string;
+    titleAr: string;
+    titleEn: string;
+    level: number;
+    genre: string;
+    hasFullText: boolean;
+    chapterCount: number;
+  }[];
+}) {
+  const chapters = bookIds.length
+    ? await db
+        .select({
+          id: schema.bookChapters.id,
+          bookId: schema.bookChapters.bookId,
+          chapterNumber: schema.bookChapters.chapterNumber,
+          titleAr: schema.bookChapters.titleAr,
+          titleEn: schema.bookChapters.titleEn,
+        })
+        .from(schema.bookChapters)
+    : [];
+  return (
+    <BookAdmin
+      books={adminBooks as AdminBook[]}
+      chapters={chapters as AdminChapter[]}
+      levels={levels}
+    />
   );
 }

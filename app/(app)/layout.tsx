@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { db, schema } from "@/lib/db";
 import { count, eq } from "drizzle-orm";
-import { isAdmin } from "@/lib/admin";
+import { uploadUnlocked } from "@/lib/admin";
 import {
   Flame,
   BookOpen,
@@ -24,6 +24,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   let streakDays = 0;
   let wordsSaved = 0;
   let fontScale = 1.0;
+  let currentLevel = 1;
   let displayName: string | null = null;
 
   if (user) {
@@ -31,6 +32,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       db
         .select({
           fontScale: schema.profiles.fontScale,
+          currentLevel: schema.profiles.currentLevel,
           displayName: schema.profiles.displayName,
         })
         .from(schema.profiles)
@@ -48,6 +50,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     ]);
     if (profileRows[0]) {
       fontScale = Number(profileRows[0].fontScale);
+      currentLevel = profileRows[0].currentLevel;
       displayName = profileRows[0].displayName;
     } else {
       // First visit after password/OTP signup — provision the profile rows.
@@ -63,7 +66,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   const avatarLetter = (displayName?.[0] ?? user?.email?.[0] ?? "?").toUpperCase();
-  const admin = isAdmin(user?.email);
+  const canUpload = !!user && uploadUnlocked(user.email, currentLevel);
 
   return (
     <div className="min-h-screen" style={{ fontSize: `${fontScale}rem` }}>
@@ -100,7 +103,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <NavLink href="/review" icon={<Repeat className="h-4 w-4" />}>
               Review
             </NavLink>
-            {admin && (
+            {canUpload && (
               <NavLink href="/upload" icon={<BookUp className="h-4 w-4" />}>
                 Upload
               </NavLink>

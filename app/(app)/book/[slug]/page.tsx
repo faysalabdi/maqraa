@@ -39,6 +39,9 @@ export default async function BookPage({ params }: { params: Promise<{ slug: str
     data: { user },
   } = await supabase.auth.getUser();
 
+  // Private uploads are visible only to their owner.
+  if (book.ownerId && book.ownerId !== user?.id) notFound();
+
   const userBook = user ? await getUserBook(user.id, book.id) : null;
 
   const chapters = book.hasFullText

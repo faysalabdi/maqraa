@@ -30,6 +30,7 @@ type Card = {
   level: number;
   orderInLevel: number;
   status: BookStatus;
+  mine: boolean;
 };
 
 export default async function ReadPage() {
@@ -83,7 +84,8 @@ export default async function ReadPage() {
       nameAr: lv.nameAr,
       locked: lv.level > userLevel,
       books: allBooks
-        .filter((b) => b.level === lv.level)
+        // Curated books (no owner) are public; private uploads only show to their owner.
+        .filter((b) => b.level === lv.level && (!b.ownerId || b.ownerId === user?.id))
         .map<Card>((b) => ({
           id: b.id,
           slug: b.slug,
@@ -94,6 +96,7 @@ export default async function ReadPage() {
           genre: b.genre,
           level: b.level,
           orderInLevel: b.orderInLevel,
+          mine: !!b.ownerId,
           status: userBookMap.has(b.id)
             ? (userBookMap.get(b.id) as BookStatus)
             : b.level <= userLevel
@@ -301,6 +304,11 @@ function BookTile({ book }: { book: Card }) {
         {inProgress && (
           <span className="absolute bottom-1.5 left-1.5 rounded-full bg-accent px-2 py-0.5 text-[10px] font-bold text-accent-fg shadow-soft">
             Reading
+          </span>
+        )}
+        {book.mine && (
+          <span className="absolute left-1.5 top-1.5 rounded-full bg-iris px-2 py-0.5 text-[10px] font-bold text-iris-fg shadow-soft">
+            Yours
           </span>
         )}
       </div>
