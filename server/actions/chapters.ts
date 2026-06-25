@@ -1,10 +1,12 @@
 "use server";
 
-import { eq, and, ne, count } from "drizzle-orm";
+import { eq, and, count } from "drizzle-orm";
 import { createClient } from "@/lib/supabase/server";
 import { db, schema } from "@/lib/db";
 import { getOrGenerateChapterQuiz, type ChapterQuiz } from "@/lib/ai/chapter-quiz";
 import { grantXp, recordActivity } from "@/lib/xp/grant";
+import { bookCompletionXp } from "@/lib/xp/rewards";
+import { checkAndGrantAchievements } from "@/lib/achievements/check";
 
 async function requireUser() {
   const supabase = await createClient();
@@ -160,18 +162,37 @@ export async function markChapterRead(chapterId: string): Promise<void> {
     );
 
   if (Number(done) >= Number(total)) {
-    // All chapters read — make the book ready for its whole-book test, unless
-    // it's already been passed.
-    await db
+    // Every chapter read — the book is complete. No test required; the whole-book
+    // comprehension test stays available but optional.
+    const updated = await db
       .update(schema.userBooks)
-      .set({ status: "reading_done", updatedAt: new Date() })
-      .where(
-        and(
-          eq(schema.userBooks.userId, user.id),
-          eq(schema.userBooks.bookId, bookId),
-          ne(schema.userBooks.status, "completed"),
-        ),
-      );
+      .set({ status: "completed", completedAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(schema.userBooks.userId, user.id), eq(schema.userBooks.bookId, bookId)))
+      .returning({ bookId: schema.userBooks.bookId });
+    if (updated.length === 0) {
+      await db
+        .insert(schema.userBooks)
+        .values({ userId: user.id, bookId, status: "completed", startedAt: new Date(), completedAt: new Date() })
+        .onConflictDoNothing();
+    }
+
+    // Completion XP, scaled by length and idempotent per book, then achievements.
+    const [bk] = await db
+      .select({ pages: schema.books.recommendedPages })
+      .from(schema.books)
+      .where(eq(schema.books.id, bookId))
+      .limit(1);
+    const xp = bookCompletionXp((bk?.pages ?? 100) * 250);
+    if (xp > 0) {
+      await grantXp({
+        userId: user.id,
+        delta: xp,
+        reason: "book_completed",
+        ref: { bookId },
+        refHash: `book_completed:${bookId}`,
+      });
+    }
+    await checkAndGrantAchievements(user.id);
   } else {
     await db
       .insert(schema.userBooks)
