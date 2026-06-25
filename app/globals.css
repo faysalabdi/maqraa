@@ -1,48 +1,145 @@
 @import "tailwindcss";
 
+/* Dark mode = a `.dark` class on <html>. Wire it with next-themes (see README). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ----------------------------------------------------------------------------
+   Token map. Keeps your EXISTING color names (bg, surface, fg, brand, accent…)
+   so every component that already uses bg-surface / text-fg-muted / shadow-card
+   keeps working untouched. Only the VALUES change, and they now switch on .dark.
+---------------------------------------------------------------------------- */
 @theme {
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-hanken), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-spectral), ui-serif, Georgia, serif;
   --font-arabic: var(--font-naskh), var(--font-amiri), "Noto Naskh Arabic", "Amiri", serif;
 
-  /* Neutrals — warm paper, cool ink. */
-  --color-bg: oklch(0.985 0.006 95);
-  --color-bg-muted: oklch(0.955 0.008 95);
-  --color-surface: oklch(1 0 0);
-  --color-fg: oklch(0.23 0.028 260);
-  --color-fg-muted: oklch(0.54 0.03 260);
-  --color-border: oklch(0.915 0.008 95);
+  --color-bg: var(--c-bg);
+  --color-bg-muted: var(--c-bg-muted);
+  --color-surface: var(--c-surface);
+  --color-fg: var(--c-fg);
+  --color-fg-muted: var(--c-fg-muted);
+  --color-border: var(--c-border);
 
-  /* Brand — jewel emerald (reading / growth). */
-  --color-brand: oklch(0.62 0.16 158);
-  --color-brand-dark: oklch(0.5 0.15 158);
-  --color-brand-fg: oklch(0.99 0.01 158);
+  --color-brand: var(--c-brand);
+  --color-brand-dark: var(--c-brand-dark);
+  --color-brand-fg: var(--c-brand-fg);
 
-  /* Accent — warm gold (highlights, CTA glow). */
-  --color-accent: oklch(0.8 0.14 78);
-  --color-accent-fg: oklch(0.3 0.06 78);
+  --color-accent: var(--c-accent);
+  --color-accent-soft: var(--c-accent-soft);
+  --color-accent-fg: var(--c-accent-fg);
 
-  /* Secondary — calm indigo, for variety in stats. */
-  --color-iris: oklch(0.62 0.16 280);
-  --color-iris-fg: oklch(0.98 0.01 280);
+  --color-iris: var(--c-iris);
+  --color-iris-fg: var(--c-iris-fg);
+  --color-locked: var(--c-locked);
+  --color-danger: var(--c-danger);
+  --color-success: var(--c-brand);
+  --color-warn: var(--c-accent);
+  --color-flame: var(--c-flame);
 
-  --color-locked: oklch(0.72 0.012 260);
-  --color-danger: oklch(0.62 0.22 25);
-  --color-success: oklch(0.62 0.16 158);
-  --color-warn: oklch(0.8 0.14 78);
-  --color-flame: oklch(0.68 0.2 38);
-
-  --shadow-soft: 0 1px 2px oklch(0.23 0.028 260 / 0.04), 0 8px 20px -8px oklch(0.23 0.028 260 / 0.1);
-  --shadow-lift: 0 2px 6px oklch(0.23 0.028 260 / 0.06), 0 20px 40px -16px oklch(0.23 0.028 260 / 0.2);
-  --shadow-card: 0 1px 3px oklch(0.23 0.028 260 / 0.06), 0 12px 28px -14px oklch(0.23 0.028 260 / 0.16);
-  --shadow-glow-brand: 0 0 0 4px oklch(0.62 0.16 158 / 0.14), 0 10px 28px -8px oklch(0.62 0.16 158 / 0.45);
-  --shadow-glow-amber: 0 0 0 4px oklch(0.8 0.14 78 / 0.2), 0 10px 28px -8px oklch(0.8 0.14 78 / 0.5);
-  --shadow-glow-danger: 0 0 0 4px oklch(0.62 0.22 25 / 0.14), 0 10px 28px -8px oklch(0.62 0.22 25 / 0.4);
+  --shadow-soft: var(--shadow-soft-v);
+  --shadow-lift: var(--shadow-lift-v);
+  --shadow-card: var(--shadow-card-v);
+  --shadow-glow-brand: var(--shadow-glow-brand-v);
+  --shadow-glow-amber: var(--shadow-glow-amber-v);
+  --shadow-glow-danger: var(--shadow-glow-danger-v);
 }
 
+/* ------------------------------- LIGHT (default) -------------------------- */
+:root {
+  color-scheme: light;
+  --c-bg: #faf8f3;
+  --c-bg-muted: #f1ece2;
+  --c-surface: #ffffff;
+  --c-fg: #1f2630;
+  --c-fg-muted: #5d6672;
+  --c-border: #e9e3d6;
+
+  --c-brand: #0f9663;
+  --c-brand-dark: #0c7a51;
+  --c-brand-fg: #ffffff;
+
+  --c-accent: #e3a72f;
+  --c-accent-soft: #f6e7c4;
+  --c-accent-fg: #5a3f12;
+
+  --c-iris: #5b6cf0;
+  --c-iris-fg: #ffffff;
+  --c-locked: #b6b1a6;
+  --c-danger: #e0533d;
+  --c-flame: #f0762e;
+
+  /* reader page tints (set --read-page/--read-ink per Paper/Sepia/Mint) */
+  --read-page: #ffffff;
+  --read-ink: var(--c-fg);
+
+  --shadow-soft-v: 0 1px 2px rgba(20,24,30,.05), 0 8px 20px -10px rgba(20,24,30,.16);
+  --shadow-card-v: 0 1px 2px rgba(20,24,30,.04), 0 14px 34px -20px rgba(20,24,30,.22);
+  --shadow-lift-v: 0 2px 8px rgba(20,24,30,.06), 0 26px 50px -22px rgba(20,24,30,.26);
+  --shadow-glow-brand-v: 0 0 0 4px color-mix(in oklab, var(--c-brand) 14%, transparent), 0 12px 30px -8px color-mix(in oklab, var(--c-brand) 45%, transparent);
+  --shadow-glow-amber-v: 0 0 0 4px color-mix(in oklab, var(--c-accent) 20%, transparent), 0 12px 30px -8px color-mix(in oklab, var(--c-accent) 50%, transparent);
+  --shadow-glow-danger-v: 0 0 0 4px color-mix(in oklab, var(--c-danger) 16%, transparent), 0 12px 30px -8px color-mix(in oklab, var(--c-danger) 42%, transparent);
+}
+
+/* ------------------------------- DARK ------------------------------------ */
+.dark {
+  color-scheme: dark;
+  --c-bg: #0e1311;
+  --c-bg-muted: #1d2620;
+  --c-surface: #161d19;
+  --c-fg: #f1efe6;
+  --c-fg-muted: #9aa69c;
+  --c-border: #283330;
+
+  --c-brand: #27b07b;
+  --c-brand-dark: #1d9568;
+  --c-brand-fg: #04130c;
+
+  --c-accent: #e8b94f;
+  --c-accent-soft: #2a2417;
+  --c-accent-fg: #f1d488;
+
+  --c-iris: #7c87f5;
+  --c-iris-fg: #0a0a18;
+  --c-locked: #5a6760;
+  --c-danger: #ef6a55;
+  --c-flame: #f6894a;
+
+  --read-page: #11100e;
+  --read-ink: #ece8df;
+
+  --shadow-soft-v: 0 1px 2px rgba(0,0,0,.4), 0 8px 20px -10px rgba(0,0,0,.5);
+  --shadow-card-v: 0 1px 2px rgba(0,0,0,.4), 0 16px 36px -22px rgba(0,0,0,.55);
+  --shadow-lift-v: 0 2px 10px rgba(0,0,0,.4), 0 30px 60px -24px rgba(0,0,0,.6);
+}
+
+/* --------------------------- OPTIONAL ALT PALETTES ------------------------
+   The prototype ships three palettes. Emerald is the default above. To offer
+   the others, set data-palette="saffron" | "midnight" on <html>. Each needs a
+   light + (.dark) block. Drop these in only if you want the palette switcher.
+-------------------------------------------------------------------------- */
+[data-palette="saffron"] {
+  --c-bg:#f7f3ea; --c-bg-muted:#efe7d8; --c-surface:#fffdf8; --c-fg:#211c16; --c-fg-muted:#6c6354; --c-border:#e6dcc8;
+  --c-brand:#bd7d18; --c-brand-dark:#9c6510; --c-brand-fg:#fffaf0;
+  --c-accent:#1f8a7a; --c-accent-soft:#d7ece7; --c-accent-fg:#0c4a41; --c-iris:#8a5a2a; --c-danger:#cc5530; --c-flame:#d9772a;
+}
+[data-palette="saffron"].dark {
+  --c-bg:#14110b; --c-bg-muted:#252017; --c-surface:#1d1811; --c-fg:#f3ecdd; --c-fg-muted:#a89c86; --c-border:#322a1d;
+  --c-brand:#e0a341; --c-brand-dark:#c5882a; --c-brand-fg:#1a1206;
+  --c-accent:#36b6a1; --c-accent-soft:#16241f; --c-accent-fg:#7fe0cf; --c-iris:#cda86a; --c-danger:#e9714a; --c-flame:#ee8a44;
+}
+[data-palette="midnight"] {
+  --c-bg:#f5f6fb; --c-bg-muted:#eceef6; --c-surface:#ffffff; --c-fg:#161a26; --c-fg-muted:#5b6172; --c-border:#e4e7f1;
+  --c-brand:#4f46e5; --c-brand-dark:#3f38c4; --c-brand-fg:#ffffff;
+  --c-accent:#f59e0b; --c-accent-soft:#fdeccc; --c-accent-fg:#7a4d05; --c-iris:#0ea5a0; --c-danger:#e4493f; --c-flame:#f97316;
+}
+[data-palette="midnight"].dark {
+  --c-bg:#0a0c14; --c-bg-muted:#1a1e2b; --c-surface:#12151f; --c-fg:#eef0f8; --c-fg-muted:#969cb2; --c-border:#252a3a;
+  --c-brand:#7c75ff; --c-brand-dark:#635bf0; --c-brand-fg:#0a0a18;
+  --c-accent:#fbbf24; --c-accent-soft:#241f10; --c-accent-fg:#fcd97a; --c-iris:#2dd4cf; --c-danger:#f06a60; --c-flame:#fb8b3c;
+}
+
+/* ------------------------------- BASE ------------------------------------ */
 @layer base {
-  :root {
-    color-scheme: light;
-  }
   html {
     background: var(--color-bg);
     color: var(--color-fg);
@@ -51,55 +148,26 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+    /* subtle brand/accent wash — calm, not a loud gradient */
     background-image:
-      radial-gradient(at 0% 0%, oklch(0.62 0.16 158 / 0.06) 0px, transparent 55%),
-      radial-gradient(at 100% 0%, oklch(0.8 0.14 78 / 0.07) 0px, transparent 50%),
-      radial-gradient(at 50% 100%, oklch(0.62 0.16 280 / 0.04) 0px, transparent 60%);
+      radial-gradient(at 0% 0%, color-mix(in oklab, var(--color-brand) 8%, transparent) 0, transparent 42%),
+      radial-gradient(at 100% 0%, color-mix(in oklab, var(--color-accent) 9%, transparent) 0, transparent 40%);
     background-attachment: fixed;
     min-height: 100vh;
   }
-  .font-arabic {
-    font-family: var(--font-arabic);
-    line-height: 1.95;
-  }
-  [dir="rtl"] {
-    text-align: right;
-  }
-  ::selection {
-    background: oklch(0.8 0.14 78 / 0.4);
-  }
+  .font-arabic { font-family: var(--font-arabic); line-height: 1.95; }
+  [dir="rtl"] { text-align: right; }
+  ::selection { background: color-mix(in oklab, var(--color-accent) 38%, transparent); }
 }
 
 @layer utilities {
-  .shadow-soft {
-    box-shadow: var(--shadow-soft);
-  }
-  .shadow-lift {
-    box-shadow: var(--shadow-lift);
-  }
-  .shadow-card {
-    box-shadow: var(--shadow-card);
-  }
-  .shadow-glow-brand {
-    box-shadow: var(--shadow-glow-brand);
-  }
-  .shadow-glow-amber {
-    box-shadow: var(--shadow-glow-amber);
-  }
-  .shadow-glow-danger {
-    box-shadow: var(--shadow-glow-danger);
-  }
-  @keyframes rise {
-    from {
-      opacity: 0;
-      transform: translateY(10px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-  .animate-rise {
-    animation: rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
-  }
+  .font-serif { font-family: var(--font-serif); }
+  .shadow-soft { box-shadow: var(--shadow-soft); }
+  .shadow-lift { box-shadow: var(--shadow-lift); }
+  .shadow-card { box-shadow: var(--shadow-card); }
+  .shadow-glow-brand { box-shadow: var(--shadow-glow-brand); }
+  .shadow-glow-amber { box-shadow: var(--shadow-glow-amber); }
+  .shadow-glow-danger { box-shadow: var(--shadow-glow-danger); }
+  @keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  .animate-rise { animation: rise .4s cubic-bezier(.22,1,.36,1) both; }
 }

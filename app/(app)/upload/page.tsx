@@ -34,7 +34,7 @@ export default async function UploadPage() {
           <span className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-bg-muted text-fg-muted">
             <Lock className="h-7 w-7" />
           </span>
-          <h1 className="mt-4 text-2xl font-extrabold">
+          <h1 className="mt-4 font-serif text-2xl font-semibold tracking-tight">
             Uploading unlocks after {UPLOAD_MIN_BOOKS} books
           </h1>
           <p className="mt-2 text-fg-muted">
@@ -82,15 +82,11 @@ export default async function UploadPage() {
   return (
     <main className="mx-auto max-w-3xl space-y-8 px-4 pb-24 pt-8">
       <header>
-        <h1 className="text-3xl font-extrabold tracking-tight">
-          {admin ? "Your library" : "Add your own books"}
-        </h1>
+        <h1 className="font-serif text-3xl font-semibold tracking-tight">Add a book</h1>
         <p className="mt-1 text-fg-muted">
-          Drop an EPUB — title, author and real chapters are pulled in automatically, and one tap
-          of AI fills the level and tidies titles.{" "}
-          {admin
-            ? "Books you add join the public catalogue."
-            : "Your uploads are private — only you can read them."}
+          Drop an EPUB — it&apos;s parsed in your browser, then AI fills the difficulty, genre, blurb
+          and chapters. The whole book never leaves your device.{" "}
+          {admin ? "Books you add join the public catalogue." : "Your uploads are private to you."}
         </p>
       </header>
 

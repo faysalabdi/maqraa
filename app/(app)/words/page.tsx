@@ -30,7 +30,7 @@ export default async function WordsPage() {
   return (
     <main className="mx-auto max-w-2xl px-4 pb-24 pt-8">
       <div className="mb-8 text-center">
-        <h1 className="text-3xl font-extrabold">My words</h1>
+        <h1 className="font-serif text-3xl font-semibold tracking-tight">My words</h1>
         <p className="mt-1 text-fg-muted">
           {words.length} {words.length === 1 ? "word" : "words"} collected. Every word you tap
           while reading lives here, grouped by how well you know it.
@@ -85,16 +85,26 @@ export default async function WordsPage() {
                 {items.map((w) => (
                   <div
                     key={w.id}
-                    title={w.glossEn}
-                    className="flex items-center justify-between gap-3 rounded-2xl bg-surface px-4 py-3 ring-1 ring-border"
+                    className="flex items-center gap-3 rounded-2xl bg-surface px-4 py-3 shadow-card ring-1 ring-border sm:gap-4"
                   >
-                    <p className="font-arabic text-2xl font-bold" dir="rtl">
+                    <p className="font-arabic shrink-0 text-2xl font-bold" dir="rtl">
                       {w.lemmaAr}
                     </p>
-                    <div className="shrink-0 text-right text-xs text-fg-muted">
-                      <p>{w.repetitions} reviews</p>
-                      {w.intervalDays > 0 && <p>every {w.intervalDays}d</p>}
-                    </div>
+                    <p className="shrink-0 text-sm font-semibold">{w.glossEn}</p>
+                    {w.exampleAr && (
+                      <p className="font-arabic ml-auto hidden max-w-[40%] truncate text-sm text-fg-muted sm:block" dir="rtl">
+                        {w.exampleAr}
+                      </p>
+                    )}
+                    <span
+                      className={cn(
+                        "shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-bold ring-1",
+                        !w.exampleAr && "ml-auto",
+                        STRENGTH_META[s].color,
+                      )}
+                    >
+                      {STRENGTH_META[s].labelEn}
+                    </span>
                   </div>
                 ))}
               </div>

@@ -1,76 +1,117 @@
 import Link from "next/link";
-import { ArrowRight, Sparkles, BookOpen, Brain, Flame } from "lucide-react";
+import { ArrowRight, BookmarkPlus, Sparkles, BookOpen, Brain } from "lucide-react";
+import { LogoMark } from "@/components/brand/Logo";
+import { BookCover } from "@/components/book/BookCover";
+
+const SHELF = [
+  { titleAr: "رحلة سامر", genre: "graded_reader", authorAr: null, band: "A1" },
+  { titleAr: "الأربعون النووية", genre: "islamic", authorAr: "النووي", band: "B1" },
+  { titleAr: "كليلة ودمنة", genre: "classical", authorAr: "ابن المقفع", band: "B2" },
+  { titleAr: "الأربعون القدسية", genre: "islamic", authorAr: "النووي", band: "B1" },
+];
 
 export default function Home() {
   return (
-    <main className="mx-auto flex min-h-screen max-w-5xl flex-col items-center justify-center gap-16 px-6 py-20">
+    <main className="mx-auto flex min-h-screen max-w-5xl flex-col items-center gap-20 px-6 py-16 text-center sm:py-24">
       {/* Hero */}
-      <section className="max-w-3xl space-y-5 text-center">
-        <p className="font-arabic text-5xl text-brand sm:text-7xl" dir="rtl">
-          اِقْرَأْ
-        </p>
-        <h1 className="text-balance text-4xl font-extrabold tracking-tight sm:text-6xl">
-          Read real Arabic books. <span className="text-brand">Tap any word.</span>
+      <section className="animate-rise flex max-w-2xl flex-col items-center gap-5">
+        <span className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-4 py-1.5 text-sm font-medium text-fg-muted shadow-soft">
+          <span className="h-1.5 w-1.5 rounded-full bg-brand" />
+          Read real Arabic books — not flashcards
+        </span>
+        <LogoMark className="h-16 w-16" />
+        <h1 className="font-serif text-balance text-5xl font-semibold leading-[1.02] tracking-tight sm:text-6xl">
+          Finish your first Arabic book.
         </h1>
-        <p className="mx-auto max-w-2xl text-balance text-lg text-fg-muted sm:text-xl">
-          Start on short graded readers, tap any word for an instant translation, and grow a
-          vocabulary that sticks with spaced repetition. When you&apos;re ready, bring your own
-          books.
+        <p className="mx-auto max-w-xl text-balance text-lg text-fg-muted">
+          Tap any word for an instant meaning in context, save it to a smart review deck, and keep
+          reading. No level ladder — just books finished and words mastered.
         </p>
-        <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
+        <div className="mt-1 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <Link
             href="/sign-in"
-            className="inline-flex items-center gap-2 rounded-2xl bg-brand px-7 py-4 text-base font-extrabold text-brand-fg shadow-glow-brand transition hover:bg-brand-dark"
+            className="inline-flex items-center gap-2 rounded-2xl bg-brand px-7 py-3.5 text-base font-bold text-brand-fg shadow-glow-brand transition hover:bg-brand-dark"
           >
-            Start reading <ArrowRight className="h-4 w-4" />
+            Start reading — free <ArrowRight className="h-4 w-4" />
           </Link>
           <Link
             href="/preview"
-            className="inline-flex items-center gap-2 rounded-2xl border border-border bg-white px-7 py-4 text-base font-semibold text-fg shadow-soft transition hover:bg-bg-muted"
+            className="inline-flex items-center gap-2 rounded-2xl border border-border bg-surface px-7 py-3.5 text-base font-semibold text-fg shadow-soft transition hover:shadow-lift"
           >
-            See how it works
+            See tap-to-translate <ArrowRight className="h-4 w-4 -rotate-45" />
           </Link>
         </div>
       </section>
 
-      {/* Feature cards */}
+      {/* Tap-to-translate demo */}
+      <section className="animate-rise w-full max-w-md">
+        <p className="mb-3 text-xs font-bold uppercase tracking-[0.14em] text-fg-muted">
+          Tap any word
+        </p>
+        <div className="rounded-3xl bg-surface p-6 shadow-card ring-1 ring-border">
+          <p className="font-arabic text-2xl leading-loose" dir="rtl">
+            هَذَا الدَّوَاءُ{" "}
+            <span className="rounded bg-accent-soft px-1 underline decoration-dotted decoration-accent underline-offset-[6px]">
+              يَنْفَعُ
+            </span>{" "}
+            الْمَرِيضَ.
+          </p>
+          <div className="mt-4 flex items-center gap-3 rounded-2xl bg-bg-muted p-3 text-left">
+            <span className="font-arabic text-2xl font-bold" dir="rtl">
+              نَفَعَ
+            </span>
+            <span className="text-sm">
+              <span className="font-semibold">to benefit</span>
+              <span className="block text-xs text-fg-muted">verb · tap to save</span>
+            </span>
+            <span className="ml-auto grid h-9 w-9 place-items-center rounded-full bg-brand text-brand-fg">
+              <BookmarkPlus className="h-4 w-4" />
+            </span>
+          </div>
+        </div>
+      </section>
+
+      {/* Features */}
       <section className="grid w-full max-w-4xl gap-4 sm:grid-cols-3">
         <FeatureCard
           icon={<Sparkles className="h-6 w-6" />}
-          tone="emerald"
+          tone="brand"
           title="Tap to translate"
-          body="Tap any Arabic word for its dictionary form and meaning in context, then save it to your deck. Read page by page, no dictionary juggling."
+          body="Lemma + meaning in context, then save it to your deck. Read page by page, no dictionary juggling."
         />
         <FeatureCard
           icon={<BookOpen className="h-6 w-6" />}
-          tone="amber"
+          tone="accent"
           title="Bring your own books"
-          body="Begin on a curated graded shelf. Once you've finished a couple, upload any EPUB — real chapters and difficulty are detected automatically."
+          body="Begin on a curated graded shelf, then upload any EPUB — chapters and difficulty detected automatically."
         />
         <FeatureCard
           icon={<Brain className="h-6 w-6" />}
-          tone="sky"
+          tone="iris"
           title="Spaced repetition"
-          body="Every word you save enters an SM-2 review queue. A few minutes a day turns words you didn't know into words you do."
+          body="Every saved word enters an SM-2 queue. A few minutes a day turns words you didn't know into words you do."
         />
       </section>
 
-      {/* Streak / addictive hook */}
-      <section className="w-full max-w-3xl rounded-3xl bg-gradient-to-br from-orange-100 via-amber-50 to-white p-8 text-center shadow-lift ring-1 ring-orange-200">
-        <span className="inline-flex items-center gap-2 rounded-full bg-white/80 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-orange-700 ring-1 ring-orange-200">
-          <Flame className="h-3.5 w-3.5" /> Streak · words learned · books finished
-        </span>
-        <h2 className="mt-4 text-3xl font-extrabold">Showing up is the win.</h2>
-        <p className="mx-auto mt-2 max-w-xl text-fg-muted">
-          One unknown word shouldn&apos;t derail reading. Build a streak, watch your saved words
-          climb, and finish real books — progress you can actually see, no fake levels.
+      {/* Curated shelf */}
+      <section className="w-full max-w-3xl">
+        <p className="mb-4 text-xs font-bold uppercase tracking-[0.14em] text-fg-muted">
+          Start your shelf
         </p>
+        <div className="flex justify-center gap-4 overflow-x-auto pb-2">
+          {SHELF.map((b) => (
+            <BookCover
+              key={b.titleAr}
+              titleAr={b.titleAr}
+              authorAr={b.authorAr}
+              genre={b.genre}
+              band={b.band}
+              size="md"
+              className="w-24 shrink-0 sm:w-28"
+            />
+          ))}
+        </div>
       </section>
-
-      {/* Book strip */}
-      <p className="font-arabic max-w-2xl text-balance text-center text-base text-fg-muted" dir="rtl">
-        رحلة سامر · الأربعون النووية · الأربعون القدسية · كليلة ودمنة
-      </p>
     </main>
   );
 }
@@ -82,28 +123,18 @@ function FeatureCard({
   body,
 }: {
   icon: React.ReactNode;
-  tone: "emerald" | "amber" | "sky";
+  tone: "brand" | "accent" | "iris";
   title: string;
   body: string;
 }) {
-  const bg =
-    tone === "emerald"
-      ? "from-emerald-50 to-white ring-emerald-200"
-      : tone === "amber"
-        ? "from-amber-50 to-white ring-amber-200"
-        : "from-sky-50 to-white ring-sky-200";
   const iconBg =
-    tone === "emerald"
-      ? "bg-emerald-500"
-      : tone === "amber"
-        ? "bg-amber-500"
-        : "bg-sky-500";
+    tone === "brand" ? "bg-brand text-brand-fg" : tone === "accent" ? "bg-accent text-accent-fg" : "bg-iris text-iris-fg";
   return (
-    <div className={`rounded-2xl bg-gradient-to-br p-6 shadow-soft ring-1 ${bg}`}>
-      <span className={`mb-4 inline-grid h-12 w-12 place-items-center rounded-xl text-white shadow-soft ${iconBg}`}>
+    <div className="rounded-3xl bg-surface p-6 text-left shadow-card ring-1 ring-border transition hover:shadow-lift">
+      <span className={`mb-4 inline-grid h-12 w-12 place-items-center rounded-2xl shadow-soft ${iconBg}`}>
         {icon}
       </span>
-      <h3 className="text-lg font-extrabold">{title}</h3>
+      <h3 className="font-serif text-lg font-semibold">{title}</h3>
       <p className="mt-1 text-sm leading-relaxed text-fg-muted">{body}</p>
     </div>
   );
