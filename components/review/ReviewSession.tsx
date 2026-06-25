@@ -2,9 +2,9 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
+import { motion } from "framer-motion";
 import {
   Sparkles,
-  Eye,
   X,
   CheckCircle2,
   Star,
@@ -85,45 +85,52 @@ export default function ReviewSession({ initialDeck }: { initialDeck: ReviewCard
         />
       </div>
 
-      {/* Card */}
-      <div className="relative rounded-3xl bg-white p-10 text-center shadow-lift ring-1 ring-border">
-        <span className="absolute right-5 top-5 inline-flex items-center gap-1 rounded-full bg-bg-muted px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-fg-muted ring-1 ring-border">
-          {current.intervalDays === 0
-            ? "new"
-            : current.intervalDays >= 21
-              ? "mature"
-              : `${current.intervalDays}d`}
-        </span>
-
-        <p className="font-arabic text-5xl font-bold leading-snug" dir="rtl">
-          {current.lemmaAr}
-        </p>
-        {current.exampleAr && stage === "front" && (
-          <p
-            className="font-arabic mt-6 text-base italic text-fg-muted"
-            dir="rtl"
-          >
-            {current.exampleAr}
-          </p>
-        )}
-
-        {stage === "back" && (
-          <>
-            <div className="my-6 h-px bg-border" />
-            <p className="text-2xl font-extrabold">{current.glossEn}</p>
-          </>
-        )}
+      {/* Card — tap to flip */}
+      <div className="[perspective:1400px]">
+        <motion.div
+          onClick={() => setStage((s) => (s === "front" ? "back" : "front"))}
+          animate={{ rotateY: stage === "back" ? 180 : 0 }}
+          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+          className="relative min-h-[15rem] cursor-pointer [transform-style:preserve-3d]"
+        >
+          {/* Front */}
+          <div className="absolute inset-0 grid place-items-center rounded-3xl bg-surface p-10 text-center shadow-lift ring-1 ring-border [backface-visibility:hidden]">
+            <span className="absolute right-5 top-5 rounded-full bg-bg-muted px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-fg-muted ring-1 ring-border">
+              {current.intervalDays === 0 ? "new" : current.intervalDays >= 21 ? "mature" : `${current.intervalDays}d`}
+            </span>
+            <div>
+              <p className="font-arabic text-5xl font-bold leading-snug" dir="rtl">
+                {current.lemmaAr}
+              </p>
+              {current.exampleAr && (
+                <p className="font-arabic mt-6 text-base italic text-fg-muted" dir="rtl">
+                  {current.exampleAr}
+                </p>
+              )}
+            </div>
+            <span className="absolute bottom-4 left-0 right-0 text-[11px] font-semibold uppercase tracking-widest text-fg-muted/70">
+              Tap to reveal
+            </span>
+          </div>
+          {/* Back */}
+          <div className="absolute inset-0 grid place-items-center rounded-3xl bg-surface p-10 text-center shadow-lift ring-1 ring-border [backface-visibility:hidden] [transform:rotateY(180deg)]">
+            <div>
+              <p className="font-arabic text-3xl font-bold text-fg-muted" dir="rtl">
+                {current.lemmaAr}
+              </p>
+              <div className="mx-auto my-5 h-px w-16 bg-border" />
+              <p className="text-3xl font-extrabold">{current.glossEn}</p>
+            </div>
+          </div>
+        </motion.div>
       </div>
 
       {/* Actions */}
       <div className="mt-5">
         {stage === "front" ? (
-          <button
-            onClick={() => setStage("back")}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-4 text-base font-extrabold text-brand-fg shadow-glow-brand transition hover:bg-brand-dark"
-          >
-            <Eye className="h-5 w-5" /> Show answer
-          </button>
+          <p className="text-center text-sm font-medium text-fg-muted">
+            Tap the card to see the meaning
+          </p>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <GradeButton

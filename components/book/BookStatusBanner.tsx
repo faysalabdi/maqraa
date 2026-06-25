@@ -76,17 +76,17 @@ function configFor(
         Icon: CheckCircle2,
         label: "Book completed",
         detail: bestScore !== null
-          ? `Best score ${Math.round(bestScore)}% · ${attempts} attempt${attempts === 1 ? "" : "s"}`
-          : "Test passed — nice work.",
+          ? `Read through · best test ${Math.round(bestScore)}% (${attempts} attempt${attempts === 1 ? "" : "s"})`
+          : "Every chapter read — nicely done.",
         tone: "success",
       };
     case "failed_retry":
       return {
         Icon: AlertTriangle,
-        label: "Test failed — retry available",
+        label: "Comprehension test not passed yet",
         detail: bestScore !== null
-          ? `Best so far ${Math.round(bestScore)}% · ${attempts} attempt${attempts === 1 ? "" : "s"}. Re-read trouble spots, then try again.`
-          : "Re-read trouble spots, then try again.",
+          ? `Best so far ${Math.round(bestScore)}% · ${attempts} attempt${attempts === 1 ? "" : "s"}. The test is optional — re-read and try again whenever.`
+          : "The test is optional — re-read and try again whenever.",
         tone: "danger",
       };
     case "testing":
@@ -107,7 +107,7 @@ function configFor(
       return {
         Icon: Hourglass,
         label: "Reading in progress",
-        detail: "Mark as finished when you're done with the whole book.",
+        detail: "Keep going — finishing every chapter completes the book.",
         tone: "warn",
       };
     case "unlocked":
