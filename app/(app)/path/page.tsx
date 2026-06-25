@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { db, schema } from "@/lib/db";
 import { eq, asc, and, count, inArray } from "drizzle-orm";
 import { ArrowRight, BookCheck, Check, Flame, Brain, Play, Library } from "lucide-react";
-import { BookCover } from "@/components/book/BookCover";
+import { BookCover, tierFor, TIERS } from "@/components/book/BookCover";
 import { StatPill } from "@/components/chrome/StatPill";
 import type { BookStatus } from "@/lib/db/queries/path";
 
@@ -133,7 +133,7 @@ export default async function ReadPage() {
           </Link>
         </section>
         <div className="mt-8">
-          <Section title="Start here" subtitle="A short graded on-ramp" cards={curated} />
+          <CuratedShelf cards={curated} />
         </div>
       </main>
     );
@@ -264,7 +264,7 @@ export default async function ReadPage() {
       )}
 
       <div className="mt-7 space-y-10">
-        <Section title="Start here" subtitle="Curated graded shelf" cards={curated} />
+        <CuratedShelf cards={curated} />
         {mine.length > 0 && <Section title="Your library" subtitle="Books you added" cards={mine} />}
 
         <Link
@@ -296,7 +296,41 @@ function statusVerb(status: BookStatus): string {
   }
 }
 
-function Section({ title, subtitle, cards }: { title: string; subtitle?: string; cards: Card[] }) {
+// Curated books grouped by difficulty tier so a reader can see the level they're
+// at. Tiers render in order; empty tiers are skipped. The section header carries
+// the tier name, so the covers themselves drop their tier chip.
+function CuratedShelf({ cards }: { cards: Card[] }) {
+  return (
+    <>
+      {TIERS.map((tier) => {
+        const tierCards = cards.filter((c) => tierFor(c.level) === tier);
+        if (tierCards.length === 0) return null;
+        const done = tierCards.filter((c) => c.status === "completed").length;
+        return (
+          <Section
+            key={tier}
+            title={tier}
+            subtitle={`${done} of ${tierCards.length} finished`}
+            cards={tierCards}
+            showBand={false}
+          />
+        );
+      })}
+    </>
+  );
+}
+
+function Section({
+  title,
+  subtitle,
+  cards,
+  showBand,
+}: {
+  title: string;
+  subtitle?: string;
+  cards: Card[];
+  showBand?: boolean;
+}) {
   if (cards.length === 0) return null;
   return (
     <section>
@@ -310,14 +344,14 @@ function Section({ title, subtitle, cards }: { title: string; subtitle?: string;
       </div>
       <div className="grid grid-cols-3 gap-x-4 gap-y-6 sm:grid-cols-4">
         {cards.map((b) => (
-          <BookTile key={b.id} book={b} />
+          <BookTile key={b.id} book={b} showBand={showBand} />
         ))}
       </div>
     </section>
   );
 }
 
-function BookTile({ book }: { book: Card }) {
+function BookTile({ book, showBand }: { book: Card; showBand?: boolean }) {
   const completed = book.status === "completed";
   const inProgress = ["in_progress", "reading_done", "testing", "failed_retry"].includes(book.status);
 
@@ -330,7 +364,7 @@ function BookTile({ book }: { book: Card }) {
           authorEn={book.authorEn}
           genre={book.genre}
           level={book.level}
-          showBand={!book.mine}
+          showBand={showBand ?? !book.mine}
           size="md"
           className="w-full transition group-hover:-translate-y-1 group-hover:shadow-lift"
         />

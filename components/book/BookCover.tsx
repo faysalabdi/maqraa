@@ -10,9 +10,16 @@ const COVER: Record<string, [string, string]> = {
   arabic_literature: ["#1f9a8a", "#125a50"],
 };
 
-const BANDS = ["A1", "A2", "B1", "B2", "C1", "C2", "C2", "C2", "C2"];
-export function bandFor(level: number): string {
-  return BANDS[Math.min(BANDS.length, Math.max(1, level)) - 1];
+export const TIERS = ["Beginner", "Intermediate", "Advanced"] as const;
+export type Tier = (typeof TIERS)[number];
+
+// Coarse difficulty tier from the advisory `level` band. Beginner = fully
+// diacritized starters; Intermediate = matns / classic tales; Advanced = dense
+// classical prose. This is what readers see ("what level am I at"), not CEFR.
+export function tierFor(level: number): Tier {
+  if (level <= 2) return "Beginner";
+  if (level <= 4) return "Intermediate";
+  return "Advanced";
 }
 
 const SIZES = {
@@ -45,7 +52,7 @@ export function BookCover({
   const [c1, c2] = COVER[genre] ?? COVER.graded_reader;
   const s = SIZES[size];
   const author = authorAr || authorEn;
-  const bandLabel = band ?? (level != null ? bandFor(level) : null);
+  const bandLabel = band ?? (level != null ? tierFor(level) : null);
 
   return (
     <div

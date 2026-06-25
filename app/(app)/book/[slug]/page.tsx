@@ -6,7 +6,7 @@ import { db, schema } from "@/lib/db";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { ArrowLeft, BookOpen, Check, CircleDot, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { BookCover, bandFor } from "@/components/book/BookCover";
+import { BookCover, tierFor } from "@/components/book/BookCover";
 import { BookStatusBanner } from "@/components/book/BookStatusBanner";
 import { AttemptHistory, type AttemptRow } from "@/components/book/AttemptHistory";
 
@@ -134,7 +134,7 @@ export default async function BookPage({ params }: { params: Promise<{ slug: str
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full bg-accent-soft px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-accent-fg">
-                Band {bandFor(book.level)}
+                {tierFor(book.level)}
               </span>
               <span
                 className={`rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide ring-1 ${GENRE_TINT[book.genre] ?? "bg-zinc-100 text-zinc-800 ring-zinc-200"}`}

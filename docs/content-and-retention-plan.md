@@ -26,12 +26,15 @@ to bring their own.
 - **Upper bands** stay public-domain classical (Nawawi/Qudsi/Kalila) — those are correctly
   placed; we are only filling the *bottom*.
 
-### 2. Smooth the difficulty signal
-- `books.level` already drives the band chip (A1…C2 via `bandFor`). Keep authoring across
-  levels 1–3 so the "Start here" shelf reads as a true progression, ordered by
-  `level, orderInLevel` (already how the Read screen sorts).
-- Consider an explicit "recommended next" = first unfinished book by (level, order) — the
-  Continue hero already approximates this.
+### 2. Difficulty signal = tier, not order (shipped)
+- `books.level` now maps to a coarse **tier** (`tierFor` in `BookCover.tsx`):
+  Beginner (1–2), Intermediate (3–4), Advanced (5+). Tier is what the reader sees.
+- The Read screen groups curated books into **Beginner / Intermediate / Advanced**
+  shelves (`CuratedShelf` in `path/page.tsx`), each with an "N of M finished" chip.
+  Covers drop their per-cover chip inside a tier shelf (the header carries it); the
+  book detail page shows the tier label.
+- Prefer **famous public-domain** texts as stand-ins; original readers only where no
+  famous PD text exists at that level (true A1).
 
 ### 3. Retention loop (#2)
 - **Lower the BYO gate** once there's enough curated content: unlocking uploads after
