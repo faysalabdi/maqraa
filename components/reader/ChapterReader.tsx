@@ -342,9 +342,9 @@ export function ChapterReader(props: Props) {
                                 handleWordClick(w, p);
                               }}
                               className={cn(
-                                "cursor-pointer rounded px-0.5 underline decoration-dotted decoration-accent/45 underline-offset-[6px] transition hover:bg-accent-soft hover:decoration-accent",
-                                known && "decoration-solid decoration-brand decoration-2",
-                                isSel && "bg-accent-soft ring-1 ring-accent/40 decoration-transparent",
+                                "cursor-pointer rounded px-0.5 transition hover:bg-accent-soft",
+                                known && "underline decoration-brand decoration-2 underline-offset-[6px]",
+                                isSel && "bg-accent-soft ring-1 ring-accent/40",
                               )}
                             >
                               {w}

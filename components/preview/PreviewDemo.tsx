@@ -75,9 +75,8 @@ export function PreviewDemo() {
                     <span
                       onClick={() => tappable && setSelected(w)}
                       className={cn(
-                        tappable &&
-                          "cursor-pointer rounded px-0.5 underline decoration-dotted decoration-accent/45 underline-offset-[6px] transition hover:bg-accent-soft hover:decoration-accent",
-                        isSel && "bg-accent-soft ring-1 ring-accent/40 decoration-transparent",
+                        tappable && "cursor-pointer rounded px-0.5 transition hover:bg-accent-soft",
+                        isSel && "bg-accent-soft ring-1 ring-accent/40",
                       )}
                     >
                       {w}
@@ -90,7 +89,7 @@ export function PreviewDemo() {
         </div>
       </article>
 
-      <p className="mt-4 text-center text-sm text-fg-muted">Tap any underlined word ↑</p>
+      <p className="mt-4 text-center text-sm text-fg-muted">Tap any word ↑</p>
 
       <AnimatePresence>
         {selected && (
