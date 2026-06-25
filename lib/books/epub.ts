@@ -1,5 +1,6 @@
 import JSZip from "jszip";
 import type { DraftChapter } from "./split";
+import { stripOcrArtifacts } from "./quality";
 
 export type EpubMeta = { title: string; author: string; language: string };
 export type EpubBook = { meta: EpubMeta; chapters: DraftChapter[] };
@@ -34,12 +35,14 @@ function resolvePath(base: string, rel: string): string {
 }
 
 function clean(text: string): string {
-  return text
+  return stripOcrArtifacts(
+    text
     .replace(/ /g, " ")
     .replace(/[ \t]+/g, " ")
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
-    .trim();
+    .trim(),
+  );
 }
 
 function prepareDoc(html: string): Document {

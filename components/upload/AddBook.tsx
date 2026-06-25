@@ -1,9 +1,10 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { BookUp, Check, Eye, FileText, Loader2, Plus, Sparkles, Trash2, X } from "lucide-react";
+import { AlertTriangle, BookUp, Check, Eye, FileText, Loader2, Plus, Sparkles, Trash2, X } from "lucide-react";
 import { parseEpubBook } from "@/lib/books/epub";
+import { assessChapters } from "@/lib/books/quality";
 import { splitIntoChapters, type DraftChapter, type SplitMode } from "@/lib/books/split";
 import { analyzeBookDraft, createBookWithChapters, type Genre } from "@/server/actions/admin";
 import { slugify } from "@/lib/utils";
@@ -48,6 +49,9 @@ export function AddBook({ levels }: { levels: { level: number; nameEn: string }[
   const [showPaste, setShowPaste] = useState(false);
   const [paste, setPaste] = useState("");
   const [mode, setMode] = useState<SplitMode>("heading");
+
+  // Flag garbled scans (bad OCR-to-EPUB conversions) before they become a book.
+  const quality = useMemo(() => (drafts ? assessChapters(drafts) : null), [drafts]);
 
   function set<K extends keyof typeof form>(k: K, v: (typeof form)[K]) {
     setForm((f) => ({ ...f, [k]: v }));
@@ -277,6 +281,21 @@ export function AddBook({ levels }: { levels: { level: number; nameEn: string }[
           <X className="h-4 w-4" /> Start over
         </button>
       </div>
+
+      {quality && !quality.ok && (
+        <div className="flex gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
+          <AlertTriangle className="h-5 w-5 shrink-0" />
+          <div>
+            <p className="font-bold">This looks like a low-quality scan.</p>
+            <p className="mt-1">
+              The text is likely garbled
+              {quality.ocrBanners > 0 ? " (it carries OCR accuracy notes)" : ""} and won&apos;t read
+              or translate well. EPUBs made from scanned PDFs rarely work — try a digital (reflowable)
+              EPUB instead. You can still add it, but the reading experience will be poor.
+            </p>
+          </div>
+        </div>
+      )}
 
       <button
         onClick={runAi}
