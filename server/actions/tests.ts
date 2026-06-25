@@ -6,6 +6,7 @@ import { db, schema } from "@/lib/db";
 import { eq, and, count } from "drizzle-orm";
 import { type GeneratedTest } from "@/lib/ai/test-generator";
 import { anthropic, FALLBACK_MODEL } from "@/lib/ai/anthropic";
+import { consumeAiQuota } from "@/lib/ai/quota";
 import { grantXp, recordActivity } from "@/lib/xp/grant";
 import { XP_REWARDS, testPassedXp, bookCompletionXp } from "@/lib/xp/rewards";
 import { z } from "zod";
@@ -141,6 +142,8 @@ export async function submitAttempt(
     }
   }
 
+  // Only the open-ended grader hits Claude; meter it so resubmits can't run up cost.
+  if (openEndedQueue.length > 0) await consumeAiQuota(user.id, "grade");
   const openGrades = await gradeOpenEnded(openEndedQueue);
   const openGradeMap = new Map(openGrades.map((g) => [g.id, g]));
 

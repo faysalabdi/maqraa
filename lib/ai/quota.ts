@@ -7,6 +7,7 @@ const LIMITS: Record<string, number> = {
   lookup: 500, // distinct word lookups that miss the global cache
   quiz: 100, // chapter quiz opens
   test: 40, // whole-book test generations
+  grade: 60, // open-ended test submissions graded by AI
   analyze: 25, // EPUB upload analyses
 };
 

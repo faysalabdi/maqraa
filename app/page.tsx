@@ -4,10 +4,10 @@ import { LogoMark } from "@/components/brand/Logo";
 import { BookCover } from "@/components/book/BookCover";
 
 const SHELF = [
-  { titleAr: "رحلة سامر", genre: "graded_reader", authorAr: null, band: "A1" },
-  { titleAr: "الأربعون النووية", genre: "islamic", authorAr: "النووي", band: "B1" },
-  { titleAr: "كليلة ودمنة", genre: "classical", authorAr: "ابن المقفع", band: "B2" },
-  { titleAr: "الأربعون القدسية", genre: "islamic", authorAr: "النووي", band: "B1" },
+  { titleAr: "رحلة سامر", genre: "graded_reader", authorAr: null, band: "Beginner" },
+  { titleAr: "نوادر جحا", genre: "arabic_literature", authorAr: null, band: "Beginner" },
+  { titleAr: "ألف ليلة وليلة", genre: "classical", authorAr: null, band: "Intermediate" },
+  { titleAr: "كليلة ودمنة", genre: "classical", authorAr: "ابن المقفع", band: "Advanced" },
 ];
 
 export default function Home() {
@@ -112,6 +112,18 @@ export default function Home() {
           ))}
         </div>
       </section>
+
+      <footer className="mt-16 w-full max-w-3xl border-t border-border pt-6 text-center text-xs text-fg-muted">
+        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+          <span>© {new Date().getFullYear()} Maqra</span>
+          <Link href="/privacy" className="hover:text-fg">
+            Privacy
+          </Link>
+          <Link href="/terms" className="hover:text-fg">
+            Terms
+          </Link>
+        </div>
+      </footer>
     </main>
   );
 }
