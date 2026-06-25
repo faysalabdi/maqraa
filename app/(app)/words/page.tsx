@@ -85,15 +85,13 @@ export default async function WordsPage() {
                 {items.map((w) => (
                   <div
                     key={w.id}
-                    className="flex items-center justify-between rounded-2xl bg-white px-4 py-3 ring-1 ring-border"
+                    title={w.glossEn}
+                    className="flex items-center justify-between gap-3 rounded-2xl bg-surface px-4 py-3 ring-1 ring-border"
                   >
-                    <div>
-                      <p className="font-arabic text-xl font-bold" dir="rtl">
-                        {w.lemmaAr}
-                      </p>
-                      <p className="text-sm text-fg-muted">{w.glossEn}</p>
-                    </div>
-                    <div className="text-right text-xs text-fg-muted">
+                    <p className="font-arabic text-2xl font-bold" dir="rtl">
+                      {w.lemmaAr}
+                    </p>
+                    <div className="shrink-0 text-right text-xs text-fg-muted">
                       <p>{w.repetitions} reviews</p>
                       {w.intervalDays > 0 && <p>every {w.intervalDays}d</p>}
                     </div>

@@ -6,7 +6,7 @@ import { eq, and } from "drizzle-orm";
 import { getBookBySlug, getUserBook } from "@/lib/db/queries/path";
 import { fetchOrGenerateTest } from "@/lib/test/fetch-or-generate";
 import TestRunner from "@/components/book/TestRunner";
-import { AlertTriangle, ArrowLeft, BookOpen } from "lucide-react";
+import { AlertTriangle, ArrowLeft } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -21,27 +21,19 @@ export default async function TestPage({ params }: { params: Promise<{ slug: str
   } = await supabase.auth.getUser();
   if (!user) redirect("/sign-in");
 
+  // Private uploads are testable only by their owner.
+  if (book.ownerId && book.ownerId !== user.id) notFound();
+
   const userBook = await getUserBook(user.id, book.id);
 
-  // Show explicit error UI instead of silent redirect
-  if (
-    !userBook ||
-    !["reading_done", "testing", "failed_retry"].includes(userBook.status)
-  ) {
-    return (
-      <ErrorScreen
-        slug={slug}
-        title="Mark the book finished first"
-        body="The test only unlocks after you mark this book as finished on the book page."
-        icon={<BookOpen className="h-7 w-7" />}
-        actionLabel="Back to book"
-        actionHref={`/book/${slug}`}
-      />
-    );
-  }
-
-  // Transition to "testing" if first time
-  if (userBook.status === "reading_done") {
+  // The comprehension test is optional and always available for a readable book.
+  // Mark it "testing" while in progress, but never downgrade a completed book.
+  if (!userBook) {
+    await db
+      .insert(schema.userBooks)
+      .values({ userId: user.id, bookId: book.id, status: "testing", startedAt: new Date() })
+      .onConflictDoNothing();
+  } else if (userBook.status !== "completed") {
     await db
       .update(schema.userBooks)
       .set({ status: "testing", updatedAt: new Date() })

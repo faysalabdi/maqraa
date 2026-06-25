@@ -16,7 +16,6 @@ import {
   Minus,
   PartyPopper,
   Plus,
-  Sparkles,
   Type,
   X,
 } from "lucide-react";
@@ -194,7 +193,7 @@ export function ChapterReader(props: Props) {
     setFinishing(true);
     markChapterRead(chapter.id)
       .catch(() => {})
-      .finally(() => router.push(`/book/${props.bookSlug}/test`));
+      .finally(() => router.push(`/book/${props.bookSlug}`));
   }
 
   const isLookupSaved = lookup ? savedKeys.has(lookupKey(lookup.lemma_ar)) : false;
@@ -386,32 +385,42 @@ export function ChapterReader(props: Props) {
               {lastPage && (
                 <div className="mt-6 rounded-2xl bg-surface p-5 text-center shadow-card ring-1 ring-border">
                   <p className="text-sm font-semibold text-fg-muted">
-                    End of chapter {chapter.chapterNumber}
+                    {isLastChapter ? "You finished the book 🎉" : `End of chapter ${chapter.chapterNumber}`}
                   </p>
                   <div className="mt-3 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
                     {isLastChapter ? (
-                      <button
-                        onClick={finishBook}
-                        disabled={finishing}
-                        className="inline-flex items-center gap-2 rounded-2xl bg-brand px-6 py-3 font-bold text-brand-fg shadow-glow-brand transition hover:bg-brand-dark disabled:opacity-60"
-                      >
-                        {finishing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
-                        Finish book — take the test
-                      </button>
+                      <>
+                        <button
+                          onClick={finishBook}
+                          disabled={finishing}
+                          className="inline-flex items-center gap-2 rounded-2xl bg-brand px-6 py-3 font-bold text-brand-fg shadow-glow-brand transition hover:bg-brand-dark disabled:opacity-60"
+                        >
+                          {finishing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Check className="h-5 w-5" />}
+                          Finish book
+                        </button>
+                        <Link
+                          href={`/book/${props.bookSlug}/test`}
+                          className="text-sm font-semibold text-fg-muted underline-offset-4 hover:text-fg hover:underline"
+                        >
+                          Test your comprehension (optional)
+                        </Link>
+                      </>
                     ) : (
-                      <Link
-                        href={`/book/${props.bookSlug}/read/${props.nextChapterNumber}`}
-                        className="inline-flex items-center gap-2 rounded-2xl bg-brand px-6 py-3 font-bold text-brand-fg shadow-glow-brand transition hover:bg-brand-dark"
-                      >
-                        Next chapter <ArrowRight className="h-4 w-4" />
-                      </Link>
+                      <>
+                        <Link
+                          href={`/book/${props.bookSlug}/read/${props.nextChapterNumber}`}
+                          className="inline-flex items-center gap-2 rounded-2xl bg-brand px-6 py-3 font-bold text-brand-fg shadow-glow-brand transition hover:bg-brand-dark"
+                        >
+                          Next chapter <ArrowRight className="h-4 w-4" />
+                        </Link>
+                        <button
+                          onClick={startQuiz}
+                          className="text-sm font-semibold text-fg-muted underline-offset-4 hover:text-fg hover:underline"
+                        >
+                          Quiz me on this chapter (optional)
+                        </button>
+                      </>
                     )}
-                    <button
-                      onClick={startQuiz}
-                      className="text-sm font-semibold text-fg-muted underline-offset-4 hover:text-fg hover:underline"
-                    >
-                      Quiz me on this chapter (optional)
-                    </button>
                   </div>
                   {sessionSaved > 0 && (
                     <p className="mt-3 text-xs text-fg-muted">
