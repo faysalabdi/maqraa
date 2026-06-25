@@ -62,7 +62,9 @@ export async function updateSession(request: NextRequest) {
   const isPublic =
     PUBLIC_PATHS.includes(pathname) ||
     pathname.startsWith("/_next") ||
-    pathname.startsWith("/api/public");
+    // API routes (e.g. the Stripe webhook) authenticate themselves and must
+    // never be redirected to sign-in — Stripe won't follow a redirect.
+    pathname.startsWith("/api/");
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();

@@ -1,63 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import type Stripe from "stripe";
-import { eq } from "drizzle-orm";
-import { db, schema } from "@/lib/db";
 import { env } from "@/lib/env";
 import { getStripe } from "@/lib/stripe/server";
+import { syncSubscription } from "@/lib/stripe/sync";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-/** Resolve the app user for a Stripe customer/subscription. */
-async function resolveUserId(
-  sub: Stripe.Subscription,
-  customerId: string,
-): Promise<string | null> {
-  const fromMeta = sub.metadata?.userId;
-  if (fromMeta) return fromMeta;
-  const [row] = await db
-    .select({ userId: schema.subscriptions.userId })
-    .from(schema.subscriptions)
-    .where(eq(schema.subscriptions.stripeCustomerId, customerId))
-    .limit(1);
-  return row?.userId ?? null;
-}
-
-async function syncSubscription(sub: Stripe.Subscription) {
-  const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
-  const userId = await resolveUserId(sub, customerId);
-  if (!userId) {
-    console.error("[stripe/webhook] no user for customer", customerId);
-    return;
-  }
-  const item = sub.items.data[0];
-  const periodEnd = item?.current_period_end ?? null;
-
-  await db
-    .insert(schema.subscriptions)
-    .values({
-      userId,
-      stripeCustomerId: customerId,
-      stripeSubscriptionId: sub.id,
-      status: sub.status,
-      priceId: item?.price.id ?? null,
-      cancelAtPeriodEnd: sub.cancel_at_period_end,
-      currentPeriodEnd: periodEnd ? new Date(periodEnd * 1000) : null,
-      updatedAt: new Date(),
-    })
-    .onConflictDoUpdate({
-      target: schema.subscriptions.userId,
-      set: {
-        stripeCustomerId: customerId,
-        stripeSubscriptionId: sub.id,
-        status: sub.status,
-        priceId: item?.price.id ?? null,
-        cancelAtPeriodEnd: sub.cancel_at_period_end,
-        currentPeriodEnd: periodEnd ? new Date(periodEnd * 1000) : null,
-        updatedAt: new Date(),
-      },
-    });
-}
 
 export async function POST(req: NextRequest) {
   if (!env.STRIPE_WEBHOOK_SECRET) {
