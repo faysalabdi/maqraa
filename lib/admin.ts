@@ -1,7 +1,10 @@
-import { eq } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 import { env } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import { db, schema } from "@/lib/db";
+
+/** Books a reader must finish before bringing their own. */
+export const UPLOAD_MIN_BOOKS = 2;
 
 /** True if the email is on the comma-separated ADMIN_EMAILS allowlist. */
 export function isAdmin(email: string | null | undefined): boolean {
@@ -12,11 +15,20 @@ export function isAdmin(email: string | null | undefined): boolean {
 }
 
 /**
- * Uploading your own books unlocks once a reader clears Stage 1 (current level
- * advances past 1). Admins always have it. Pure check for UI gating.
+ * Uploading your own books unlocks once a reader has finished a couple of books.
+ * Admins always have it. Pure check for UI gating.
  */
-export function uploadUnlocked(email: string | null | undefined, currentLevel: number): boolean {
-  return isAdmin(email) || currentLevel >= 2;
+export function uploadUnlocked(email: string | null | undefined, booksFinished: number): boolean {
+  return isAdmin(email) || booksFinished >= UPLOAD_MIN_BOOKS;
+}
+
+/** How many books a user has finished — the outcome that drives unlocks. */
+export async function booksFinished(userId: string): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(schema.userBooks)
+    .where(and(eq(schema.userBooks.userId, userId), eq(schema.userBooks.status, "completed")));
+  return Number(row?.n ?? 0);
 }
 
 /**
@@ -31,13 +43,8 @@ export async function requireUploader(): Promise<{ userId: string; isAdmin: bool
   } = await supabase.auth.getUser();
   if (!user) throw new Error("forbidden");
   if (isAdmin(user.email)) return { userId: user.id, isAdmin: true };
-  const [p] = await db
-    .select({ lvl: schema.profiles.currentLevel })
-    .from(schema.profiles)
-    .where(eq(schema.profiles.id, user.id))
-    .limit(1);
-  if ((p?.lvl ?? 1) < 2)
-    throw new Error("Finish Stage 1 to unlock uploading your own books.");
+  if ((await booksFinished(user.id)) < UPLOAD_MIN_BOOKS)
+    throw new Error(`Finish ${UPLOAD_MIN_BOOKS} books to unlock uploading your own books.`);
   return { userId: user.id, isAdmin: false };
 }
 

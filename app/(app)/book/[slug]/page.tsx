@@ -4,10 +4,9 @@ import { createClient } from "@/lib/supabase/server";
 import { getBookBySlug, getUserBook, type BookStatus } from "@/lib/db/queries/path";
 import { db, schema } from "@/lib/db";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
-import { ArrowLeft, BookOpen, Check, CircleDot, Lock, Sparkles } from "lucide-react";
+import { ArrowLeft, BookOpen, Check, CircleDot, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BookCover } from "@/components/book/BookCover";
-import MarkFinishedButton from "@/components/book/MarkFinishedButton";
 import { BookStatusBanner } from "@/components/book/BookStatusBanner";
 import { AttemptHistory, type AttemptRow } from "@/components/book/AttemptHistory";
 
@@ -101,18 +100,6 @@ export default async function BookPage({ params }: { params: Promise<{ slug: str
     }));
   }
 
-  const canMarkFinished =
-    !!user &&
-    (!userBook ||
-      (userBook.status !== "reading_done" &&
-        userBook.status !== "testing" &&
-        userBook.status !== "completed"));
-
-  const canTest =
-    userBook?.status === "reading_done" ||
-    userBook?.status === "testing" ||
-    userBook?.status === "failed_retry";
-
   const status: BookStatus | null = userBook ? (userBook.status as BookStatus) : null;
   const bestScore = userBook?.bestScore ? Number(userBook.bestScore) : null;
   const attemptCount = userBook?.attempts ?? 0;
@@ -138,9 +125,6 @@ export default async function BookPage({ params }: { params: Promise<{ slug: str
           />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-bg-muted px-2.5 py-1 text-xs font-bold uppercase tracking-widest text-fg-muted ring-1 ring-border">
-                Stage {book.level}
-              </span>
               <span
                 className={`rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-widest ring-1 ${GENRE_TINT[book.genre] ?? "bg-zinc-100 text-zinc-800 ring-zinc-200"}`}
               >
@@ -181,7 +165,7 @@ export default async function BookPage({ params }: { params: Promise<{ slug: str
         )}
 
         <div className="mt-8 flex flex-wrap gap-3">
-          {book.hasFullText && chapters.length > 0 && firstUnfinished && (
+          {chapters.length > 0 && firstUnfinished && (
             <Link
               href={`/book/${slug}/read/${firstUnfinished.chapterNumber}`}
               className="inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-3 font-semibold text-brand-fg shadow-glow-brand transition hover:bg-brand-dark"
@@ -195,45 +179,16 @@ export default async function BookPage({ params }: { params: Promise<{ slug: str
             </Link>
           )}
 
-          {canMarkFinished && <MarkFinishedButton bookId={book.id} bookSlug={book.slug} />}
-
-          {canTest ? (
-            <Link
-              href={`/book/${book.slug}/test`}
-              className={cn(
-                "inline-flex items-center gap-2 rounded-xl px-5 py-3 font-semibold transition",
-                book.hasFullText
-                  ? "border border-border hover:bg-bg-muted"
-                  : "bg-brand text-brand-fg shadow-glow-brand hover:bg-brand-dark",
-              )}
-            >
-              <Sparkles className="h-4 w-4" /> Take comprehension test
-            </Link>
-          ) : status === "completed" ? (
+          {chapters.length > 0 && (
             <Link
               href={`/book/${book.slug}/test`}
               className="inline-flex items-center gap-2 rounded-xl border border-border px-5 py-3 font-semibold transition hover:bg-bg-muted"
             >
-              <Sparkles className="h-4 w-4" /> Retake test
+              <Sparkles className="h-4 w-4" />
+              {status === "completed" ? "Retake comprehension test" : "Test your comprehension (optional)"}
             </Link>
-          ) : (
-            <button
-              disabled
-              title="Mark the book finished first"
-              className="inline-flex items-center gap-2 rounded-xl border border-border px-5 py-3 font-semibold opacity-40"
-            >
-              <Sparkles className="h-4 w-4" /> Take comprehension test
-            </button>
           )}
         </div>
-
-        {!book.hasFullText && (
-          <div className="mt-6 rounded-2xl bg-amber-50 p-4 text-sm leading-relaxed text-amber-900 ring-1 ring-amber-200">
-            <span className="font-bold">Not yet readable in-app.</span> Read this one from your own
-            copy, log your pages as you go, then come back for the whole-book comprehension test to
-            mark it complete. We&apos;re adding full in-app text to more books over time.
-          </div>
-        )}
       </div>
 
       {chapters.length > 0 && (
@@ -251,25 +206,16 @@ export default async function BookPage({ params }: { params: Promise<{ slug: str
             />
           </div>
           <ul className="mt-4 space-y-2">
-            {chapters.map((c, idx) => {
+            {chapters.map((c) => {
               const p = progressMap.get(c.id);
               const isCompleted = p?.status === "completed";
               const isReading = p?.status === "reading";
-              const prevDone =
-                idx === 0 || progressMap.get(chapters[idx - 1].id)?.status === "completed";
-              const isLocked = !isCompleted && !isReading && !prevDone;
 
               return (
                 <li key={c.id}>
                   <Link
-                    href={isLocked ? "#" : `/book/${slug}/read/${c.chapterNumber}`}
-                    aria-disabled={isLocked}
-                    className={cn(
-                      "flex items-center gap-3 rounded-2xl border px-4 py-3 transition",
-                      isLocked
-                        ? "cursor-not-allowed border-border bg-bg-muted text-fg-muted"
-                        : "border-border hover:border-brand hover:bg-emerald-50",
-                    )}
+                    href={`/book/${slug}/read/${c.chapterNumber}`}
+                    className="flex items-center gap-3 rounded-2xl border border-border px-4 py-3 transition hover:border-brand hover:bg-brand/5"
                   >
                     <span
                       className={cn(
@@ -277,16 +223,12 @@ export default async function BookPage({ params }: { params: Promise<{ slug: str
                         isCompleted
                           ? "bg-brand text-brand-fg"
                           : isReading
-                            ? "bg-amber-100 text-amber-700"
-                            : isLocked
-                              ? "bg-zinc-200 text-zinc-400"
-                              : "bg-bg-muted text-fg-muted",
+                            ? "bg-accent/30 text-accent-fg"
+                            : "bg-bg-muted text-fg-muted",
                       )}
                     >
                       {isCompleted ? (
                         <Check className="h-5 w-5" />
-                      ) : isLocked ? (
-                        <Lock className="h-4 w-4" />
                       ) : isReading ? (
                         <CircleDot className="h-5 w-5" />
                       ) : (

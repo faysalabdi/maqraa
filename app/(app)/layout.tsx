@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { db, schema } from "@/lib/db";
-import { count, eq } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 import { uploadUnlocked } from "@/lib/admin";
 import {
   Flame,
@@ -23,16 +23,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   let streakDays = 0;
   let wordsSaved = 0;
+  let booksDone = 0;
   let fontScale = 1.0;
-  let currentLevel = 1;
   let displayName: string | null = null;
 
   if (user) {
-    const [profileRows, streakRows, wordRows] = await Promise.all([
+    const [profileRows, streakRows, wordRows, bookRows] = await Promise.all([
       db
         .select({
           fontScale: schema.profiles.fontScale,
-          currentLevel: schema.profiles.currentLevel,
           displayName: schema.profiles.displayName,
         })
         .from(schema.profiles)
@@ -47,10 +46,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         .select({ c: count() })
         .from(schema.vocabItems)
         .where(eq(schema.vocabItems.userId, user.id)),
+      db
+        .select({ c: count() })
+        .from(schema.userBooks)
+        .where(and(eq(schema.userBooks.userId, user.id), eq(schema.userBooks.status, "completed"))),
     ]);
     if (profileRows[0]) {
       fontScale = Number(profileRows[0].fontScale);
-      currentLevel = profileRows[0].currentLevel;
       displayName = profileRows[0].displayName;
     } else {
       // First visit after password/OTP signup — provision the profile rows.
@@ -63,10 +65,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     }
     streakDays = streakRows[0]?.currentDays ?? 0;
     wordsSaved = Number(wordRows[0]?.c ?? 0);
+    booksDone = Number(bookRows[0]?.c ?? 0);
   }
 
   const avatarLetter = (displayName?.[0] ?? user?.email?.[0] ?? "?").toUpperCase();
-  const canUpload = !!user && uploadUnlocked(user.email, currentLevel);
+  const canUpload = !!user && uploadUnlocked(user.email, booksDone);
 
   return (
     <div className="min-h-screen" style={{ fontSize: `${fontScale}rem` }}>
@@ -88,6 +91,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 </StatPill>
                 <StatPill icon={<Brain className="h-3.5 w-3.5" />} tone="brand">
                   {wordsSaved.toLocaleString()} words
+                </StatPill>
+                <StatPill icon={<BookOpen className="h-3.5 w-3.5" />} tone="neutral">
+                  {booksDone} {booksDone === 1 ? "book" : "books"}
                 </StatPill>
               </>
             )}

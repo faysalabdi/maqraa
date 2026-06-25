@@ -302,7 +302,7 @@ export function AddBook({ levels }: { levels: { level: number; nameEn: string }[
           />
         </div>
         <div>
-          <label className={label}>Stage / level</label>
+          <label className={label}>Difficulty band</label>
           <select className={field} value={form.level} onChange={(e) => set("level", Number(e.target.value))}>
             {levels.map((l) => (
               <option key={l.level} value={l.level}>

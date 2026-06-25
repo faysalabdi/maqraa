@@ -4,7 +4,7 @@ import { asc, count, eq } from "drizzle-orm";
 import { Lock } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { db, schema } from "@/lib/db";
-import { isAdmin, uploadUnlocked } from "@/lib/admin";
+import { booksFinished, isAdmin, uploadUnlocked, UPLOAD_MIN_BOOKS } from "@/lib/admin";
 import { BookCover } from "@/components/book/BookCover";
 import { AddBook } from "@/components/upload/AddBook";
 import {
@@ -24,25 +24,22 @@ export default async function UploadPage() {
   if (!user) redirect("/sign-in?redirect=/upload");
 
   const admin = isAdmin(user.email);
-  const [profile] = await db
-    .select({ lvl: schema.profiles.currentLevel })
-    .from(schema.profiles)
-    .where(eq(schema.profiles.id, user.id))
-    .limit(1);
-  const currentLevel = profile?.lvl ?? 1;
+  const finished = await booksFinished(user.id);
 
-  // Earned gate: uploading your own books unlocks after Stage 1.
-  if (!uploadUnlocked(user.email, currentLevel)) {
+  // Earned gate: uploading your own books unlocks after finishing a couple.
+  if (!uploadUnlocked(user.email, finished)) {
     return (
       <main className="mx-auto max-w-xl px-4 pb-24 pt-16 text-center">
         <div className="rounded-3xl bg-surface p-10 shadow-card ring-1 ring-border">
           <span className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-bg-muted text-fg-muted">
             <Lock className="h-7 w-7" />
           </span>
-          <h1 className="mt-4 text-2xl font-extrabold">Uploading unlocks at Stage 2</h1>
+          <h1 className="mt-4 text-2xl font-extrabold">
+            Uploading unlocks after {UPLOAD_MIN_BOOKS} books
+          </h1>
           <p className="mt-2 text-fg-muted">
-            Finish the Stage 1 books on your path, then you can add your own EPUBs to a private
-            shelf only you can read.
+            Finish {UPLOAD_MIN_BOOKS} books from the starter shelf ({finished}/{UPLOAD_MIN_BOOKS}{" "}
+            done), then you can add your own EPUBs to a private shelf only you can read.
           </p>
           <Link
             href="/path"

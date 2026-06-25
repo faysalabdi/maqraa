@@ -2,9 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { db, schema } from "@/lib/db";
 import { eq, asc } from "drizzle-orm";
-import { ArrowRight, BookOpen, Check, Flame, Lock } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { isAdmin } from "@/lib/admin";
+import { ArrowRight, BookOpen, Check, Flame } from "lucide-react";
 import { BookCover } from "@/components/book/BookCover";
 import type { BookStatus } from "@/lib/db/queries/path";
 
@@ -41,11 +39,9 @@ export default async function ReadPage() {
     {
       data: { user },
     },
-    levels,
     allBooks,
   ] = await Promise.all([
     supabase.auth.getUser(),
-    db.select().from(schema.levels).orderBy(asc(schema.levels.level)),
     db
       .select()
       .from(schema.books)
@@ -53,7 +49,6 @@ export default async function ReadPage() {
       .orderBy(asc(schema.books.level), asc(schema.books.orderInLevel)),
   ]);
 
-  let userLevel = 1;
   let streakDays = 0;
   let displayName: string | null = null;
   const userBookMap = new Map<string, string>();
@@ -61,7 +56,7 @@ export default async function ReadPage() {
   if (user) {
     const [profileRows, userBookRows, streakRows] = await Promise.all([
       db
-        .select({ currentLevel: schema.profiles.currentLevel, displayName: schema.profiles.displayName })
+        .select({ displayName: schema.profiles.displayName })
         .from(schema.profiles)
         .where(eq(schema.profiles.id, user.id))
         .limit(1),
@@ -72,45 +67,30 @@ export default async function ReadPage() {
         .where(eq(schema.streaks.userId, user.id))
         .limit(1),
     ]);
-    userLevel = profileRows[0]?.currentLevel ?? 1;
     displayName = profileRows[0]?.displayName ?? user.email ?? null;
     streakDays = streakRows[0]?.currentDays ?? 0;
     for (const r of userBookRows) userBookMap.set(r.bookId, r.status);
   }
 
-  // Owners and admins can always open their own/curated books regardless of stage.
-  const admin = isAdmin(user?.email);
+  // No locks. Curated books (no owner) are public; private uploads only show to
+  // their owner. Progress is by finishing books, not by clearing stages.
+  const cards = allBooks
+    .filter((b) => !b.ownerId || b.ownerId === user?.id)
+    .map<Card>((b) => ({
+      id: b.id,
+      slug: b.slug,
+      titleAr: b.titleAr,
+      titleEn: b.titleEn,
+      authorAr: b.authorAr,
+      authorEn: b.authorEn,
+      genre: b.genre,
+      level: b.level,
+      orderInLevel: b.orderInLevel,
+      mine: !!b.ownerId,
+      status: (userBookMap.get(b.id) as BookStatus) ?? "unlocked",
+    }));
 
-  const shelves = levels
-    .map((lv) => ({
-      level: lv.level,
-      nameEn: lv.nameEn,
-      nameAr: lv.nameAr,
-      locked: lv.level > userLevel,
-      books: allBooks
-        // Curated books (no owner) are public; private uploads only show to their owner.
-        .filter((b) => b.level === lv.level && (!b.ownerId || b.ownerId === user?.id))
-        .map<Card>((b) => ({
-          id: b.id,
-          slug: b.slug,
-          titleAr: b.titleAr,
-          titleEn: b.titleEn,
-          authorAr: b.authorAr,
-          authorEn: b.authorEn,
-          genre: b.genre,
-          level: b.level,
-          orderInLevel: b.orderInLevel,
-          mine: !!b.ownerId,
-          status: userBookMap.has(b.id)
-            ? (userBookMap.get(b.id) as BookStatus)
-            : b.level <= userLevel || !!b.ownerId || admin
-              ? "unlocked"
-              : "locked",
-        })),
-    }))
-    .filter((s) => s.books.length > 0);
-
-  if (shelves.length === 0) {
+  if (cards.length === 0) {
     return (
       <main className="mx-auto max-w-2xl px-4 pb-24 pt-16 text-center">
         <div className="rounded-3xl bg-surface p-10 shadow-card ring-1 ring-border">
@@ -118,13 +98,14 @@ export default async function ReadPage() {
             اِقْرَأْ
           </p>
           <h1 className="mt-3 text-2xl font-extrabold">No books yet</h1>
-          <p className="mt-2 text-sm text-fg-muted">
-            Add your first book from the Upload screen — drop an EPUB and it appears here.
-          </p>
+          <p className="mt-2 text-sm text-fg-muted">The starter shelf is being set up — check back soon.</p>
         </div>
       </main>
     );
   }
+
+  const curated = cards.filter((c) => !c.mine);
+  const mine = cards.filter((c) => c.mine);
 
   if (!user) {
     return (
@@ -144,35 +125,33 @@ export default async function ReadPage() {
             Start reading <ArrowRight className="h-4 w-4" />
           </Link>
         </section>
-        <div className="mt-8 space-y-8">
-          {shelves.map((s) => (
-            <Shelf key={s.level} shelf={s} />
-          ))}
+        <div className="mt-8">
+          <Section title="Start here" subtitle="A short graded on-ramp" cards={curated} />
         </div>
       </main>
     );
   }
 
-  const all = shelves.flatMap((s) => s.books);
-  const current = all
-    .filter((b) => b.status !== "locked" && b.status !== "completed")
+  const current = cards
+    .filter((b) => b.status !== "completed")
     .sort(
       (a, b) =>
         RESUME_PRIORITY[a.status] - RESUME_PRIORITY[b.status] ||
         a.level - b.level ||
         a.orderInLevel - b.orderInLevel,
     )[0];
-  const completed = all.filter((b) => b.status === "completed").length;
+  const finishedCount = cards.filter((b) => b.status === "completed").length;
+  const curatedFinished = curated.filter((b) => b.status === "completed").length;
   const name = displayName?.split("@")[0] ?? null;
-  const firstName = !userBookMap.size;
+  const firstTime = userBookMap.size === 0;
 
   return (
     <main className="mx-auto max-w-3xl px-4 pb-24 pt-8">
-      {/* Continue / welcome hero */}
+      {/* Continue / welcome / all-done hero */}
       {current ? (
         <section className="animate-rise overflow-hidden rounded-3xl bg-surface shadow-card ring-1 ring-border">
           <div className="flex items-stretch gap-5 p-5 sm:p-6">
-            <Link href={`/book/${current.slug}`} className="shrink-0">
+            <Link href={`/book/${current.slug}`} className="group shrink-0">
               <BookCover
                 titleAr={current.titleAr}
                 authorAr={current.authorAr}
@@ -184,7 +163,7 @@ export default async function ReadPage() {
             </Link>
             <div className="flex min-w-0 flex-1 flex-col justify-center">
               <p className="text-sm font-semibold text-fg-muted">
-                {firstName ? (name ? `Welcome, ${name}` : "Welcome") : "Continue reading"}
+                {firstTime ? (name ? `Welcome, ${name}` : "Welcome") : "Continue reading"}
               </p>
               <h1 className="font-arabic mt-0.5 truncate text-2xl font-bold" dir="rtl">
                 {current.titleAr}
@@ -196,7 +175,7 @@ export default async function ReadPage() {
                   className="inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-brand-fg shadow-glow-brand transition hover:bg-brand-dark"
                 >
                   <BookOpen className="h-4 w-4" />
-                  {firstName ? "Start reading" : statusVerb(current.status)}
+                  {firstTime ? "Start reading" : statusVerb(current.status)}
                 </Link>
                 {streakDays > 0 && (
                   <span className="inline-flex items-center gap-1 text-sm font-semibold text-flame">
@@ -209,31 +188,30 @@ export default async function ReadPage() {
         </section>
       ) : (
         <section className="animate-rise rounded-3xl bg-surface p-6 text-center shadow-card ring-1 ring-border">
-          <p className="text-lg font-bold">You&apos;ve finished every book available 🎉</p>
-          <p className="mt-1 text-sm text-fg-muted">
-            More titles arrive over time. Keep your streak with a quick review.
-          </p>
+          <p className="text-lg font-bold">You&apos;ve finished every book here 🎉</p>
+          <p className="mt-1 text-sm text-fg-muted">Bring your own next — upload an EPUB to keep going.</p>
           <Link
-            href="/review"
+            href="/upload"
             className="mt-4 inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-brand-fg transition hover:bg-brand-dark"
           >
-            Review words <ArrowRight className="h-4 w-4" />
+            Add a book <ArrowRight className="h-4 w-4" />
           </Link>
         </section>
       )}
 
-      <div className="mt-3 text-right text-sm text-fg-muted">
-        {completed} of {all.length} books finished
-      </div>
+      <div className="mt-3 text-right text-sm text-fg-muted">{finishedCount} books finished</div>
 
-      <div className="mt-6 space-y-9">
-        {shelves.map((s) => (
-          <Shelf key={s.level} shelf={s} />
-        ))}
+      <div className="mt-6 space-y-10">
+        <Section
+          title="Start here"
+          subtitle={`${curatedFinished} of ${curated.length} finished`}
+          cards={curated}
+        />
+        {mine.length > 0 && <Section title="Your library" subtitle="Books you added" cards={mine} />}
       </div>
 
       <p className="mt-12 text-center text-xs text-fg-muted">
-        More books are added over time. Want a specific title? Let us know.
+        Finished the starter shelf? Bring your own books from Upload.
       </p>
     </main>
   );
@@ -241,12 +219,8 @@ export default async function ReadPage() {
 
 function statusVerb(status: BookStatus): string {
   switch (status) {
-    case "reading_done":
-      return "Take the test";
-    case "testing":
-      return "Finish the test";
     case "failed_retry":
-      return "Retry the test";
+      return "Keep reading";
     case "in_progress":
       return "Continue";
     default:
@@ -254,24 +228,20 @@ function statusVerb(status: BookStatus): string {
   }
 }
 
-function Shelf({
-  shelf,
-}: {
-  shelf: { level: number; nameEn: string; nameAr: string; locked: boolean; books: Card[] };
-}) {
+function Section({ title, subtitle, cards }: { title: string; subtitle?: string; cards: Card[] }) {
+  if (cards.length === 0) return null;
   return (
     <section>
       <div className="mb-4 flex items-baseline gap-2">
-        <h2 className="text-lg font-extrabold tracking-tight">{shelf.nameEn}</h2>
-        <span className="font-arabic text-sm text-fg-muted" dir="rtl">
-          {shelf.nameAr}
-        </span>
-        <span className="ml-auto text-[11px] font-bold uppercase tracking-wider text-fg-muted">
-          Stage {shelf.level}
-        </span>
+        <h2 className="text-lg font-extrabold tracking-tight">{title}</h2>
+        {subtitle && (
+          <span className="ml-auto text-[11px] font-bold uppercase tracking-wider text-fg-muted">
+            {subtitle}
+          </span>
+        )}
       </div>
       <div className="grid grid-cols-3 gap-x-4 gap-y-6 sm:grid-cols-4">
-        {shelf.books.map((b) => (
+        {cards.map((b) => (
           <BookTile key={b.id} book={b} />
         ))}
       </div>
@@ -280,12 +250,11 @@ function Shelf({
 }
 
 function BookTile({ book }: { book: Card }) {
-  const locked = book.status === "locked";
   const completed = book.status === "completed";
   const inProgress = ["in_progress", "reading_done", "testing", "failed_retry"].includes(book.status);
 
-  const inner = (
-    <>
+  return (
+    <Link href={`/book/${book.slug}`} className="group">
       <div className="relative">
         <BookCover
           titleAr={book.titleAr}
@@ -293,16 +262,11 @@ function BookTile({ book }: { book: Card }) {
           authorEn={book.authorEn}
           genre={book.genre}
           size="md"
-          className={cn("w-full transition", locked ? "opacity-45 saturate-50" : "group-hover:-translate-y-1 group-hover:shadow-lift")}
+          className="w-full transition group-hover:-translate-y-1 group-hover:shadow-lift"
         />
         {completed && (
           <span className="absolute -right-1.5 -top-1.5 grid h-7 w-7 place-items-center rounded-full bg-brand text-brand-fg shadow-soft ring-2 ring-surface">
             <Check className="h-4 w-4" strokeWidth={3} />
-          </span>
-        )}
-        {locked && (
-          <span className="absolute inset-0 grid place-items-center">
-            <Lock className="h-5 w-5 text-white/80" />
           </span>
         )}
         {inProgress && (
@@ -316,16 +280,7 @@ function BookTile({ book }: { book: Card }) {
           </span>
         )}
       </div>
-      <p className={cn("mt-2 line-clamp-2 text-center text-xs font-semibold", locked ? "text-fg-muted" : "text-fg")}>
-        {book.titleEn}
-      </p>
-    </>
-  );
-
-  if (locked) return <div className="group">{inner}</div>;
-  return (
-    <Link href={`/book/${book.slug}`} className="group">
-      {inner}
+      <p className="mt-2 line-clamp-2 text-center text-xs font-semibold text-fg">{book.titleEn}</p>
     </Link>
   );
 }

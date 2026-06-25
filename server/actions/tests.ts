@@ -198,10 +198,12 @@ export async function submitAttempt(
       })
       .where(and(eq(schema.userBooks.userId, user.id), eq(schema.userBooks.bookId, bookId)));
   } else {
+    // The test is optional now; failing it must not un-complete a book the
+    // reader already finished by reading it through.
     await db
       .update(schema.userBooks)
       .set({
-        status: "failed_retry",
+        status: currentUserBook?.status === "completed" ? "completed" : "failed_retry",
         bestScore: newBest.toString(),
         attempts: nextAttempts,
         updatedAt: new Date(),
@@ -210,7 +212,6 @@ export async function submitAttempt(
   }
 
   let xpEarned = 0;
-  let newLevel: number | null = null;
   const attemptRef = { testId, bookId };
 
   if (passed) {
@@ -244,9 +245,6 @@ export async function submitAttempt(
         refHash: `book_completed:${bookId}`,
       });
     }
-
-    const { maybeLevelUp } = await import("@/lib/progression");
-    newLevel = await maybeLevelUp(user.id, book.level);
   }
 
   await seedWrongVocab(user.id, perQuestion, bookId);
@@ -261,7 +259,7 @@ export async function submitAttempt(
     passed,
     xpEarned,
     perQuestion,
-    newLevel: passed ? (newLevel ?? null) : null,
+    newLevel: null,
   };
 }
 
