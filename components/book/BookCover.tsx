@@ -1,15 +1,5 @@
 import { cn } from "@/lib/utils";
 
-// Flat two-stop gradient covers, per genre. Cream/white ink. The Arabic title
-// set on the gradient is the cover; a difficulty band chip sits top-left.
-const COVER: Record<string, [string, string]> = {
-  graded_reader: ["#16a06a", "#0b6644"],
-  islamic: ["#3f5bd9", "#283c98"],
-  classical: ["#c08a1e", "#855a11"],
-  translated: ["#7c5cd0", "#4a3499"],
-  arabic_literature: ["#1f9a8a", "#125a50"],
-};
-
 export const TIERS = ["Beginner", "Intermediate", "Advanced"] as const;
 export type Tier = (typeof TIERS)[number];
 
@@ -22,6 +12,24 @@ export function tierFor(level: number): Tier {
   return "Advanced";
 }
 
+// Covers are coloured by tier so a shelf reads as one level at a glance:
+// green = Beginner, indigo = Intermediate, gold = Advanced.
+const TIER_COVER: Record<Tier, [string, string]> = {
+  Beginner: ["#1aa66f", "#0b6644"],
+  Intermediate: ["#4f63d8", "#2b3aa0"],
+  Advanced: ["#c08a1e", "#855011"],
+};
+
+function coverColors(level?: number, band?: string): [string, string] {
+  const tier: Tier =
+    band && (TIERS as readonly string[]).includes(band)
+      ? (band as Tier)
+      : level != null
+        ? tierFor(level)
+        : "Beginner";
+  return TIER_COVER[tier];
+}
+
 const SIZES = {
   sm: { w: "w-16", title: "text-sm", author: "text-[8px]", chip: "text-[8px] px-1 py-0.5" },
   md: { w: "w-28", title: "text-xl", author: "text-[10px]", chip: "text-[10px] px-1.5 py-0.5" },
@@ -32,7 +40,6 @@ export function BookCover({
   titleAr,
   authorAr,
   authorEn,
-  genre,
   level,
   band,
   size = "md",
@@ -42,14 +49,14 @@ export function BookCover({
   titleAr: string;
   authorAr?: string | null;
   authorEn?: string | null;
-  genre: string;
+  genre?: string;
   level?: number;
   band?: string;
   size?: keyof typeof SIZES;
   showBand?: boolean;
   className?: string;
 }) {
-  const [c1, c2] = COVER[genre] ?? COVER.graded_reader;
+  const [c1, c2] = coverColors(level, band);
   const s = SIZES[size];
   const author = authorAr || authorEn;
   const bandLabel = band ?? (level != null ? tierFor(level) : null);

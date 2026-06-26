@@ -1,6 +1,7 @@
 "use server";
 
-import { eq, and, count } from "drizzle-orm";
+import { eq, and, count, ne } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { db, schema } from "@/lib/db";
 import { getOrGenerateChapterQuiz, type ChapterQuiz } from "@/lib/ai/chapter-quiz";
@@ -229,6 +230,26 @@ export async function markChapterReading(chapterId: string): Promise<void> {
         set: { updatedAt: new Date() },
       });
   }
+}
+
+/**
+ * Stop treating a book as "currently reading" — moves it out of the Continue
+ * slot when a reader pauses or switches books. Reading progress is kept (it lives
+ * in user_chapter_progress); reopening the book picks up where they left off.
+ */
+export async function setBookNotReading(bookId: string): Promise<void> {
+  const user = await requireUser();
+  await db
+    .update(schema.userBooks)
+    .set({ status: "unlocked", updatedAt: new Date() })
+    .where(
+      and(
+        eq(schema.userBooks.userId, user.id),
+        eq(schema.userBooks.bookId, bookId),
+        ne(schema.userBooks.status, "completed"),
+      ),
+    );
+  revalidatePath("/path");
 }
 
 /**

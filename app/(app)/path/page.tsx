@@ -4,6 +4,7 @@ import { db, schema } from "@/lib/db";
 import { eq, asc, and, count, inArray } from "drizzle-orm";
 import { ArrowRight, BookCheck, Check, Flame, Brain, Play, Library, Lock } from "lucide-react";
 import { BookCover, tierFor, TIERS } from "@/components/book/BookCover";
+import { StopReadingButton } from "@/components/book/StopReadingButton";
 import { getPlan, canReadTier, type Plan } from "@/lib/entitlement";
 import { StatPill } from "@/components/chrome/StatPill";
 import type { BookStatus } from "@/lib/db/queries/path";
@@ -144,14 +145,18 @@ export default async function ReadPage() {
     );
   }
 
-  const current = cards
-    .filter((b) => b.status !== "completed" && !b.locked)
-    .sort(
-      (a, b) =>
-        RESUME_PRIORITY[a.status] - RESUME_PRIORITY[b.status] ||
-        a.level - b.level ||
-        a.orderInLevel - b.orderInLevel,
-    )[0];
+  // A book is "currently reading" only if actively started. Stopping a book
+  // (status → unlocked) drops it out of this set so it leaves the Continue slot.
+  const ACTIVE_STATUSES = new Set(["in_progress", "reading_done", "testing", "failed_retry"]);
+  const byProgress = (a: Card, b: Card) =>
+    RESUME_PRIORITY[a.status] - RESUME_PRIORITY[b.status] ||
+    a.level - b.level ||
+    a.orderInLevel - b.orderInLevel;
+  const activeCurrent = cards.filter((b) => ACTIVE_STATUSES.has(b.status) && !b.locked).sort(byProgress)[0];
+  const current =
+    activeCurrent ??
+    cards.filter((b) => b.status !== "completed" && !b.locked).sort(byProgress)[0];
+  const isReading = !!activeCurrent;
   const finishedCount = cards.filter((b) => b.status === "completed").length;
   const name = displayName?.split("@")[0] ?? null;
   const firstTime = userBookMap.size === 0;
@@ -219,42 +224,51 @@ export default async function ReadPage() {
 
       {/* Continue / all-done hero */}
       {current ? (
-        <Link
-          href={readHref}
-          className="animate-rise group block overflow-hidden rounded-3xl bg-gradient-to-br from-brand to-brand-dark p-5 text-brand-fg shadow-lift sm:p-6"
-        >
-          <div className="flex items-center gap-4 sm:gap-5">
+        <section className="animate-rise group relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#283063] via-[#1b2342] to-[#10152a] p-5 text-white shadow-lift sm:p-6">
+          <div className="pointer-events-none absolute -right-16 -top-20 h-52 w-52 rounded-full bg-amber-400/20 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-24 -left-10 h-52 w-52 rounded-full bg-brand/20 blur-3xl" />
+          <Link href={readHref} className="relative flex items-center gap-4 sm:gap-5">
             <BookCover
               titleAr={current.titleAr}
               authorAr={current.authorAr}
-              genre={current.genre}
               level={current.level}
               size="md"
               showBand={false}
-              className="w-16 shrink-0 ring-1 ring-white/20 sm:w-20"
+              className="w-16 shrink-0 -rotate-3 shadow-card ring-1 ring-white/15 transition duration-300 group-hover:rotate-0 sm:w-20"
             />
             <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-brand-fg/75">
-                {firstTime ? "Start reading" : "Continue reading"}
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-amber-300/90">
+                {isReading ? "Continue reading" : firstTime ? "Start reading" : "Up next"}
               </p>
               <h2 className="font-serif truncate text-xl font-semibold sm:text-2xl">{current.titleEn}</h2>
               {cont && (
-                <p className="font-arabic truncate text-sm text-brand-fg/80" dir="rtl">
+                <p className="font-arabic truncate text-sm text-white/70" dir="rtl">
                   {cont.chapterTitleAr}
                 </p>
               )}
-              <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-white/25">
-                <div className="h-full rounded-full bg-white" style={{ width: `${cont?.pct ?? 0}%` }} />
+              <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-white/15">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-amber-300 to-amber-400"
+                  style={{ width: `${cont?.pct ?? 0}%` }}
+                />
               </div>
-              <p className="mt-1.5 text-xs text-brand-fg/80">
+              <p className="mt-1.5 text-xs text-white/65">
                 {cont ? `${cont.pct}% · chapter ${cont.chapterNum} of ${cont.total}` : statusVerb(current.status)}
               </p>
             </div>
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-white/15 ring-1 ring-white/25 transition group-hover:bg-white/25">
-              <Play className="h-5 w-5 translate-x-0.5 fill-current" />
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-white/15 ring-1 ring-white/25 transition group-hover:bg-white/25 sm:h-14 sm:w-14">
+              <Play className="h-5 w-5 translate-x-0.5 fill-current sm:h-6 sm:w-6" />
             </span>
-          </div>
-        </Link>
+          </Link>
+          {isReading && (
+            <div className="relative mt-3 flex justify-end">
+              <StopReadingButton
+                bookId={current.id}
+                className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[11px] font-semibold text-white/70 ring-1 ring-white/15 transition hover:bg-white/15 hover:text-white disabled:opacity-60"
+              />
+            </div>
+          )}
+        </section>
       ) : (
         <section className="animate-rise rounded-3xl bg-surface p-6 text-center shadow-card ring-1 ring-border">
           <p className="text-lg font-bold">You&apos;ve finished every book here 🎉</p>
