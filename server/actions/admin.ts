@@ -160,7 +160,8 @@ export async function analyzeBookDraft(
 ): Promise<BookAnalysis> {
   const uploader = await requireUploader();
   if (chapters.length === 0) throw new Error("no chapters to analyze");
-  await consumeAiQuota(uploader.userId, "analyze");
+  // Admins are unlimited; non-admin uploaders are Pro (resolved by subscription).
+  if (!uploader.isAdmin) await consumeAiQuota(uploader.userId, "analyze");
   const sample = chapters
     .map((c) => c.contentAr)
     .join("\n")

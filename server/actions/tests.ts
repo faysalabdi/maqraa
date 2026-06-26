@@ -143,7 +143,7 @@ export async function submitAttempt(
   }
 
   // Only the open-ended grader hits Claude; meter it so resubmits can't run up cost.
-  if (openEndedQueue.length > 0) await consumeAiQuota(user.id, "grade");
+  if (openEndedQueue.length > 0) await consumeAiQuota(user.id, "grade", user.email);
   const openGrades = await gradeOpenEnded(openEndedQueue);
   const openGradeMap = new Map(openGrades.map((g) => [g.id, g]));
 

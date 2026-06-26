@@ -28,7 +28,7 @@ async function requireUser() {
 
 export async function lookupWord(surface: string, context: string): Promise<WordLookup> {
   const user = await requireUser();
-  return lookupArabicWord(surface.slice(0, 50), context.slice(0, 300), user.id);
+  return lookupArabicWord(surface.slice(0, 50), context.slice(0, 300), user.id, user.email);
 }
 
 /**
@@ -59,7 +59,7 @@ export async function prewarmLookups(items: { surface: string; context: string }
     while (queue.length && !stop) {
       const c = queue.shift()!;
       try {
-        await consumeAiQuota(user.id, "prewarm");
+        await consumeAiQuota(user.id, "prewarm", user.email);
       } catch {
         stop = true;
         return;

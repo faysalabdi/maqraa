@@ -29,8 +29,12 @@ export type QuotaKind = keyof typeof PRO_LIMITS;
  * Increment today's counter for (user, kind) and throw once it exceeds the
  * user's plan limit. Atomic upsert so concurrent calls can't race past the cap.
  */
-export async function consumeAiQuota(userId: string, kind: QuotaKind): Promise<void> {
-  const plan = await getPlan(userId);
+export async function consumeAiQuota(
+  userId: string,
+  kind: QuotaKind,
+  email?: string | null,
+): Promise<void> {
+  const plan = await getPlan(userId, email);
   const limits = plan === "pro" ? PRO_LIMITS : FREE_LIMITS;
   const max = limits[kind] ?? 0;
   if (max <= 0) {

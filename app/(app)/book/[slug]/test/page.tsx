@@ -54,7 +54,7 @@ export default async function TestPage({ params }: { params: Promise<{ slug: str
     .from(schema.comprehensionTests)
     .where(eq(schema.comprehensionTests.bookId, book.id))
     .limit(1);
-  if (!existingTest) await consumeAiQuota(user.id, "test");
+  if (!existingTest) await consumeAiQuota(user.id, "test", user.email);
   const result = await fetchOrGenerateTest(book.id, user.id);
 
   if ("error" in result) {

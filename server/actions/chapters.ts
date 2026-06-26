@@ -29,7 +29,7 @@ export async function getChapterQuiz(chapterId: string): Promise<ClientQuiz> {
     .from(schema.chapterQuizzes)
     .where(eq(schema.chapterQuizzes.chapterId, chapterId))
     .limit(1);
-  if (!existingQuiz[0]) await consumeAiQuota(user.id, "quiz");
+  if (!existingQuiz[0]) await consumeAiQuota(user.id, "quiz", user.email);
 
   const rows = await db
     .select({

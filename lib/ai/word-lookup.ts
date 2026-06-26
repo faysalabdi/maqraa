@@ -39,6 +39,7 @@ export async function lookupArabicWord(
   surface: string,
   context: string,
   userId?: string,
+  email?: string | null,
 ): Promise<WordLookup> {
   // Cache on the vocalized form so differently-voweled homographs stay distinct;
   // fall back to the de-diacritized key only to detect "no Arabic letters".
@@ -61,6 +62,6 @@ export async function lookupArabicWord(
   }
 
   // Cache miss = an actual Claude call; meter it against the user's daily quota.
-  if (userId) await consumeAiQuota(userId, "lookup");
+  if (userId) await consumeAiQuota(userId, "lookup", email);
   return generateLookup(surface, context);
 }
