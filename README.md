@@ -8,7 +8,7 @@
 Tap any word to translate, save it to a spaced-repetition deck, and finish books.</p>
 
 <p align="center">
-  <a href="https://maqraa-app.vercel.app">Live app →</a>
+  <a href="https://maqraa.app">Live app →</a>
 </p>
 
 <p align="center">
