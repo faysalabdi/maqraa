@@ -30,7 +30,11 @@ export default function SignInPage() {
     const supabase = createClient();
 
     if (mode === "signup") {
-      const { data, error: err } = await supabase.auth.signUp({ email, password });
+      const { data, error: err } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      });
       if (err) {
         setError(err.message);
         setStatus("error");
@@ -66,7 +70,10 @@ export default function SignInPage() {
     const supabase = createClient();
     const { error: err } = await supabase.auth.signInWithOtp({
       email,
-      options: { shouldCreateUser: true },
+      options: {
+        shouldCreateUser: true,
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
     });
     if (err) {
       setError(err.message);
