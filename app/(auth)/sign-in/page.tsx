@@ -101,10 +101,7 @@ export default function SignInPage() {
       </div>
       <div className="w-full max-w-sm rounded-3xl bg-surface p-8 shadow-lift ring-1 ring-border">
         <div className="mb-6 text-center">
-          <LogoMark className="mx-auto mb-3 h-14 w-14" />
-          <p className="font-arabic text-3xl text-brand" dir="rtl">
-            مَقْرَأ
-          </p>
+          <LogoMark className="mx-auto mb-4 h-14" />
           <h1 className="mt-2 text-2xl font-extrabold">
             {mode === "signup" ? "Create your account" : mode === "verify" ? "Enter your code" : "Sign in"}
           </h1>

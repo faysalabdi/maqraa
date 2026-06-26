@@ -19,7 +19,7 @@ export default function Home() {
           <span className="h-1.5 w-1.5 rounded-full bg-brand" />
           Read real Arabic books — not flashcards
         </span>
-        <LogoMark className="h-16 w-16" />
+        <LogoMark className="h-16" />
         <h1 className="font-serif text-balance text-5xl font-semibold leading-[1.02] tracking-tight sm:text-6xl">
           Finish your first Arabic book.
         </h1>
@@ -71,27 +71,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Features */}
-      <section className="grid w-full max-w-4xl gap-4 sm:grid-cols-3">
-        <FeatureCard
-          icon={<Sparkles className="h-6 w-6" />}
-          tone="brand"
-          title="Tap to translate"
-          body="Lemma + meaning in context, then save it to your deck. Read page by page, no dictionary juggling."
-        />
-        <FeatureCard
-          icon={<Brain className="h-6 w-6" />}
-          tone="iris"
-          title="Spaced repetition"
-          body="Every saved word enters an SM-2 queue. A few minutes a day turns words you didn't know into words you do."
-        />
-        <FeatureCard
-          icon={<FileUp className="h-6 w-6" />}
-          tone="accent"
-          title="Your books, not ours"
-          body="A curated shelf gets you started — then read whatever you already own. Upload any EPUB and it's yours."
-        />
-      </section>
 
       {/* Bring-your-own spotlight */}
       <section className="animate-rise w-full max-w-4xl overflow-hidden rounded-[2rem] bg-surface text-left shadow-card ring-1 ring-border">
@@ -132,7 +111,28 @@ export default function Home() {
               Start your library <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
-
+          
+      {/* Features */}
+      <section className="grid w-full max-w-4xl gap-4 sm:grid-cols-3">
+        <FeatureCard
+          icon={<Sparkles className="h-6 w-6" />}
+          tone="brand"
+          title="Tap to translate"
+          body="Lemma + meaning in context, then save it to your deck. Read page by page, no dictionary juggling."
+        />
+        <FeatureCard
+          icon={<Brain className="h-6 w-6" />}
+          tone="iris"
+          title="Spaced repetition"
+          body="Every saved word enters an SM-2 queue. A few minutes a day turns words you didn't know into words you do."
+        />
+        <FeatureCard
+          icon={<FileUp className="h-6 w-6" />}
+          tone="accent"
+          title="Your books, not ours"
+          body="A curated shelf gets you started — then read whatever you already own. Upload any EPUB and it's yours."
+        />
+      </section>
           {/* Library mock */}
           <div className="relative rounded-3xl bg-gradient-to-br from-bg-muted to-surface p-6 ring-1 ring-border">
             <div className="flex items-end justify-center gap-3">

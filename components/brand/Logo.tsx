@@ -1,41 +1,74 @@
 import { cn } from "@/lib/utils";
 
 /**
- * The Maqra mark: a stylized qāf (ق) whose bowl opens like a book, with the
- * letter's two dots reborn as golden XP sparks. Colours come from the theme
- * tokens (fill-brand / fill-accent), so it follows light/dark + palette swaps.
+ * Maqra wordmark — the brand name in Arabic (مقرأ, "to read"), set in Amiri 700
+ * (loaded app-wide via lib/fonts.ts → var(--font-amiri)). Renders live text, so
+ * it stays crisp at any size and recolors with the theme where noted.
+ *
+ *   - "gradient" : gold→emerald sweep across the word (default, on light)
+ *   - "tile"     : cream→gold word on an emerald rounded tile (app icon / dark)
+ *   - "swash"    : solid emerald word over a gold calligraphic underline
  */
-export function LogoMark({ className }: { className?: string }) {
+type Variant = "gradient" | "tile" | "swash";
+
+const FONT = "var(--font-amiri), 'Amiri', serif";
+
+export function Wordmark({
+  variant = "gradient",
+  className,
+}: {
+  variant?: Variant;
+  className?: string;
+}) {
+  if (variant === "tile") {
+    return (
+      <svg viewBox="0 0 460 220" className={cn("h-auto", className)} role="img" aria-label="Maqra">
+        <defs>
+          <linearGradient id="mq-tile" x1="0" y1="0" x2="1" y2="0.3">
+            <stop offset="0" stopColor="#f4cf83" />
+            <stop offset="0.5" stopColor="#fff" />
+          </linearGradient>
+        </defs>
+        <rect x="0" y="0" width="460" height="220" rx="48" className="fill-brand" />
+        <text x="230" y="162" fontFamily={FONT} fontWeight="700" fontSize="128" textAnchor="middle" direction="rtl" fill="url(#mq-tile)">
+          مقرأ
+        </text>
+      </svg>
+    );
+  }
+  if (variant === "swash") {
+    return (
+      <svg viewBox="0 0 360 230" className={cn("h-auto", className)} role="img" aria-label="Maqra">
+        <text x="180" y="178" fontFamily={FONT} fontWeight="700" fontSize="126" textAnchor="middle" direction="rtl" className="fill-brand">
+          مقرأ
+        </text>
+        <path d="M62,208 C132,226 228,226 298,206" fill="none" className="stroke-accent" strokeWidth="7.5" strokeLinecap="round" />
+        <circle cx="298" cy="206" r="5.4" className="fill-accent" />
+      </svg>
+    );
+  }
   return (
-    <svg viewBox="0 0 48 48" className={cn("h-9 w-9", className)} aria-hidden>
-      <rect x="1" y="1" width="46" height="46" rx="13" className="fill-brand" />
-      {/* open book — two pages, brand-coloured spine gap between them */}
-      <path
-        d="M23.3 17.4C18.8 14.6 13.4 14.4 9 16.1L9 33.2C13.4 31.5 18.8 31.7 23.3 34.4Z"
-        fill="#fff"
-        opacity="0.97"
-      />
-      <path
-        d="M24.7 17.4C29.2 14.6 34.6 14.4 39 16.1L39 33.2C34.6 31.5 29.2 31.7 24.7 34.4Z"
-        fill="#fff"
-        opacity="0.82"
-      />
-      {/* qāf dots / XP sparks */}
-      <circle cx="31.5" cy="10.2" r="2.4" className="fill-accent" />
-      <circle cx="37.8" cy="12.4" r="1.6" className="fill-accent" />
+    <svg viewBox="0 0 360 230" className={cn("h-auto", className)} role="img" aria-label="Maqra">
+      <defs>
+        <linearGradient id="mq-grad" x1="0" y1="0" x2="1" y2="0.35">
+          <stop offset="0" stopColor="#e3a72f" />
+          <stop offset="0.45" stopColor="#19a06a" />
+          <stop offset="1" stopColor="#0c7a51" />
+        </linearGradient>
+      </defs>
+      <text x="180" y="188" fontFamily={FONT} fontWeight="700" fontSize="128" textAnchor="middle" direction="rtl" fill="url(#mq-grad)">
+        مقرأ
+      </text>
     </svg>
   );
 }
 
-/** Wordmark lockup — Maqra (مقرأ). */
+/** Standalone mark (centered contexts: hero, sign-in). */
+export function LogoMark({ className }: { className?: string }) {
+  return <Wordmark variant="gradient" className={cn("h-10", className)} />;
+}
+
+/** Nav/header lockup — the gradient wordmark. */
 export function Logo({ className }: { className?: string }) {
-  return (
-    <span className={cn("flex items-center gap-2", className)}>
-      <LogoMark />
-      <span className="hidden items-baseline gap-1 sm:flex">
-        <span className="font-serif text-lg font-semibold tracking-tight">Maqra</span>
-        <span className="font-arabic text-sm text-fg-muted">مقرأ</span>
-      </span>
-    </span>
-  );
+  return <Wordmark variant="gradient" className={cn("h-7 w-auto", className)} />;
 }
