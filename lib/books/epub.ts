@@ -48,10 +48,13 @@ function clean(text: string): string {
 function prepareDoc(html: string): Document {
   const doc = new DOMParser().parseFromString(html, "text/html");
   doc.querySelectorAll("script, style").forEach((n) => n.remove());
-  // Mark block boundaries so paragraphs survive textContent flattening.
+  // Mark block boundaries so paragraphs survive textContent flattening. Block
+  // elements get a blank line (paragraph break) so the reader splits them into
+  // real paragraphs; <br> is only a soft line break.
   doc
-    .querySelectorAll("p, div, h1, h2, h3, h4, h5, h6, li, br, tr, blockquote, section, figure")
-    .forEach((el) => el.append("\n"));
+    .querySelectorAll("p, div, h1, h2, h3, h4, h5, h6, li, tr, blockquote, section, figure")
+    .forEach((el) => el.append("\n\n"));
+  doc.querySelectorAll("br").forEach((el) => el.append("\n"));
   return doc;
 }
 

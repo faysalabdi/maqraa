@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ChevronDown, Plus, Settings2, Trash2 } from "lucide-react";
 import { addChapter, deleteBook, deleteChapter } from "@/server/actions/admin";
 import { ImportPanel } from "@/components/admin/ImportPanel";
-import { BookCover } from "@/components/book/BookCover";
+import { BookCover, tierFor, TIERS } from "@/components/book/BookCover";
 import { cn } from "@/lib/utils";
 
 export type AdminBook = {
@@ -32,17 +32,7 @@ export type LevelOption = { level: number; nameEn: string };
 const inputCls =
   "w-full rounded-xl border border-border bg-surface px-4 py-3 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/30";
 
-export function BookAdmin({
-  books,
-  chapters,
-  levels,
-}: {
-  books: AdminBook[];
-  chapters: AdminChapter[];
-  levels: LevelOption[];
-}) {
-  const usedLevels = levels.filter((l) => books.some((b) => b.level === l.level));
-
+export function BookAdmin({ books, chapters }: { books: AdminBook[]; chapters: AdminChapter[] }) {
   if (books.length === 0) {
     return (
       <p className="rounded-2xl bg-bg-muted p-6 text-center text-sm text-fg-muted">
@@ -53,18 +43,18 @@ export function BookAdmin({
 
   return (
     <div className="space-y-7">
-      {usedLevels.map((l) => (
-        <section key={l.level} className="space-y-2.5">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-fg-muted">
-            Stage {l.level} · {l.nameEn}
-          </h2>
-          {books
-            .filter((b) => b.level === l.level)
-            .map((b) => (
+      {TIERS.map((tier) => {
+        const tierBooks = books.filter((b) => tierFor(b.level) === tier);
+        if (tierBooks.length === 0) return null;
+        return (
+          <section key={tier} className="space-y-2.5">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-fg-muted">{tier}</h2>
+            {tierBooks.map((b) => (
               <BookRow key={b.id} book={b} chapters={chapters.filter((c) => c.bookId === b.id)} />
             ))}
-        </section>
-      ))}
+          </section>
+        );
+      })}
     </div>
   );
 }

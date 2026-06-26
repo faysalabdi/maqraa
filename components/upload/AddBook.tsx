@@ -7,7 +7,11 @@ import { parseEpubBook } from "@/lib/books/epub";
 import { assessChapters } from "@/lib/books/quality";
 import { splitIntoChapters, type DraftChapter, type SplitMode } from "@/lib/books/split";
 import { analyzeBookDraft, createBookWithChapters, type Genre } from "@/server/actions/admin";
+import { TIERS, tierFor, type Tier } from "@/components/book/BookCover";
 import { slugify } from "@/lib/utils";
+
+// The catalogue stores a numeric `level`; the UI only exposes the three tiers.
+const TIER_LEVEL: Record<Tier, number> = { Beginner: 1, Intermediate: 3, Advanced: 5 };
 
 const GENRES: { value: Genre; label: string }[] = [
   { value: "graded_reader", label: "Graded reader" },
@@ -21,7 +25,7 @@ const field =
   "w-full rounded-xl border border-border bg-surface px-3.5 py-2.5 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/25";
 const label = "mb-1 block text-xs font-bold uppercase tracking-wider text-fg-muted";
 
-export function AddBook({ levels }: { levels: { level: number; nameEn: string }[] }) {
+export function AddBook({ isAdmin = false }: { isAdmin?: boolean }) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [saving, startSaving] = useTransition();
@@ -303,7 +307,7 @@ export function AddBook({ levels }: { levels: { level: number; nameEn: string }[
         className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-iris to-brand py-3 text-sm font-bold text-brand-fg shadow-soft transition hover:opacity-95 disabled:opacity-60"
       >
         {aiBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-        {aiBusy ? "Reading the book…" : "Auto-fill level, genre & chapter titles with AI"}
+        {aiBusy ? "Reading the book…" : "Auto-fill difficulty, genre & chapter titles with AI"}
       </button>
 
       <div className="grid gap-3 sm:grid-cols-2">
@@ -333,38 +337,36 @@ export function AddBook({ levels }: { levels: { level: number; nameEn: string }[
             }}
           />
         </div>
-        <div>
-          <label className={label}>Difficulty band</label>
-          <select className={field} value={form.level} onChange={(e) => set("level", Number(e.target.value))}>
-            {levels.map((l) => (
-              <option key={l.level} value={l.level}>
-                {l.level} — {l.nameEn}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className={label}>Genre</label>
-            <select className={field} value={form.genre} onChange={(e) => set("genre", e.target.value as Genre)}>
-              {GENRES.map((g) => (
-                <option key={g.value} value={g.value}>
-                  {g.label}
-                </option>
-              ))}
-            </select>
+        {/* Difficulty + genre place a book in the public catalogue, so only admins
+            grade them. A reader's own uploads go to their private shelf as-is. */}
+        {isAdmin && (
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={label}>Difficulty</label>
+              <select
+                className={field}
+                value={tierFor(form.level)}
+                onChange={(e) => set("level", TIER_LEVEL[e.target.value as Tier])}
+              >
+                {TIERS.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={label}>Genre</label>
+              <select className={field} value={form.genre} onChange={(e) => set("genre", e.target.value as Genre)}>
+                {GENRES.map((g) => (
+                  <option key={g.value} value={g.value}>
+                    {g.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
-          <div>
-            <label className={label}>Difficulty</label>
-            <select className={field} value={form.difficulty} onChange={(e) => set("difficulty", Number(e.target.value))}>
-              {[1, 2, 3, 4, 5].map((d) => (
-                <option key={d} value={d}>
-                  {"★".repeat(d)}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
+        )}
       </div>
 
       <div className="rounded-2xl border border-border">

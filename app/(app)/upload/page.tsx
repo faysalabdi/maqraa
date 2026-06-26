@@ -8,12 +8,7 @@ import { getPlan } from "@/lib/entitlement";
 import { ProBlock } from "@/components/paywall/ProBlock";
 import { BookCover } from "@/components/book/BookCover";
 import { AddBook } from "@/components/upload/AddBook";
-import {
-  BookAdmin,
-  type AdminBook,
-  type AdminChapter,
-  type LevelOption,
-} from "@/components/admin/BookAdmin";
+import { BookAdmin, type AdminBook, type AdminChapter } from "@/components/admin/BookAdmin";
 
 export const dynamic = "force-dynamic";
 
@@ -42,11 +37,6 @@ export default async function UploadPage() {
       />
     );
   }
-
-  const levels = await db
-    .select({ level: schema.levels.level, nameEn: schema.levels.nameEn })
-    .from(schema.levels)
-    .orderBy(asc(schema.levels.level));
 
   // Admins manage the whole curated catalogue; everyone else manages only their own uploads.
   const bookRows = await db
@@ -81,13 +71,13 @@ export default async function UploadPage() {
         </p>
       </header>
 
-      <AddBook levels={levels} />
+      <AddBook isAdmin={admin} />
 
       {myBooks.length > 0 &&
         (admin ? (
           <section className="space-y-4">
             <h2 className="text-lg font-bold">Books in the catalogue</h2>
-            <ChaptersList bookIds={myBooks.map((b) => b.id)} levels={levels} adminBooks={myBooks} />
+            <ChaptersList bookIds={myBooks.map((b) => b.id)} adminBooks={myBooks} />
           </section>
         ) : (
           <section className="space-y-4">
@@ -115,11 +105,9 @@ export default async function UploadPage() {
 
 async function ChaptersList({
   bookIds,
-  levels,
   adminBooks,
 }: {
   bookIds: string[];
-  levels: LevelOption[];
   adminBooks: {
     id: string;
     slug: string;
@@ -142,11 +130,5 @@ async function ChaptersList({
         })
         .from(schema.bookChapters)
     : [];
-  return (
-    <BookAdmin
-      books={adminBooks as AdminBook[]}
-      chapters={chapters as AdminChapter[]}
-      levels={levels}
-    />
-  );
+  return <BookAdmin books={adminBooks as AdminBook[]} chapters={chapters as AdminChapter[]} />;
 }
