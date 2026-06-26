@@ -19,7 +19,6 @@ Tap any word to translate, save it to a spaced-repetition deck, and finish books
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/landing.png" width="49%" alt="Landing" />
   <img src="docs/screenshots/preview.png" width="49%" alt="Tap-to-translate demo" />
 </p>
 
