@@ -21,7 +21,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { cleanWord, isArabicWord, paragraphs, tokenizeParagraph, lookupKey, vocalizedKey } from "@/lib/arabic";
-import { lookupWord, saveWord, cachedLookups, type CachedLookup } from "@/server/actions/vocab";
+import { COMMON_WORDS } from "@/lib/arabic/common-words";
+import { lookupWord, saveWord, cachedLookups, prewarmLookups, type CachedLookup } from "@/server/actions/vocab";
 import {
   getChapterQuiz,
   submitChapterQuiz,
@@ -127,6 +128,25 @@ export function ChapterReader(props: Props) {
         lookupCache.current = m;
       })
       .catch(() => {});
+
+    // Background pre-warm: generate lookups for this chapter's not-yet-cached,
+    // not-common words so taps are instant. Deduped + capped client-side; the
+    // server skips cached/common words and meters generation.
+    const items: { surface: string; context: string }[] = [];
+    const seen = new Set<string>();
+    for (const p of paragraphs(chapter.contentAr)) {
+      for (const w of tokenizeParagraph(p)) {
+        if (!isArabicWord(w)) continue;
+        const k = lookupKey(w);
+        if (!k || COMMON_WORDS[k]) continue;
+        const vk = vocalizedKey(w);
+        if (seen.has(vk)) continue;
+        seen.add(vk);
+        items.push({ surface: w, context: p });
+      }
+      if (items.length >= 40) break;
+    }
+    if (items.length) prewarmLookups(items.slice(0, 40)).catch(() => {});
   }, [chapter.id, chapter.contentAr]);
 
   // First-read coach mark: show once until the reader taps a word.
@@ -185,6 +205,12 @@ export function ChapterReader(props: Props) {
     const cached = lookupCache.current[vocalizedKey(surface)];
     if (cached) {
       setLookup({ surface, ...cached });
+      return;
+    }
+    // Instant local fast-path for high-frequency words (no network).
+    const common = COMMON_WORDS[lookupKey(surface)];
+    if (common) {
+      setLookup({ surface, lemma_ar: common.lemma_ar, gloss_en: common.gloss_en, pos: common.pos, example_ar: null });
       return;
     }
     setLookup(null);

@@ -3,10 +3,12 @@
 import { createClient } from "@/lib/supabase/server";
 import { db, schema } from "@/lib/db";
 import { count, eq, inArray } from "drizzle-orm";
-import { lookupArabicWord, type WordLookup } from "@/lib/ai/word-lookup";
+import { lookupArabicWord, generateLookup, isLookupCached, type WordLookup } from "@/lib/ai/word-lookup";
 import { grantXp, recordActivity } from "@/lib/xp/grant";
 import { getPlan, FREE } from "@/lib/entitlement";
-import { lookupKey } from "@/lib/arabic";
+import { consumeAiQuota } from "@/lib/ai/quota";
+import { lookupKey, vocalizedKey } from "@/lib/arabic";
+import { COMMON_WORDS } from "@/lib/arabic/common-words";
 
 export type CachedLookup = {
   lemma_ar: string;
@@ -27,6 +29,49 @@ async function requireUser() {
 export async function lookupWord(surface: string, context: string): Promise<WordLookup> {
   const user = await requireUser();
   return lookupArabicWord(surface.slice(0, 50), context.slice(0, 300), user.id);
+}
+
+/**
+ * Background pre-warm: generate + cache lookups for a chapter's words so taps are
+ * instant. Skips common words (served locally) and already-cached words; capped
+ * and metered so it can't run up cost. Fire-and-forget from the reader.
+ */
+export async function prewarmLookups(items: { surface: string; context: string }[]): Promise<void> {
+  const user = await requireUser();
+
+  const seen = new Set<string>();
+  const cand: { surface: string; context: string }[] = [];
+  for (const it of items) {
+    const k = lookupKey(it.surface);
+    if (!k || COMMON_WORDS[k]) continue;
+    const vk = vocalizedKey(it.surface);
+    if (seen.has(vk)) continue;
+    seen.add(vk);
+    cand.push({ surface: it.surface.slice(0, 50), context: it.context.slice(0, 300) });
+    if (cand.length >= 40) break;
+  }
+
+  const cachedFlags = await Promise.all(cand.map((c) => isLookupCached(c.surface)));
+  const queue = cand.filter((_, i) => !cachedFlags[i]).slice(0, 16);
+
+  let stop = false;
+  const drain = async () => {
+    while (queue.length && !stop) {
+      const c = queue.shift()!;
+      try {
+        await consumeAiQuota(user.id, "prewarm");
+      } catch {
+        stop = true;
+        return;
+      }
+      try {
+        await generateLookup(c.surface, c.context);
+      } catch {
+        /* best-effort */
+      }
+    }
+  };
+  await Promise.all([drain(), drain(), drain(), drain()]);
 }
 
 /**

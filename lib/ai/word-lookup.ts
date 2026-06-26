@@ -1,45 +1,39 @@
-import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { anthropic, FALLBACK_MODEL } from "./anthropic";
 import { lookupKey, vocalizedKey } from "@/lib/arabic";
 import { consumeAiQuota } from "./quota";
+import { runLookup, type WordLookup } from "./lookup-core";
 
-export const LookupSchema = z.object({
-  lemma_ar: z.string(),
-  gloss_en: z.string(),
-  pos: z.string().nullable().optional(),
-  example_ar: z.string().nullable().optional(),
-});
+export type { WordLookup } from "./lookup-core";
 
-export type WordLookup = z.infer<typeof LookupSchema> & { surface: string };
+/** True if this word is already in the global cache (no Claude call). */
+export async function isLookupCached(surface: string): Promise<boolean> {
+  const [row] = await db
+    .select({ key: schema.wordLookups.key })
+    .from(schema.wordLookups)
+    .where(eq(schema.wordLookups.key, vocalizedKey(surface)))
+    .limit(1);
+  return !!row;
+}
 
-const SUBMIT_LOOKUP_TOOL = {
-  name: "submit_lookup",
-  description: "Submit the dictionary lookup for the Arabic word.",
-  input_schema: {
-    type: "object",
-    properties: {
-      lemma_ar: {
-        type: "string",
-        description: "Dictionary (lemma) form of the word with full tashkeel.",
-      },
-      gloss_en: {
-        type: "string",
-        description: "Concise English meaning as used in the given context (max 8 words).",
-      },
-      pos: {
-        type: ["string", "null"],
-        description: "Part of speech in English (noun, verb form II, particle...).",
-      },
-      example_ar: {
-        type: ["string", "null"],
-        description: "One short fully-vocalized Arabic example sentence using the lemma.",
-      },
-    },
-    required: ["lemma_ar", "gloss_en"],
-  },
-} as const;
+/** Generate a lookup via Claude and cache it. No cache check, no quota. */
+export async function generateLookup(surface: string, context: string): Promise<WordLookup> {
+  const key = vocalizedKey(surface);
+  const parsed = await runLookup(anthropic, FALLBACK_MODEL, surface, context);
+  await db
+    .insert(schema.wordLookups)
+    .values({
+      key,
+      surface,
+      lemmaAr: parsed.lemma_ar,
+      glossEn: parsed.gloss_en,
+      pos: parsed.pos ?? null,
+      exampleAr: parsed.example_ar ?? null,
+    })
+    .onConflictDoNothing();
+  return { surface, ...parsed };
+}
 
 export async function lookupArabicWord(
   surface: string,
@@ -68,43 +62,5 @@ export async function lookupArabicWord(
 
   // Cache miss = an actual Claude call; meter it against the user's daily quota.
   if (userId) await consumeAiQuota(userId, "lookup");
-
-  const response = await anthropic.messages.create({
-    model: FALLBACK_MODEL,
-    max_tokens: 500,
-    system: [
-      {
-        type: "text",
-        text: "You are an Arabic-English dictionary for language learners. Given an Arabic word and the sentence it appeared in, return its lemma, a concise contextual English gloss, part of speech, and one simple example sentence. Submit only via the submit_lookup tool.",
-        cache_control: { type: "ephemeral" },
-      },
-    ],
-    tools: [SUBMIT_LOOKUP_TOOL as never],
-    tool_choice: { type: "tool", name: "submit_lookup" },
-    messages: [
-      {
-        role: "user",
-        content: `Word: ${surface}\nSentence: ${context}`,
-      },
-    ],
-  });
-
-  const toolUse = response.content.find((c) => c.type === "tool_use");
-  if (!toolUse || toolUse.type !== "tool_use") throw new Error("no tool_use in lookup response");
-
-  const parsed = LookupSchema.parse(toolUse.input);
-
-  await db
-    .insert(schema.wordLookups)
-    .values({
-      key,
-      surface,
-      lemmaAr: parsed.lemma_ar,
-      glossEn: parsed.gloss_en,
-      pos: parsed.pos ?? null,
-      exampleAr: parsed.example_ar ?? null,
-    })
-    .onConflictDoNothing();
-
-  return { surface, ...parsed };
+  return generateLookup(surface, context);
 }

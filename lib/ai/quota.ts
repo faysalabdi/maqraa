@@ -7,6 +7,7 @@ import { getPlan } from "@/lib/entitlement";
 // hard stops against runaway cost / abuse.
 const PRO_LIMITS: Record<string, number> = {
   lookup: 1000, // distinct word lookups that miss the global cache
+  prewarm: 600, // background chapter pre-warming (also globally cached)
   quiz: 200, // chapter quiz opens
   test: 80, // whole-book test generations
   grade: 120, // open-ended test submissions graded by AI
@@ -15,6 +16,7 @@ const PRO_LIMITS: Record<string, number> = {
 
 const FREE_LIMITS: Record<string, number> = {
   lookup: 30,
+  prewarm: 60,
   quiz: 8,
   test: 5,
   grade: 8,
