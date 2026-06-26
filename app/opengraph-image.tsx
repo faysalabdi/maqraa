@@ -5,6 +5,8 @@ export const alt = "Maqra — read Arabic, beautifully";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
+// Latin-only by design: Satori (the renderer) can't shape Arabic, so we keep the
+// share card to type it renders correctly.
 export default function OpengraphImage() {
   return new ImageResponse(
     (
@@ -15,16 +17,28 @@ export default function OpengraphImage() {
           display: "flex",
           flexDirection: "column",
           justifyContent: "center",
-          padding: "80px",
+          padding: "90px",
           background: "linear-gradient(135deg, #0b6644 0%, #16a06a 100%)",
           color: "#ffffff",
           fontFamily: "sans-serif",
         }}
       >
-        <div style={{ fontSize: 120, lineHeight: 1 }}>اِقْرَأْ</div>
-        <div style={{ fontSize: 84, fontWeight: 800, marginTop: 28 }}>Maqra</div>
-        <div style={{ fontSize: 40, marginTop: 12, opacity: 0.9, maxWidth: 900 }}>
-          Read real Arabic books. Tap any word to translate. Build a vocabulary that sticks.
+        <div
+          style={{
+            fontSize: 30,
+            letterSpacing: 8,
+            textTransform: "uppercase",
+            color: "#f4cf83",
+            fontWeight: 700,
+          }}
+        >
+          Maqra
+        </div>
+        <div style={{ fontSize: 96, fontWeight: 800, marginTop: 16, lineHeight: 1.05, maxWidth: 980 }}>
+          Read real Arabic books, beautifully.
+        </div>
+        <div style={{ fontSize: 38, marginTop: 24, opacity: 0.92, maxWidth: 940 }}>
+          Tap any word to translate. Build a vocabulary that sticks. Bring your own books.
         </div>
       </div>
     ),
