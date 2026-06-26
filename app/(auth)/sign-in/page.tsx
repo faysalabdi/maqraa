@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { KeyRound, Loader2, LogIn, Mail, UserPlus } from "lucide-react";
+import { KeyRound, Loader2, LogIn, UserPlus } from "lucide-react";
 import { LogoMark } from "@/components/brand/Logo";
 
-type Mode = "signin" | "signup" | "otp" | "otp-verify";
+type Mode = "signin" | "signup" | "verify";
 type Status = "idle" | "loading" | "error";
 
 export default function SignInPage() {
@@ -43,8 +43,9 @@ export default function SignInPage() {
       if (data.session) {
         window.location.href = "/path";
       } else {
-        setNotice("Check your inbox to confirm your email, then sign in.");
-        setMode("signin");
+        setOtp("");
+        setNotice(`We sent a 6-digit code to ${email}.`);
+        setMode("verify");
         setStatus("idle");
       }
       return;
@@ -63,28 +64,7 @@ export default function SignInPage() {
     }
   }
 
-  async function sendOtp(e: React.FormEvent) {
-    e.preventDefault();
-    setStatus("loading");
-    setError(null);
-    const supabase = createClient();
-    const { error: err } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        shouldCreateUser: true,
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
-    if (err) {
-      setError(err.message);
-      setStatus("error");
-    } else {
-      setMode("otp-verify");
-      setStatus("idle");
-    }
-  }
-
-  async function verifyOtp(e: React.FormEvent) {
+  async function verifyCode(e: React.FormEvent) {
     e.preventDefault();
     setStatus("loading");
     setError(null);
@@ -92,7 +72,7 @@ export default function SignInPage() {
     const { error: err } = await supabase.auth.verifyOtp({
       email,
       token: otp.trim(),
-      type: "email",
+      type: "signup",
     });
     if (err) {
       setError(err.message);
@@ -100,6 +80,15 @@ export default function SignInPage() {
     } else {
       window.location.href = "/path";
     }
+  }
+
+  async function resendCode() {
+    setError(null);
+    setNotice(null);
+    const supabase = createClient();
+    const { error: err } = await supabase.auth.resend({ type: "signup", email });
+    if (err) setError(err.message);
+    else setNotice(`New code sent to ${email}.`);
   }
 
   const isPassword = mode === "signin" || mode === "signup";
@@ -117,7 +106,7 @@ export default function SignInPage() {
             مَقْرَأ
           </p>
           <h1 className="mt-2 text-2xl font-extrabold">
-            {mode === "signup" ? "Create your account" : "Sign in"}
+            {mode === "signup" ? "Create your account" : mode === "verify" ? "Enter your code" : "Sign in"}
           </h1>
         </div>
 
@@ -165,75 +154,35 @@ export default function SignInPage() {
             </button>
             {error && <p className="text-center text-sm text-danger">{error}</p>}
 
-            <div className="flex items-center justify-between pt-1 text-sm">
+            <div className="pt-1 text-center text-sm">
               <button
                 type="button"
                 onClick={() => {
                   setMode(mode === "signup" ? "signin" : "signup");
                   setError(null);
+                  setNotice(null);
                 }}
                 className="font-semibold text-brand hover:underline"
               >
-                {mode === "signup" ? "I have an account" : "Create account"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setMode("otp");
-                  setError(null);
-                }}
-                className="text-fg-muted hover:text-fg"
-              >
-                Email me a code instead
+                {mode === "signup" ? "I already have an account" : "Create an account"}
               </button>
             </div>
           </form>
         )}
 
-        {mode === "otp" && (
-          <form onSubmit={sendOtp} className="space-y-3">
-            <input
-              type="email"
-              required
-              autoFocus
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              className="w-full rounded-xl border border-border bg-surface px-4 py-3 outline-none focus:ring-2 focus:ring-brand"
-            />
-            <button
-              type="submit"
-              disabled={status === "loading"}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-3 font-bold text-brand-fg transition hover:bg-brand-dark disabled:opacity-60"
-            >
-              {status === "loading" ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Mail className="h-4 w-4" />
-              )}
-              Send code
-            </button>
-            {error && <p className="text-center text-sm text-danger">{error}</p>}
-            <button
-              type="button"
-              onClick={() => setMode("signin")}
-              className="w-full text-sm text-fg-muted hover:text-fg"
-            >
-              ← Use a password instead
-            </button>
-          </form>
-        )}
-
-        {mode === "otp-verify" && (
-          <form onSubmit={verifyOtp} className="space-y-3">
-            <p className="text-center text-sm text-fg-muted">Code sent to {email}</p>
+        {mode === "verify" && (
+          <form onSubmit={verifyCode} className="space-y-3">
+            <p className="text-center text-sm text-fg-muted">
+              Enter the 6-digit code we emailed to {email} to finish creating your account.
+            </p>
             <input
               type="text"
               inputMode="numeric"
-              pattern="\d{6,8}"
-              maxLength={8}
+              pattern="\d{6}"
+              maxLength={6}
               required
               autoFocus
+              autoComplete="one-time-code"
               value={otp}
               onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
               placeholder="000000"
@@ -249,16 +198,25 @@ export default function SignInPage() {
               ) : (
                 <KeyRound className="h-4 w-4" />
               )}
-              Verify
+              Verify & continue
             </button>
             {error && <p className="text-center text-sm text-danger">{error}</p>}
-            <button
-              type="button"
-              onClick={() => setMode("signin")}
-              className="w-full text-sm text-fg-muted hover:text-fg"
-            >
-              ← Back
-            </button>
+            <div className="flex items-center justify-between pt-1 text-sm">
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("signup");
+                  setError(null);
+                  setNotice(null);
+                }}
+                className="text-fg-muted hover:text-fg"
+              >
+                ← Back
+              </button>
+              <button type="button" onClick={resendCode} className="font-semibold text-brand hover:underline">
+                Resend code
+              </button>
+            </div>
           </form>
         )}
       </div>
