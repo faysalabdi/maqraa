@@ -2,7 +2,20 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { env } from "@/lib/env";
 
-const PUBLIC_PATHS = ["/", "/sign-in", "/auth/callback", "/preview"];
+const PUBLIC_PATHS = [
+  "/",
+  "/sign-in",
+  "/auth/callback",
+  "/preview",
+  "/privacy",
+  "/terms",
+  "/sitemap.xml",
+  "/robots.txt",
+];
+
+// Metadata routes (no file extension, so not caught by the matcher's image filter)
+// that must be crawlable / fetchable without auth.
+const PUBLIC_PREFIXES = ["/_next", "/api/", "/opengraph-image", "/icon", "/apple-icon"];
 
 const SID_COOKIE = "axp_sid";
 
@@ -61,10 +74,9 @@ export async function updateSession(request: NextRequest) {
 
   const isPublic =
     PUBLIC_PATHS.includes(pathname) ||
-    pathname.startsWith("/_next") ||
     // API routes (e.g. the Stripe webhook) authenticate themselves and must
     // never be redirected to sign-in — Stripe won't follow a redirect.
-    pathname.startsWith("/api/");
+    PUBLIC_PREFIXES.some((p) => pathname.startsWith(p));
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
