@@ -9,6 +9,7 @@ import { billingEnabled } from "@/lib/stripe/server";
 import { ManageBillingButton } from "@/components/paywall/UpgradeButton";
 import SettingsForm from "@/components/settings/SettingsForm";
 import { ThemeSetting } from "@/components/chrome/ThemeSetting";
+import { DeleteAccount } from "@/components/settings/DeleteAccount";
 
 export const dynamic = "force-dynamic";
 
@@ -98,6 +99,10 @@ export default async function SettingsPage() {
             : null
         }
       />
+
+      <div className="mt-8">
+        <DeleteAccount />
+      </div>
     </main>
   );
 }

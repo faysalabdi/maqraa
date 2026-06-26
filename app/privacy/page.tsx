@@ -7,7 +7,7 @@ export const metadata: Metadata = {
 };
 
 const UPDATED = "26 June 2026";
-const CONTACT = "support@maqra.app";
+const CONTACT = "faysalrulz123@gmail.com";
 
 export default function PrivacyPage() {
   return (

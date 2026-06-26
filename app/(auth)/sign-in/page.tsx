@@ -40,6 +40,15 @@ export default function SignInPage() {
         setStatus("error");
         return;
       }
+      // Supabase's email-enumeration protection returns a user with no
+      // identities when the email already has a (confirmed) account. Catch that
+      // instead of dropping them into the code flow.
+      if (data.user && (data.user.identities?.length ?? 0) === 0) {
+        setError("An account with this email already exists — sign in instead.");
+        setMode("signin");
+        setStatus("idle");
+        return;
+      }
       if (data.session) {
         window.location.href = "/path";
       } else {
