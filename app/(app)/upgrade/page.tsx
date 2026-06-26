@@ -67,7 +67,7 @@ export default async function UpgradePage() {
     <main className="mx-auto max-w-3xl px-4 pb-24 pt-10">
       <header className="text-center">
         <span className="inline-flex items-center gap-2 rounded-full bg-brand/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-brand">
-          <Sparkles className="h-3.5 w-3.5" /> Maqra Pro
+          <Sparkles className="h-3.5 w-3.5" /> Maqraa Pro
         </span>
         <h1 className="font-serif mt-3 text-4xl font-semibold tracking-tight">
           Read everything. Bring your own.

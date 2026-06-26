@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
 
 export const runtime = "edge";
-export const alt = "Maqra — read Arabic, beautifully";
+export const alt = "Maqraa — get through real Arabic books";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -32,10 +32,10 @@ export default function OpengraphImage() {
             fontWeight: 700,
           }}
         >
-          Maqra
+          Maqraa
         </div>
         <div style={{ fontSize: 96, fontWeight: 800, marginTop: 16, lineHeight: 1.05, maxWidth: 980 }}>
-          Read real Arabic books, beautifully.
+          Get through real Arabic books.
         </div>
         <div style={{ fontSize: 38, marginTop: 24, opacity: 0.92, maxWidth: 940 }}>
           Tap any word to translate. Build a vocabulary that sticks. Bring your own books.

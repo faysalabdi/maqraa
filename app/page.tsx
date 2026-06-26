@@ -84,7 +84,7 @@ export default function Home() {
               <br className="hidden sm:block" /> already love.
             </h2>
             <p className="mt-3 text-fg-muted">
-              The curated shelf is just the on-ramp. Maqra is built to read <em>your</em> library —
+              The curated shelf is just the on-ramp. Maqraa is built to read <em>your</em> library —
               any EPUB becomes a tappable, translatable, reviewable book in seconds.
             </p>
             <ul className="mt-6 space-y-3">
@@ -182,7 +182,7 @@ export default function Home() {
 
       <footer className="mt-16 w-full max-w-3xl border-t border-border pt-6 text-center text-xs text-fg-muted">
         <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
-          <span>© {new Date().getFullYear()} Maqra</span>
+          <span>© {new Date().getFullYear()} Maqraa</span>
           <Link href="/privacy" className="hover:text-fg">
             Privacy
           </Link>

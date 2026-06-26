@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Terms of Service",
-  description: "The terms for using Maqra.",
+  description: "The terms for using Maqraa.",
 };
 
 const UPDATED = "26 June 2026";
@@ -13,7 +13,7 @@ export default function TermsPage() {
   return (
     <main className="mx-auto max-w-2xl px-4 py-12">
       <Link href="/" className="text-sm font-semibold text-fg-muted hover:text-fg">
-        ← Maqra
+        ← Maqraa
       </Link>
       <h1 className="mt-4 font-serif text-3xl font-semibold tracking-tight">Terms of Service</h1>
       <p className="mt-1 text-sm text-fg-muted">Last updated {UPDATED}</p>
@@ -24,7 +24,7 @@ export default function TermsPage() {
           on it for a public launch.
         </p>
 
-        <Section title="Using Maqra">
+        <Section title="Using Maqraa">
           <p>
             By creating an account you agree to these terms. You must be old enough to consent to
             this agreement in your country, or have a parent/guardian&apos;s permission.
@@ -33,7 +33,7 @@ export default function TermsPage() {
 
         <Section title="Your content and uploads">
           <p>
-            Maqra lets you upload books to read privately. You are responsible for the content you
+            Maqraa lets you upload books to read privately. You are responsible for the content you
             upload and confirm you have the right to use it. Do not upload material you are not
             permitted to copy. Uploaded books are private to your account; the curated catalogue is
             limited to public-domain and original works.
@@ -65,7 +65,7 @@ export default function TermsPage() {
 
         <Section title="Termination">
           <p>
-            You can stop using Maqra at any time and request account deletion. We may suspend
+            You can stop using Maqraa at any time and request account deletion. We may suspend
             accounts that violate these terms.
           </p>
         </Section>

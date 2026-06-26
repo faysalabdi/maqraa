@@ -4,7 +4,7 @@ import { env } from "@/lib/env";
 import { Providers } from "./providers";
 import "./globals.css";
 
-const title = "Maqra — read Arabic, beautifully";
+const title = "Maqraa — get through real Arabic books";
 const description =
   "Read real Arabic books in-app, tap any word to translate, and build a vocabulary that sticks.";
 
@@ -12,13 +12,13 @@ export const metadata: Metadata = {
   metadataBase: new URL(env.NEXT_PUBLIC_APP_URL),
   title: {
     default: title,
-    template: "%s · Maqra",
+    template: "%s · Maqraa",
   },
   description,
-  applicationName: "Maqra",
+  applicationName: "Maqraa",
   openGraph: {
     type: "website",
-    siteName: "Maqra",
+    siteName: "Maqraa",
     title,
     description,
     url: "/",

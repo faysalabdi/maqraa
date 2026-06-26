@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
-  description: "How Maqra handles your data.",
+  description: "How Maqraa handles your data.",
 };
 
 const UPDATED = "26 June 2026";
@@ -13,14 +13,14 @@ export default function PrivacyPage() {
   return (
     <main className="mx-auto max-w-2xl px-4 py-12">
       <Link href="/" className="text-sm font-semibold text-fg-muted hover:text-fg">
-        ← Maqra
+        ← Maqraa
       </Link>
       <h1 className="mt-4 font-serif text-3xl font-semibold tracking-tight">Privacy Policy</h1>
       <p className="mt-1 text-sm text-fg-muted">Last updated {UPDATED}</p>
 
       <div className="prose-legal mt-8 space-y-6 text-sm leading-relaxed text-fg">
         <p className="rounded-xl bg-surface p-4 text-fg-muted ring-1 ring-border">
-          This is a plain-language summary of how Maqra handles your data. It is a starting
+          This is a plain-language summary of how Maqraa handles your data. It is a starting
           template — have it reviewed by a qualified professional before relying on it for a public
           launch.
         </p>

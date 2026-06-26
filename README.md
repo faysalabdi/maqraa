@@ -1,10 +1,10 @@
 <p align="center">
-  <img src="app/icon.png" width="96" height="96" alt="Maqra" />
+  <img src="app/icon.png" width="96" height="96" alt="Maqraa" />
 </p>
 
-<h1 align="center">Maqra — مقرأ</h1>
+<h1 align="center">Maqraa — مقرأ</h1>
 
-<p align="center"><strong>Read real Arabic books, beautifully.</strong><br/>
+<p align="center"><strong>Get through real Arabic books.</strong><br/>
 Tap any word to translate, save it to a spaced-repetition deck, and finish books.</p>
 
 <p align="center">
@@ -25,7 +25,7 @@ Tap any word to translate, save it to a spaced-repetition deck, and finish books
 ---
 
 > Reading Arabic is hard because one unknown word breaks the flow and you never
-> finish the book. Maqra removes the dictionary friction — tap a word, get the
+> finish the book. Maqraa removes the dictionary friction — tap a word, get the
 > lemma + meaning in context, keep reading — and measures real outcomes (books
 > finished, words mastered, days in a row) instead of an abstract level.
 
@@ -59,7 +59,7 @@ original, or a reader's own private upload — never fabricated copyrighted text
 
 ## Free vs Pro
 
-Maqra is freemium, billed through **Stripe**.
+Maqraa is freemium, billed through **Stripe**.
 
 | | Free | **Pro** |
 | --- | --- | --- |
@@ -121,7 +121,7 @@ Billing is optional — without Stripe env the app runs free-only and `/upgrade`
 "coming soon". To enable Pro:
 
 1. `STRIPE_SECRET_KEY=sk_… pnpm tsx scripts/stripe-setup.ts` — idempotently creates the
-   **Maqra Pro** product + monthly/annual prices; prints the price IDs.
+   **Maqraa Pro** product + monthly/annual prices; prints the price IDs.
 2. Add a webhook endpoint → `https://YOUR_DOMAIN/api/stripe/webhook`, events
    `checkout.session.completed` + `customer.subscription.*`; copy its signing secret.
 3. Set env: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_MONTHLY`,

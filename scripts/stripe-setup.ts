@@ -1,5 +1,5 @@
 /**
- * Idempotently provision the Maqra Pro product + monthly/annual prices in Stripe
+ * Idempotently provision the Maqraa Pro product + monthly/annual prices in Stripe
  * (test or live, per STRIPE_SECRET_KEY). Safe to re-run — it reuses anything
  * already tagged with metadata.app = "maqra".
  *
@@ -26,7 +26,7 @@ async function main() {
   let product = products.data[0];
   if (!product) {
     product = await stripe.products.create({
-      name: "Maqra Pro",
+      name: "Maqraa Pro",
       description: "Every curated book at every level, bring your own books, unlimited review deck.",
       metadata: { app: APP_TAG },
     });

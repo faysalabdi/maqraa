@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 
 /**
- * Maqra wordmark — the brand name in Arabic (مقرأ, "to read"), set in Amiri 700
+ * Maqraa wordmark — the brand name in Arabic (مقرأ, "to read"), set in Amiri 700
  * (loaded app-wide via lib/fonts.ts → var(--font-amiri)). Renders live text, so
  * it stays crisp at any size and recolors with the theme where noted.
  *
@@ -22,7 +22,7 @@ export function Wordmark({
 }) {
   if (variant === "tile") {
     return (
-      <svg viewBox="0 0 460 220" className={cn("h-auto", className)} role="img" aria-label="Maqra">
+      <svg viewBox="0 0 460 220" className={cn("h-auto", className)} role="img" aria-label="Maqraa">
         <defs>
           <linearGradient id="mq-tile" x1="0" y1="0" x2="1" y2="0.3">
             <stop offset="0" stopColor="#f4cf83" />
@@ -38,7 +38,7 @@ export function Wordmark({
   }
   if (variant === "swash") {
     return (
-      <svg viewBox="0 0 360 230" className={cn("h-auto", className)} role="img" aria-label="Maqra">
+      <svg viewBox="0 0 360 230" className={cn("h-auto", className)} role="img" aria-label="Maqraa">
         <text x="180" y="178" fontFamily={FONT} fontWeight="700" fontSize="126" textAnchor="middle" direction="rtl" className="fill-brand">
           مقرأ
         </text>
@@ -48,7 +48,7 @@ export function Wordmark({
     );
   }
   return (
-    <svg viewBox="0 0 360 230" className={cn("h-auto", className)} role="img" aria-label="Maqra">
+    <svg viewBox="0 0 360 230" className={cn("h-auto", className)} role="img" aria-label="Maqraa">
       <defs>
         <linearGradient id="mq-grad" x1="0" y1="0" x2="1" y2="0.35">
           <stop offset="0" stopColor="#e3a72f" />

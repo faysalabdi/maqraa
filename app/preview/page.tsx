@@ -3,7 +3,7 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import { PreviewDemo } from "@/components/preview/PreviewDemo";
 
 export const metadata = {
-  title: "Maqra — tap to translate",
+  title: "Maqraa — tap to translate",
 };
 
 export default function PreviewPage() {

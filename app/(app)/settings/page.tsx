@@ -60,7 +60,7 @@ export default async function SettingsPage() {
             <Sparkles className="h-5 w-5" />
           </span>
           <div>
-            <p className="font-bold">{plan === "pro" ? "Maqra Pro" : "Free plan"}</p>
+            <p className="font-bold">{plan === "pro" ? "Maqraa Pro" : "Free plan"}</p>
             <p className="text-sm text-fg-muted">
               {plan === "pro" ? "Every book, your own library, unlimited deck." : "The Beginner shelf, capped deck."}
             </p>
