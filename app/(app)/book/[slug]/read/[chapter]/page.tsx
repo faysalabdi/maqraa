@@ -50,10 +50,17 @@ export default async function ReadChapterPage({
   }
 
   const saved = await db
-    .select({ lemmaAr: schema.vocabItems.lemmaAr })
+    .select({ lemmaAr: schema.vocabItems.lemmaAr, sourceRef: schema.vocabItems.sourceRef })
     .from(schema.vocabItems)
     .where(eq(schema.vocabItems.userId, user.id));
-  const savedKeys = saved.map((s) => lookupKey(s.lemmaAr));
+  // Underline both the lemma key and the exact tapped surface (an inflected
+  // form rarely equals its lemma, so the lemma key alone misses it in the text).
+  const savedKeys = saved.flatMap((s) => {
+    const keys = [lookupKey(s.lemmaAr)];
+    const surfaceKey = (s.sourceRef as { surfaceKey?: string } | null)?.surfaceKey;
+    if (surfaceKey) keys.push(surfaceKey);
+    return keys;
+  });
 
   const progress = await db
     .select({

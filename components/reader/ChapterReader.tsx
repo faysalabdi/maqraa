@@ -16,13 +16,14 @@ import {
   Minus,
   PartyPopper,
   Plus,
+  Trash2,
   Type,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { cleanWord, isArabicWord, paragraphs, tokenizeParagraph, lookupKey, vocalizedKey } from "@/lib/arabic";
 import { COMMON_WORDS } from "@/lib/arabic/common-words";
-import { lookupWord, saveWord, cachedLookups, prewarmLookups, type CachedLookup } from "@/server/actions/vocab";
+import { lookupWord, saveWord, unsaveWord, cachedLookups, prewarmLookups, type CachedLookup } from "@/server/actions/vocab";
 import {
   getChapterQuiz,
   submitChapterQuiz,
@@ -77,6 +78,7 @@ export function ChapterReader(props: Props) {
   const [isPending, startTransition] = useTransition();
   const [quizLoading, setQuizLoading] = useState(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState(false);
   const [finishing, setFinishing] = useState(false);
 
   const [sizeIdx, setSizeIdx] = useState(2);
@@ -201,6 +203,7 @@ export function ChapterReader(props: Props) {
     if (hint) dismissHint();
     setSelected({ surface, context });
     setLookupError(null);
+    setSaveError(false);
     // Instant if we already have it cached for this chapter.
     const cached = lookupCache.current[vocalizedKey(surface)];
     if (cached) {
@@ -233,16 +236,48 @@ export function ChapterReader(props: Props) {
   function handleSave() {
     if (!lookup) return;
     const key = lookupKey(lookup.lemma_ar);
-    setSavedKeys((prev) => new Set(prev).add(key).add(lookupKey(lookup.surface)));
+    const sKey = lookupKey(lookup.surface);
+    setSaveError(false);
+    setSavedKeys((prev) => new Set(prev).add(key).add(sKey));
     setSessionSaved((n) => n + 1);
     startTransition(async () => {
-      await saveWord({
-        lemmaAr: lookup.lemma_ar,
-        glossEn: lookup.gloss_en,
-        exampleAr: lookup.example_ar,
-        bookSlug: props.bookSlug,
-        chapterNumber: chapter.chapterNumber,
-      }).catch(() => {});
+      try {
+        await saveWord({
+          lemmaAr: lookup.lemma_ar,
+          glossEn: lookup.gloss_en,
+          exampleAr: lookup.example_ar,
+          bookSlug: props.bookSlug,
+          chapterNumber: chapter.chapterNumber,
+          surfaceKey: sKey,
+        });
+      } catch {
+        // Save failed (e.g. offline): roll back the optimistic underline so it
+        // doesn't claim a word was saved when it wasn't.
+        setSavedKeys((prev) => {
+          const next = new Set(prev);
+          next.delete(key);
+          next.delete(sKey);
+          return next;
+        });
+        setSessionSaved((n) => Math.max(0, n - 1));
+        setSaveError(true);
+      }
+    });
+  }
+
+  function handleUnsave() {
+    if (!lookup) return;
+    const key = lookupKey(lookup.lemma_ar);
+    const sKey = lookupKey(lookup.surface);
+    setSavedKeys((prev) => {
+      const next = new Set(prev);
+      next.delete(key);
+      next.delete(sKey);
+      return next;
+    });
+    setSessionSaved((n) => Math.max(0, n - 1));
+    startTransition(async () => {
+      await unsaveWord(lookup.lemma_ar).catch(() => {});
     });
   }
 
@@ -702,24 +737,32 @@ export function ChapterReader(props: Props) {
                       {lookup.example_ar}
                     </p>
                   )}
-                  <button
-                    onClick={handleSave}
-                    disabled={isLookupSaved}
-                    className={cn(
-                      "mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl py-3 font-semibold transition",
-                      isLookupSaved ? "bg-brand/15 text-brand" : "bg-brand text-brand-fg hover:bg-brand-dark",
-                    )}
-                  >
-                    {isLookupSaved ? (
-                      <>
+                  {isLookupSaved ? (
+                    <div className="mt-3 flex items-center gap-2">
+                      <span className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand/15 py-3 font-semibold text-brand">
                         <Check className="h-4 w-4" /> Saved to your words
-                      </>
-                    ) : (
-                      <>
-                        <BookmarkPlus className="h-4 w-4" /> Save word · +2 XP
-                      </>
-                    )}
-                  </button>
+                      </span>
+                      <button
+                        onClick={handleUnsave}
+                        aria-label="Remove from your words"
+                        className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-rose-50 px-4 py-3 font-semibold text-rose-600 transition hover:bg-rose-100"
+                      >
+                        <Trash2 className="h-4 w-4" /> Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={handleSave}
+                      className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-3 font-semibold text-brand-fg transition hover:bg-brand-dark"
+                    >
+                      <BookmarkPlus className="h-4 w-4" /> Save word · +2 XP
+                    </button>
+                  )}
+                  {saveError && (
+                    <p className="mt-2 text-center text-sm text-danger">
+                      Couldn&apos;t save — check your connection and tap Save again.
+                    </p>
+                  )}
                 </div>
               ) : null}
             </div>
