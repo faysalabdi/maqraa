@@ -13,6 +13,54 @@ import { slugify } from "@/lib/utils";
 // The catalogue stores a numeric `level`; the UI only exposes the three tiers.
 const TIER_LEVEL: Record<Tier, number> = { Beginner: 1, Intermediate: 3, Advanced: 5 };
 
+type AiRange = { title_ar: string; title_en: string; first_page: number; last_page: number };
+
+// The AI returns chapter page-ranges that *should* form a gapless partition but
+// often don't — a stray gap or overlap from one misjudged page. Rather than
+// discard the whole re-chaptering, stitch the ranges into a valid partition:
+// clamp to bounds, drop empties, and fold any mid-book gap/overlap into the
+// adjacent chapter so no real text is ever lost. Leading pages before the first
+// chapter are dropped (cover/copyright/TOC); a large trailing remainder is kept
+// (the AI only sees the first MAX_PAGES, so the tail is real content, not junk).
+function reChapter(pages: DraftChapter[], ranges: AiRange[]): DraftChapter[] | null {
+  const n = pages.length;
+  const sorted = ranges
+    .map((r) => ({
+      titleAr: r.title_ar,
+      titleEn: r.title_en,
+      first: Math.max(1, Math.min(n, r.first_page)),
+      last: Math.max(1, Math.min(n, r.last_page)),
+    }))
+    .filter((r) => r.last >= r.first)
+    .sort((a, b) => a.first - b.first);
+  if (sorted.length === 0) return null;
+
+  const out: { titleAr: string; titleEn: string; first: number; last: number }[] = [];
+  let cursor = sorted[0].first; // leading pages before this are dropped as front matter
+  for (let i = 0; i < sorted.length; i++) {
+    const start = cursor;
+    let end = Math.max(sorted[i].last, start);
+    const nextStart = sorted[i + 1]?.first;
+    if (nextStart != null && end >= nextStart) end = nextStart - 1;
+    if (end < start) continue; // wholly overlapped by the next chapter
+    out.push({ titleAr: sorted[i].titleAr, titleEn: sorted[i].titleEn, first: start, last: end });
+    cursor = end + 1;
+  }
+  if (out.length === 0) return null;
+  // Keep a large trailing remainder: content the AI never saw (page cap), not
+  // back matter. A few trailing pages are treated as droppable junk.
+  if (n - cursor + 1 > 5) out[out.length - 1].last = n;
+
+  return out.map((o) => ({
+    titleAr: o.titleAr,
+    titleEn: o.titleEn,
+    contentAr: pages
+      .slice(o.first - 1, o.last)
+      .map((p) => p.contentAr)
+      .join("\n\n"),
+  }));
+}
+
 const GENRES: { value: Genre; label: string }[] = [
   { value: "graded_reader", label: "Graded reader" },
   { value: "islamic", label: "Islamic" },
@@ -122,31 +170,13 @@ export function AddBook({ isAdmin = false }: { isAdmin?: boolean }) {
       const a = await analyzeBookDraft(form.titleEn || form.titleAr || "Untitled", pages);
       setForm((f) => ({ ...f, level: a.level, genre: a.genre, difficulty: a.difficulty, blurb: a.blurb_en }));
 
-      // Rebuild chapters by merging the page ranges the AI returned. The ranges
-      // must form ONE contiguous block (no gaps between chapters) so no real
-      // content is lost; the block may start/end inside the book, which drops
-      // leading/trailing junk (cover, copyright, TOC, about-the-author).
-      // If anything looks off, keep the original pages untouched.
-      const ranges = [...a.chapters].sort((x, y) => x.first_page - y.first_page);
-      let ok = ranges.length > 0 && ranges[0].first_page >= 1;
-      for (let i = 0; ok && i < ranges.length; i++) {
-        const r = ranges[i];
-        if (r.last_page < r.first_page || r.last_page > pages.length) ok = false;
-        if (i > 0 && r.first_page !== ranges[i - 1].last_page + 1) ok = false;
-      }
-      if (ok) {
-        const merged: DraftChapter[] = ranges.map((r) => ({
-          titleAr: r.title_ar,
-          titleEn: r.title_en,
-          contentAr: pages
-            .slice(r.first_page - 1, r.last_page)
-            .map((p) => p.contentAr)
-            .join("\n\n"),
-        }));
-        setDrafts(merged);
-      } else {
-        setError("AI couldn't cleanly re-chapter this book; kept the original split. Level/genre still applied.");
-      }
+      // Rebuild chapters from the page ranges the AI returned. reChapter folds
+      // away gaps/overlaps so a near-miss partition still works; it only returns
+      // null when there's nothing usable, in which case we keep the original
+      // split. Either way level/genre/blurb are already applied above.
+      const merged = reChapter(pages, a.chapters);
+      if (merged) setDrafts(merged);
+      else setError("AI set the level and genre, but couldn't detect chapters — kept the original split.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "AI analysis failed.");
     } finally {
