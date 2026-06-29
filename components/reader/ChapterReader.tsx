@@ -112,6 +112,21 @@ export function ChapterReader(props: Props) {
   const lastPage = pageIdx >= pages.length - 1;
   const isLastChapter = props.nextChapterNumber === null;
 
+  const pageKey = `page:${props.bookSlug}:${chapter.chapterNumber}`;
+
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(pageKey);
+      if (saved) setPageIdx(Math.max(0, Math.min(pages.length - 1, Number(saved))));
+    } catch {}
+  // pages.length is stable after mount; pageKey changing means a new chapter
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageKey]);
+
+  useEffect(() => {
+    try { sessionStorage.setItem(pageKey, String(pageIdx)); } catch {}
+  }, [pageKey, pageIdx]);
+
   useEffect(() => {
     markChapterReading(chapter.id).catch(() => {});
     // Warm the cache with this chapter's already-known words (no Claude cost) so
