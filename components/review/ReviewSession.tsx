@@ -11,6 +11,7 @@ import {
   Zap,
   Flame,
   ArrowRight,
+  Layers,
 } from "lucide-react";
 import { gradeCard } from "@/server/actions/review";
 
@@ -24,18 +25,39 @@ export type ReviewCard = {
 
 type Stage = "front" | "back";
 
+// Decks at or below this size skip the "how many?" prompt and just start.
+const QUICK_START_MAX = 12;
+
 export default function ReviewSession({ initialDeck }: { initialDeck: ReviewCard[] }) {
-  const [deck, setDeck] = useState<ReviewCard[]>(initialDeck);
+  const autoStart = initialDeck.length <= QUICK_START_MAX;
+  const [started, setStarted] = useState(autoStart);
+  const [limit, setLimit] = useState(autoStart ? initialDeck.length : 0);
+  const [deck, setDeck] = useState<ReviewCard[]>(autoStart ? initialDeck : []);
   const [stage, setStage] = useState<Stage>("front");
   const [totalXp, setTotalXp] = useState(0);
   const [reviewed, setReviewed] = useState(0);
   const [graduated, setGraduated] = useState(0);
   const [isPending, startTransition] = useTransition();
 
+  function begin(size: number) {
+    // The deck arrives sorted most-due-first, so the front slice is the right
+    // batch; whatever's left over stays due for next time.
+    setLimit(size);
+    setDeck(initialDeck.slice(0, size));
+    setStarted(true);
+  }
+
+  if (!started) {
+    return <IntroScreen total={initialDeck.length} onPick={begin} />;
+  }
+
   const current = deck[0];
 
   if (!current) {
-    return <DoneScreen totalXp={totalXp} reviewed={reviewed} graduated={graduated} />;
+    const hasMore = limit < initialDeck.length || initialDeck.length >= 50;
+    return (
+      <DoneScreen totalXp={totalXp} reviewed={reviewed} graduated={graduated} hasMore={hasMore} />
+    );
   }
 
   function grade(quality: number) {
@@ -139,6 +161,46 @@ export default function ReviewSession({ initialDeck }: { initialDeck: ReviewCard
   );
 }
 
+function IntroScreen({ total, onPick }: { total: number; onPick: (n: number) => void }) {
+  const presets = [10, 20, 30].filter((n) => n < total);
+  return (
+    <main className="mx-auto max-w-md px-4 pb-24 pt-12 text-center">
+      <div className="rounded-3xl bg-white p-10 shadow-lift ring-1 ring-border">
+        <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-brand/15 text-brand">
+          <Layers className="h-8 w-8" />
+        </span>
+        <h1 className="mt-5 text-2xl font-extrabold">{total} words due</h1>
+        <p className="mt-2 text-sm text-fg-muted">
+          How many do you want to review now? The rest stay due for next time.
+        </p>
+        <div className="mt-6 grid gap-2">
+          {presets.map((n) => (
+            <button
+              key={n}
+              onClick={() => onPick(n)}
+              className="rounded-2xl border border-border py-3 font-bold transition hover:bg-bg-muted"
+            >
+              {n} words
+            </button>
+          ))}
+          <button
+            onClick={() => onPick(total)}
+            className="rounded-2xl bg-brand py-3 font-bold text-brand-fg shadow-glow-brand transition hover:bg-brand-dark"
+          >
+            All {total}
+          </button>
+        </div>
+        <Link
+          href="/path"
+          className="mt-5 inline-block text-sm font-medium text-fg-muted transition hover:text-fg"
+        >
+          Maybe later
+        </Link>
+      </div>
+    </main>
+  );
+}
+
 function GradeButton({
   onClick,
   disabled,
@@ -176,10 +238,12 @@ function DoneScreen({
   totalXp,
   reviewed,
   graduated,
+  hasMore,
 }: {
   totalXp: number;
   reviewed: number;
   graduated: number;
+  hasMore?: boolean;
 }) {
   return (
     <main className="mx-auto max-w-md px-4 pb-24 pt-12 text-center">
@@ -212,12 +276,28 @@ function DoneScreen({
           </div>
         )}
 
-        <Link
-          href="/path"
-          className="mt-7 inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-3 font-semibold text-brand-fg transition hover:bg-brand-dark"
-        >
-          Back to path <ArrowRight className="h-4 w-4" />
-        </Link>
+        <div className="mt-7 flex flex-col items-center gap-3">
+          {hasMore ? (
+            <>
+              <Link
+                href="/review"
+                className="inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-3 font-semibold text-brand-fg transition hover:bg-brand-dark"
+              >
+                Review more <ArrowRight className="h-4 w-4" />
+              </Link>
+              <Link href="/path" className="text-sm font-medium text-fg-muted transition hover:text-fg">
+                Back to path
+              </Link>
+            </>
+          ) : (
+            <Link
+              href="/path"
+              className="inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-3 font-semibold text-brand-fg transition hover:bg-brand-dark"
+            >
+              Back to path <ArrowRight className="h-4 w-4" />
+            </Link>
+          )}
+        </div>
       </div>
     </main>
   );
