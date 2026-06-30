@@ -17,7 +17,7 @@ export default function Home() {
       <section className="animate-rise flex max-w-2xl flex-col items-center gap-5">
         <span className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-4 py-1.5 text-sm font-medium text-fg-muted shadow-soft">
           <span className="h-1.5 w-1.5 rounded-full bg-brand" />
-          Read real Arabic books — not flashcards
+          Level up your Arabic today
         </span>
         <LogoMark className="h-16" />
         <h1 className="font-serif text-balance text-5xl font-semibold leading-[1.02] tracking-tight sm:text-6xl">
@@ -25,20 +25,20 @@ export default function Home() {
         </h1>
         <p className="mx-auto max-w-xl text-balance text-lg text-fg-muted">
           Tap any word for an instant meaning in context, save it to a smart review deck, and keep
-          reading. No level ladder — just books finished and words mastered.
+          reading.
         </p>
         <div className="mt-1 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <Link
             href="/sign-in?new=1"
             className="inline-flex items-center gap-2 rounded-2xl bg-brand px-7 py-3.5 text-base font-bold text-brand-fg shadow-glow-brand transition hover:bg-brand-dark"
           >
-            Start reading — free <ArrowRight className="h-4 w-4" />
+            Start reading <ArrowRight className="h-4 w-4" />
           </Link>
           <Link
             href="/preview"
             className="inline-flex items-center gap-2 rounded-2xl border border-border bg-surface px-7 py-3.5 text-base font-semibold text-fg shadow-soft transition hover:shadow-lift"
           >
-            See tap-to-translate <ArrowRight className="h-4 w-4 -rotate-45" />
+           See how it works <ArrowRight className="h-4 w-4 -rotate-45" />
           </Link>
         </div>
       </section>
@@ -125,12 +125,6 @@ export default function Home() {
           tone="iris"
           title="Spaced repetition"
           body="Every saved word enters an SM-2 queue. A few minutes a day turns words you didn't know into words you do."
-        />
-        <FeatureCard
-          icon={<FileUp className="h-6 w-6" />}
-          tone="accent"
-          title="Your books, not ours"
-          body="A curated shelf gets you started — then read whatever you already own. Upload any EPUB and it's yours."
         />
       </section>
           {/* Library mock */}
