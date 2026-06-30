@@ -22,38 +22,37 @@ export default async function StatsPage() {
   start.setHours(0, 0, 0, 0);
   start.setDate(start.getDate() - 13);
 
-  const [profileRows, streakRows, xpByDayRows, booksRows, vocabRows, levelRows, completedRows] =
-    await Promise.all([
-      db.select().from(schema.profiles).where(eq(schema.profiles.id, user.id)).limit(1),
-      db.select().from(schema.streaks).where(eq(schema.streaks.userId, user.id)).limit(1),
-      db
-        .select({
-          date: sql<string>`to_char(${schema.xpEvents.occurredAt}, 'YYYY-MM-DD')`,
-          total: sql<number>`coalesce(sum(${schema.xpEvents.delta}), 0)`,
-        })
-        .from(schema.xpEvents)
-        .where(and(eq(schema.xpEvents.userId, user.id), gte(schema.xpEvents.occurredAt, start)))
-        .groupBy(sql`to_char(${schema.xpEvents.occurredAt}, 'YYYY-MM-DD')`),
-      db
-        .select({ c: count() })
-        .from(schema.userBooks)
-        .where(and(eq(schema.userBooks.userId, user.id), eq(schema.userBooks.status, "completed"))),
-      db.select({ c: count() }).from(schema.vocabItems).where(eq(schema.vocabItems.userId, user.id)),
-      db.select().from(schema.levels).orderBy(asc(schema.levels.level)),
-      db
-        .select({ level: schema.books.level })
-        .from(schema.userBooks)
-        .innerJoin(schema.books, eq(schema.userBooks.bookId, schema.books.id))
-        .where(and(eq(schema.userBooks.userId, user.id), eq(schema.userBooks.status, "completed"))),
-    ]);
+  // Run in small sequential waves (max 3 connections at a time) rather than one
+  // 7-wide burst, so the stats page — the heaviest in the app — is far less
+  // likely to exhaust a tight DB pool and hang.
+  const [profileRows, streakRows, xpByDayRows] = await Promise.all([
+    db.select().from(schema.profiles).where(eq(schema.profiles.id, user.id)).limit(1),
+    db.select().from(schema.streaks).where(eq(schema.streaks.userId, user.id)).limit(1),
+    db
+      .select({
+        date: sql<string>`to_char(${schema.xpEvents.occurredAt}, 'YYYY-MM-DD')`,
+        total: sql<number>`coalesce(sum(${schema.xpEvents.delta}), 0)`,
+      })
+      .from(schema.xpEvents)
+      .where(and(eq(schema.xpEvents.userId, user.id), gte(schema.xpEvents.occurredAt, start)))
+      .groupBy(sql`to_char(${schema.xpEvents.occurredAt}, 'YYYY-MM-DD')`),
+  ]);
+  const [vocabRows, levelRows, completedRows] = await Promise.all([
+    db.select({ c: count() }).from(schema.vocabItems).where(eq(schema.vocabItems.userId, user.id)),
+    db.select().from(schema.levels).orderBy(asc(schema.levels.level)),
+    db
+      .select({ level: schema.books.level })
+      .from(schema.userBooks)
+      .innerJoin(schema.books, eq(schema.userBooks.bookId, schema.books.id))
+      .where(and(eq(schema.userBooks.userId, user.id), eq(schema.userBooks.status, "completed"))),
+  ]);
 
-  // Light read-only summary for the preview; awarding happens on /achievements
-  // and via the watcher, so the stats page stays cheap.
+  // Light read-only summary for the preview (awarding happens on /achievements).
   const achievements = await getAchievementsSummary(user.id);
 
   const profile = profileRows[0];
   const streak = streakRows[0];
-  const booksDone = Number(booksRows[0]?.c ?? 0);
+  const booksDone = completedRows.length;
   const wordsSaved = Number(vocabRows[0]?.c ?? 0);
   const dailyGoal = profile?.dailyXpGoal ?? 50;
 
