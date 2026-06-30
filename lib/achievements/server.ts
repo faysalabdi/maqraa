@@ -146,7 +146,7 @@ async function computeSnapshot(userId: string): Promise<Snapshot> {
 }
 
 function unitFor(criteria: Criteria): string {
-  switch (criteria.type) {
+  switch (criteria?.type) {
     case "books_completed":
       return "books";
     case "tests_passed":
@@ -163,11 +163,13 @@ function unitFor(criteria: Criteria): string {
       return "genres";
     case "freeze_used":
       return "";
+    default:
+      return "";
   }
 }
 
 function progressFor(criteria: Criteria, s: Snapshot): { current: number; target: number } {
-  switch (criteria.type) {
+  switch (criteria?.type) {
     case "books_completed":
       return { current: s.booksCompleted, target: criteria.count };
     case "tests_passed":
@@ -184,6 +186,10 @@ function progressFor(criteria: Criteria, s: Snapshot): { current: number; target
       return { current: s.freezesUsed, target: criteria.count };
     case "genre_variety":
       return { current: s.genreVariety, target: REQUIRED_GENRES.length };
+    default:
+      // Unknown/extra criteria (e.g. an older row in the table): show it as a
+      // locked, never-auto-awarded badge rather than crashing the page.
+      return { current: 0, target: 1 };
   }
 }
 
