@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Flame } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { db, schema } from "@/lib/db";
-import { and, asc, count, eq, gt, lte } from "drizzle-orm";
+import { and, asc, count, eq, gt, lte, sql } from "drizzle-orm";
 import ReviewSession, { type ReviewCard } from "@/components/review/ReviewSession";
 import { redirect } from "next/navigation";
 
@@ -35,8 +35,10 @@ export default async function ReviewPage({
       })
       .from(schema.vocabItems)
       .where(and(eq(schema.vocabItems.userId, user.id), eq(schema.vocabItems.suspended, false)))
-      .orderBy(asc(schema.vocabItems.intervalDays), asc(schema.vocabItems.ease))
-      .limit(30);
+      // Weakest band first, but shuffled within it so each practice session
+      // surfaces a different mix instead of the same cards every time.
+      .orderBy(asc(schema.vocabItems.intervalDays), sql`random()`)
+      .limit(100);
 
     if (rows.length === 0) return <NoWords />;
     return <ReviewSession initialDeck={rows} mode="practice" />;

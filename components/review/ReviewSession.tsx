@@ -28,6 +28,15 @@ type Stage = "front" | "back";
 // Decks at or below this size skip the "how many?" prompt and just start.
 const QUICK_START_MAX = 12;
 
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 export default function ReviewSession({
   initialDeck,
   mode = "due",
@@ -53,6 +62,14 @@ export default function ReviewSession({
     setStarted(true);
   }
 
+  // Practice only: re-deal a freshly reshuffled batch in place (no navigation),
+  // so "Practice more" always gives a different mix instead of the same cards.
+  function dealMore() {
+    setDeck(shuffle(initialDeck).slice(0, limit || initialDeck.length));
+    setReviewed(0);
+    setStage("front");
+  }
+
   if (!started) {
     return <IntroScreen total={initialDeck.length} mode={mode} onPick={begin} />;
   }
@@ -68,6 +85,7 @@ export default function ReviewSession({
         graduated={graduated}
         hasMore={hasMore}
         mode={mode}
+        onMore={dealMore}
       />
     );
   }
@@ -272,15 +290,15 @@ function DoneScreen({
   graduated,
   hasMore,
   mode,
+  onMore,
 }: {
   totalXp: number;
   reviewed: number;
   graduated: number;
   hasMore?: boolean;
   mode: "due" | "practice";
+  onMore?: () => void;
 }) {
-  const moreHref = mode === "practice" ? "/review?mode=practice" : "/review";
-  const moreLabel = mode === "practice" ? "Practice more" : "Review more";
   return (
     <main className="mx-auto max-w-md px-4 pb-24 pt-12 text-center">
       <div className="rounded-3xl bg-surface p-10 shadow-lift ring-1 ring-border">
@@ -317,13 +335,25 @@ function DoneScreen({
         )}
 
         <div className="mt-7 flex flex-col items-center gap-3">
-          {hasMore ? (
+          {mode === "practice" ? (
             <>
-              <Link
-                href={moreHref}
+              <button
+                onClick={onMore}
                 className="inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-3 font-semibold text-brand-fg transition hover:bg-brand-dark"
               >
-                {moreLabel} <ArrowRight className="h-4 w-4" />
+                Practice more <ArrowRight className="h-4 w-4" />
+              </button>
+              <Link href="/path" className="text-sm font-medium text-fg-muted transition hover:text-fg">
+                Back to path
+              </Link>
+            </>
+          ) : hasMore ? (
+            <>
+              <Link
+                href="/review"
+                className="inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-3 font-semibold text-brand-fg transition hover:bg-brand-dark"
+              >
+                Review more <ArrowRight className="h-4 w-4" />
               </Link>
               <Link href="/path" className="text-sm font-medium text-fg-muted transition hover:text-fg">
                 Back to path
