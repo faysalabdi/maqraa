@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowRight, Compass, Flame, Lock, Snowflake } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BadgeIcon } from "@/components/achievements/icons";
-import type { AchievementView } from "@/lib/achievements/server";
+import type { SummaryBadge } from "@/lib/achievements/server";
 
 export function StageCard({
   level,
@@ -123,7 +123,7 @@ export function AchievementsPreview({
   total,
   xpEarned,
 }: {
-  items: AchievementView[];
+  items: SummaryBadge[];
   earnedCount: number;
   total: number;
   xpEarned: number;
@@ -148,7 +148,7 @@ export function AchievementsPreview({
         {items.map((a) => (
           <div
             key={a.slug}
-            title={`${a.nameEn}${a.earned ? "" : ` · ${a.current}/${a.target}`}`}
+            title={`${a.nameEn}${a.earned ? "" : " · locked"}`}
             className={cn(
               "relative grid aspect-square place-items-center rounded-2xl ring-1",
               a.earned

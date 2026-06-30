@@ -6,14 +6,12 @@ import { Sparkles, X } from "lucide-react";
 import { BadgeIcon } from "./icons";
 import { syncAchievements, type EarnedBadge } from "@/server/actions/achievements";
 
-const SEEN_KEY = "maqra:seen-achievements";
-const THROTTLE_MS = 15_000;
+const THROTTLE_MS = 60_000;
 
 /**
- * Mounted in the app shell. On each navigation (throttled) it asks the server to
- * award anything newly met and return the full earned set, then toasts any badge
- * this device hasn't acknowledged yet. The first run on a device baselines the
- * current badges silently so we don't flood the user with everything at once.
+ * Mounted in the app shell. At most once a minute (on navigation) it asks the
+ * server to award anything newly met and returns only the badges it just
+ * awarded, which we toast. Throttled so navigation never waits on it.
  */
 export function AchievementWatcher() {
   const pathname = usePathname();
@@ -24,29 +22,12 @@ export function AchievementWatcher() {
     const now = Date.now();
     if (now - lastSync.current < THROTTLE_MS) return;
     lastSync.current = now;
-
-    let earned: EarnedBadge[];
     try {
-      ({ earned } = await syncAchievements());
+      const { earned } = await syncAchievements();
+      if (earned.length) setToasts((t) => [...t, ...earned]);
     } catch {
-      return;
+      // ignore — purely cosmetic
     }
-
-    const raw = localStorage.getItem(SEEN_KEY);
-    if (raw === null) {
-      localStorage.setItem(SEEN_KEY, JSON.stringify(earned.map((e) => e.slug)));
-      return;
-    }
-    let seen: string[] = [];
-    try {
-      seen = JSON.parse(raw);
-    } catch {
-      seen = [];
-    }
-    const seenSet = new Set(seen);
-    const fresh = earned.filter((e) => !seenSet.has(e.slug));
-    if (fresh.length) setToasts((t) => [...t, ...fresh]);
-    localStorage.setItem(SEEN_KEY, JSON.stringify(earned.map((e) => e.slug)));
   }, []);
 
   useEffect(() => {

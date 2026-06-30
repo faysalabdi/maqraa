@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { awardNewAchievements, loadAchievementsView } from "@/lib/achievements/server";
+import { getAchievements } from "@/lib/achievements/server";
 
 export type EarnedBadge = {
   slug: string;
@@ -12,9 +12,10 @@ export type EarnedBadge = {
 };
 
 /**
- * Called by the client watcher on each navigation: awards anything newly met,
- * then returns the full earned set so the client can toast whatever it hasn't
- * acknowledged yet (tracked in localStorage).
+ * Called by the client watcher on navigation: awards anything newly met and
+ * returns only the badges it just awarded, so the client can toast them
+ * directly (already-earned badges are never returned, so there's no flood and
+ * no client-side bookkeeping needed).
  */
 export async function syncAchievements(): Promise<{ earned: EarnedBadge[] }> {
   const supabase = await createClient();
@@ -23,16 +24,14 @@ export async function syncAchievements(): Promise<{ earned: EarnedBadge[] }> {
   } = await supabase.auth.getUser();
   if (!user) return { earned: [] };
 
-  await awardNewAchievements(user.id);
-  const view = await loadAchievementsView(user.id);
-  const earned = view.items
-    .filter((i) => i.earned)
-    .map((i) => ({
-      slug: i.slug,
-      nameEn: i.nameEn,
-      nameAr: i.nameAr,
-      icon: i.icon,
-      xpReward: i.xpReward,
-    }));
-  return { earned };
+  const { newly } = await getAchievements(user.id);
+  return {
+    earned: newly.map((b) => ({
+      slug: b.slug,
+      nameEn: b.nameEn,
+      nameAr: b.nameAr,
+      icon: b.icon,
+      xpReward: b.xpReward,
+    })),
+  };
 }
