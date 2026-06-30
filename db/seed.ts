@@ -16,6 +16,14 @@ async function main() {
     console.error("DATABASE_URL (or DIRECT_URL) not set");
     process.exit(1);
   }
+  // Print the target host so it's obvious WHICH database is being seeded — this
+  // must match the DATABASE_URL your deployment (e.g. Vercel) uses, or the app
+  // will read an empty catalogue.
+  let host = "(unknown host)";
+  try {
+    host = new URL(url).host;
+  } catch {}
+  console.log(`seeding into ${host}`);
 
   const client = postgres(url, { prepare: false, max: 1 });
   const db = drizzle(client, { schema });
@@ -143,7 +151,10 @@ async function main() {
   const [{ count: bookCount }] = await db.execute(
     sql`select count(*)::int as count from books`,
   );
-  console.log(`done. ${bookCount} books in DB.`);
+  const [{ count: achCount }] = await db.execute(
+    sql`select count(*)::int as count from achievements`,
+  );
+  console.log(`done. ${bookCount} books, ${achCount} achievements in ${host}.`);
   await client.end();
 }
 
