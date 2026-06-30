@@ -72,12 +72,11 @@ export default async function StatsPage() {
   const completedByLevel = new Map<number, number>();
   for (const r of completedRows)
     completedByLevel.set(r.level, (completedByLevel.get(r.level) ?? 0) + 1);
-  const stageIdx = Math.max(
-    0,
-    levelRows.findIndex((l) => (completedByLevel.get(l.level) ?? 0) < l.booksRequiredToClear),
+  const rawIdx = levelRows.findIndex(
+    (l) => (completedByLevel.get(l.level) ?? 0) < l.booksRequiredToClear,
   );
   const stage = levelRows.length
-    ? (levelRows[stageIdx === -1 ? levelRows.length - 1 : stageIdx] ?? levelRows[0])
+    ? levelRows[rawIdx === -1 ? levelRows.length - 1 : rawIdx]
     : null;
   const nextStage = stage ? levelRows.find((l) => l.level === stage.level + 1) : null;
 
