@@ -91,3 +91,46 @@ export async function gradeCard(itemId: string, quality: number): Promise<GradeR
     nextDueAt: review.dueAt.toISOString(),
   };
 }
+
+export type PracticeResult = { ok: true; xpEarned: number } | { error: string };
+
+/**
+ * Free practice: drill a word without touching its spaced-repetition schedule.
+ * Ease, interval, repetitions and dueAt are all left untouched, so cramming
+ * here can never distort when the card is actually due. The only side effects
+ * are a small, daily-capped XP grant (idempotent per word per day, so it can't
+ * be farmed) and keeping the streak alive.
+ */
+export async function practiceCard(itemId: string): Promise<PracticeResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const [item] = await db
+    .select({ id: schema.vocabItems.id })
+    .from(schema.vocabItems)
+    .where(and(eq(schema.vocabItems.id, itemId), eq(schema.vocabItems.userId, user.id)))
+    .limit(1);
+  if (!item) return { error: "Card not found" };
+
+  let xpEarned = 0;
+  // Shares the SRS daily cap so practice + review together stay bounded.
+  const todayReviews = await todayXp(user.id, "srs_review");
+  const available = Math.max(0, DAILY_CAPS.srsReview - todayReviews);
+  if (available > 0) {
+    const today = new Date().toISOString().slice(0, 10);
+    xpEarned += await grantXp({
+      userId: user.id,
+      delta: Math.min(XP_REWARDS.srsReview, available),
+      reason: "srs_review",
+      ref: { itemId, practice: true },
+      refHash: `practice:${itemId}:${today}`,
+    });
+  }
+
+  await recordActivity(user.id);
+  revalidatePath("/review");
+  return { ok: true, xpEarned };
+}

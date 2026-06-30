@@ -13,7 +13,7 @@ import {
   ArrowRight,
   Layers,
 } from "lucide-react";
-import { gradeCard } from "@/server/actions/review";
+import { gradeCard, practiceCard } from "@/server/actions/review";
 
 export type ReviewCard = {
   id: string;
@@ -28,7 +28,13 @@ type Stage = "front" | "back";
 // Decks at or below this size skip the "how many?" prompt and just start.
 const QUICK_START_MAX = 12;
 
-export default function ReviewSession({ initialDeck }: { initialDeck: ReviewCard[] }) {
+export default function ReviewSession({
+  initialDeck,
+  mode = "due",
+}: {
+  initialDeck: ReviewCard[];
+  mode?: "due" | "practice";
+}) {
   const autoStart = initialDeck.length <= QUICK_START_MAX;
   const [started, setStarted] = useState(autoStart);
   const [limit, setLimit] = useState(autoStart ? initialDeck.length : 0);
@@ -48,7 +54,7 @@ export default function ReviewSession({ initialDeck }: { initialDeck: ReviewCard
   }
 
   if (!started) {
-    return <IntroScreen total={initialDeck.length} onPick={begin} />;
+    return <IntroScreen total={initialDeck.length} mode={mode} onPick={begin} />;
   }
 
   const current = deck[0];
@@ -56,20 +62,29 @@ export default function ReviewSession({ initialDeck }: { initialDeck: ReviewCard
   if (!current) {
     const hasMore = limit < initialDeck.length || initialDeck.length >= 50;
     return (
-      <DoneScreen totalXp={totalXp} reviewed={reviewed} graduated={graduated} hasMore={hasMore} />
+      <DoneScreen
+        totalXp={totalXp}
+        reviewed={reviewed}
+        graduated={graduated}
+        hasMore={hasMore}
+        mode={mode}
+      />
     );
   }
 
   function grade(quality: number) {
     if (!current) return;
+    const cardId = current.id;
+    // Advance immediately so there's no pause between tapping and the next card;
+    // the grade saves in the background.
+    setReviewed((r) => r + 1);
+    setDeck((d) => d.slice(1));
+    setStage("front");
     startTransition(async () => {
-      const res = await gradeCard(current.id, quality);
+      const res = mode === "practice" ? await practiceCard(cardId) : await gradeCard(cardId, quality);
       if ("error" in res) return;
       setTotalXp((x) => x + res.xpEarned);
-      setReviewed((r) => r + 1);
-      if (res.graduated) setGraduated((g) => g + 1);
-      setDeck((d) => d.slice(1));
-      setStage("front");
+      if ("graduated" in res && res.graduated) setGraduated((g) => g + 1);
     });
   }
 
@@ -84,6 +99,11 @@ export default function ReviewSession({ initialDeck }: { initialDeck: ReviewCard
           ← Leave session
         </Link>
         <div className="flex items-center gap-3 text-sm">
+          {mode === "practice" && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-iris/15 px-2.5 py-1 text-xs font-bold text-iris ring-1 ring-iris/30">
+              Practice
+            </span>
+          )}
           <span className="font-bold text-fg-muted">
             {reviewed} / {reviewed + deck.length}
           </span>
@@ -161,7 +181,15 @@ export default function ReviewSession({ initialDeck }: { initialDeck: ReviewCard
   );
 }
 
-function IntroScreen({ total, onPick }: { total: number; onPick: (n: number) => void }) {
+function IntroScreen({
+  total,
+  mode,
+  onPick,
+}: {
+  total: number;
+  mode: "due" | "practice";
+  onPick: (n: number) => void;
+}) {
   const presets = [10, 20, 30].filter((n) => n < total);
   return (
     <main className="mx-auto max-w-md px-4 pb-24 pt-12 text-center">
@@ -169,9 +197,13 @@ function IntroScreen({ total, onPick }: { total: number; onPick: (n: number) => 
         <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-brand/15 text-brand">
           <Layers className="h-8 w-8" />
         </span>
-        <h1 className="mt-5 text-2xl font-extrabold">{total} words due</h1>
+        <h1 className="mt-5 text-2xl font-extrabold">
+          {total} words {mode === "practice" ? "to practice" : "due"}
+        </h1>
         <p className="mt-2 text-sm text-fg-muted">
-          How many do you want to review now? The rest stay due for next time.
+          {mode === "practice"
+            ? "How many do you want to practice now? This won't change your review schedule."
+            : "How many do you want to review now? The rest stay due for next time."}
         </p>
         <div className="mt-6 grid gap-2">
           {presets.map((n) => (
@@ -239,23 +271,31 @@ function DoneScreen({
   reviewed,
   graduated,
   hasMore,
+  mode,
 }: {
   totalXp: number;
   reviewed: number;
   graduated: number;
   hasMore?: boolean;
+  mode: "due" | "practice";
 }) {
+  const moreHref = mode === "practice" ? "/review?mode=practice" : "/review";
+  const moreLabel = mode === "practice" ? "Practice more" : "Review more";
   return (
     <main className="mx-auto max-w-md px-4 pb-24 pt-12 text-center">
       <div className="rounded-3xl bg-surface p-10 shadow-lift ring-1 ring-border">
         <span className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-brand text-brand-fg shadow-glow-brand">
           <Sparkles className="h-10 w-10" />
         </span>
-        <h1 className="mt-5 font-serif text-3xl font-semibold tracking-tight">Done for today!</h1>
+        <h1 className="mt-5 font-serif text-3xl font-semibold tracking-tight">
+          {mode === "practice" ? "Nice practice!" : "Done for today!"}
+        </h1>
         <p className="mt-2 text-fg-muted">
-          {reviewed === 0
-            ? "No cards due. Come back tomorrow."
-            : `Reviewed ${reviewed} card${reviewed === 1 ? "" : "s"}.`}
+          {mode === "practice"
+            ? `Practiced ${reviewed} word${reviewed === 1 ? "" : "s"}.`
+            : reviewed === 0
+              ? "No cards due. Come back tomorrow."
+              : `Reviewed ${reviewed} card${reviewed === 1 ? "" : "s"}.`}
         </p>
 
         {(totalXp > 0 || graduated > 0) && (
@@ -280,10 +320,10 @@ function DoneScreen({
           {hasMore ? (
             <>
               <Link
-                href="/review"
+                href={moreHref}
                 className="inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-3 font-semibold text-brand-fg transition hover:bg-brand-dark"
               >
-                Review more <ArrowRight className="h-4 w-4" />
+                {moreLabel} <ArrowRight className="h-4 w-4" />
               </Link>
               <Link href="/path" className="text-sm font-medium text-fg-muted transition hover:text-fg">
                 Back to path

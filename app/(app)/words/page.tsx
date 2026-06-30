@@ -35,12 +35,14 @@ export default async function WordsPage() {
           {words.length} {words.length === 1 ? "word" : "words"} collected. Every word you tap
           while reading lives here, grouped by how well you know it.
         </p>
-        <Link
-          href="/review"
-          className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-brand px-6 py-3 font-semibold text-brand-fg transition hover:bg-brand-dark"
-        >
-          <Flame className="h-4 w-4" /> Practice now
-        </Link>
+        {words.length > 0 && (
+          <Link
+            href="/review?mode=practice"
+            className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-brand px-6 py-3 font-semibold text-brand-fg transition hover:bg-brand-dark"
+          >
+            <Flame className="h-4 w-4" /> Practice now
+          </Link>
+        )}
       </div>
 
       <div className="mb-8 grid grid-cols-5 gap-2 text-center">
