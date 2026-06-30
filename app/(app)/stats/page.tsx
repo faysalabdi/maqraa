@@ -1,10 +1,13 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { db, schema } from "@/lib/db";
-import { and, count, eq, gte, sql } from "drizzle-orm";
+import { and, asc, count, eq, gte, sql } from "drizzle-orm";
 import { BookCheck, Brain, Flame, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { XpChart, type XpDay } from "@/components/stats/XpChart";
+import { DailyGoalRing } from "@/components/stats/DailyGoalRing";
+import { StageCard, StreakBanner, AchievementsPreview } from "@/components/stats/ProgressHub";
+import { awardNewAchievements, loadAchievementsView } from "@/lib/achievements/server";
 
 export const dynamic = "force-dynamic";
 
@@ -19,28 +22,40 @@ export default async function StatsPage() {
   start.setHours(0, 0, 0, 0);
   start.setDate(start.getDate() - 13);
 
-  const [profileRows, streakRows, xpByDayRows, booksRows, vocabRows] = await Promise.all([
-    db.select().from(schema.profiles).where(eq(schema.profiles.id, user.id)).limit(1),
-    db.select().from(schema.streaks).where(eq(schema.streaks.userId, user.id)).limit(1),
-    db
-      .select({
-        date: sql<string>`to_char(${schema.xpEvents.occurredAt}, 'YYYY-MM-DD')`,
-        total: sql<number>`coalesce(sum(${schema.xpEvents.delta}), 0)`,
-      })
-      .from(schema.xpEvents)
-      .where(and(eq(schema.xpEvents.userId, user.id), gte(schema.xpEvents.occurredAt, start)))
-      .groupBy(sql`to_char(${schema.xpEvents.occurredAt}, 'YYYY-MM-DD')`),
-    db
-      .select({ c: count() })
-      .from(schema.userBooks)
-      .where(and(eq(schema.userBooks.userId, user.id), eq(schema.userBooks.status, "completed"))),
-    db.select({ c: count() }).from(schema.vocabItems).where(eq(schema.vocabItems.userId, user.id)),
-  ]);
+  const [profileRows, streakRows, xpByDayRows, booksRows, vocabRows, levelRows, completedRows] =
+    await Promise.all([
+      db.select().from(schema.profiles).where(eq(schema.profiles.id, user.id)).limit(1),
+      db.select().from(schema.streaks).where(eq(schema.streaks.userId, user.id)).limit(1),
+      db
+        .select({
+          date: sql<string>`to_char(${schema.xpEvents.occurredAt}, 'YYYY-MM-DD')`,
+          total: sql<number>`coalesce(sum(${schema.xpEvents.delta}), 0)`,
+        })
+        .from(schema.xpEvents)
+        .where(and(eq(schema.xpEvents.userId, user.id), gte(schema.xpEvents.occurredAt, start)))
+        .groupBy(sql`to_char(${schema.xpEvents.occurredAt}, 'YYYY-MM-DD')`),
+      db
+        .select({ c: count() })
+        .from(schema.userBooks)
+        .where(and(eq(schema.userBooks.userId, user.id), eq(schema.userBooks.status, "completed"))),
+      db.select({ c: count() }).from(schema.vocabItems).where(eq(schema.vocabItems.userId, user.id)),
+      db.select().from(schema.levels).orderBy(asc(schema.levels.level)),
+      db
+        .select({ level: schema.books.level })
+        .from(schema.userBooks)
+        .innerJoin(schema.books, eq(schema.userBooks.bookId, schema.books.id))
+        .where(and(eq(schema.userBooks.userId, user.id), eq(schema.userBooks.status, "completed"))),
+    ]);
+
+  // Award anything newly met on visit, then read the badge view for the preview.
+  await awardNewAchievements(user.id);
+  const achievements = await loadAchievementsView(user.id);
 
   const profile = profileRows[0];
   const streak = streakRows[0];
   const booksDone = Number(booksRows[0]?.c ?? 0);
   const wordsSaved = Number(vocabRows[0]?.c ?? 0);
+  const dailyGoal = profile?.dailyXpGoal ?? 50;
 
   const dayMap = new Map(xpByDayRows.map((r) => [r.date, Number(r.total)]));
   const days: XpDay[] = [];
@@ -51,6 +66,19 @@ export default async function StatsPage() {
     days.push({ date: key, total: dayMap.get(key) ?? 0 });
   }
   const maxXp = Math.max(1, ...days.map((d) => d.total));
+  const xpToday = days[days.length - 1]?.total ?? 0;
+
+  // Current stage = the first level not yet cleared (completed < required).
+  const completedByLevel = new Map<number, number>();
+  for (const r of completedRows)
+    completedByLevel.set(r.level, (completedByLevel.get(r.level) ?? 0) + 1);
+  const rawIdx = levelRows.findIndex(
+    (l) => (completedByLevel.get(l.level) ?? 0) < l.booksRequiredToClear,
+  );
+  const stage = levelRows.length
+    ? levelRows[rawIdx === -1 ? levelRows.length - 1 : rawIdx]
+    : null;
+  const nextStage = stage ? levelRows.find((l) => l.level === stage.level + 1) : null;
 
   return (
     <main className="mx-auto max-w-3xl space-y-6 px-4 pb-24 pt-6 md:pt-8">
@@ -58,6 +86,26 @@ export default async function StatsPage() {
         <h1 className="font-serif text-3xl font-semibold tracking-tight">Your progress</h1>
         <p className="mt-1 text-sm text-fg-muted">Everything you&apos;ve read, saved, and earned.</p>
       </header>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <DailyGoalRing value={xpToday} goal={dailyGoal} />
+        {stage && (
+          <StageCard
+            level={stage.level}
+            nameEn={stage.nameEn}
+            nameAr={stage.nameAr}
+            booksInLevel={completedByLevel.get(stage.level) ?? 0}
+            booksRequired={stage.booksRequiredToClear}
+            nextName={nextStage?.nameEn ?? null}
+          />
+        )}
+      </div>
+
+      <StreakBanner
+        current={streak?.currentDays ?? 0}
+        longest={streak?.longestDays ?? 0}
+        freezes={streak?.freezesRemaining ?? 2}
+      />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <OutcomeCard
@@ -125,6 +173,13 @@ export default async function StatsPage() {
           More
         </div>
       </section>
+
+      <AchievementsPreview
+        items={achievements.items.slice(0, 6)}
+        earnedCount={achievements.earnedCount}
+        total={achievements.total}
+        xpEarned={achievements.xpEarned}
+      />
     </main>
   );
 }

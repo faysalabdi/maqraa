@@ -4,6 +4,7 @@ import { and, count, eq, lte } from "drizzle-orm";
 import { getPlan } from "@/lib/entitlement";
 import { AppShell } from "@/components/chrome/AppShell";
 import { PageViewTracker } from "@/components/analytics/PageViewTracker";
+import { AchievementWatcher } from "@/components/achievements/AchievementWatcher";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -48,6 +49,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-screen" style={{ fontSize: `${fontScale}rem` }}>
       <PageViewTracker />
+      {user && <AchievementWatcher />}
       <AppShell
         data={{
           signedIn: !!user,
