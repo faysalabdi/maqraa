@@ -51,7 +51,7 @@ export default async function ReviewPage() {
 function EmptyDeck() {
   return (
     <main className="mx-auto max-w-md px-4 pb-24 pt-12 text-center">
-      <div className="rounded-3xl bg-white p-10 shadow-lift ring-1 ring-border">
+      <div className="rounded-3xl bg-surface p-10 shadow-lift ring-1 ring-border">
         <span className="font-arabic mx-auto block text-5xl text-brand" dir="rtl">
           فارغ
         </span>

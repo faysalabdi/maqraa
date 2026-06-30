@@ -348,7 +348,7 @@ export function ChapterReader(props: Props) {
                 value={chapter.chapterNumber}
                 onChange={(e) => router.push(`/book/${props.bookSlug}/read/${e.target.value}`)}
                 aria-label="Jump to chapter"
-                className="max-w-[11rem] cursor-pointer truncate rounded-full bg-bg-muted py-1 pl-3 pr-7 text-xs font-semibold text-fg-muted outline-none transition hover:bg-border focus:ring-2 focus:ring-brand/30"
+                className="max-w-[11rem] cursor-pointer appearance-none truncate rounded-full bg-bg-muted py-1 pl-3 pr-7 text-xs font-semibold text-fg-muted outline-none transition hover:bg-border focus:ring-2 focus:ring-brand/30"
               >
                 {props.chapterList.map((c) => (
                   <option key={c.n} value={c.n}>
@@ -359,9 +359,21 @@ export function ChapterReader(props: Props) {
               <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-fg-muted" />
             </div>
             {phase === "reading" && pages.length > 1 && (
-              <span className="hidden shrink-0 rounded-full bg-bg-muted px-2.5 py-1 text-xs font-semibold text-fg-muted sm:inline">
-                p{pageIdx + 1}/{pages.length}
-              </span>
+              <div className="relative hidden shrink-0 sm:block">
+                <select
+                  value={pageIdx}
+                  onChange={(e) => goPage(Number(e.target.value))}
+                  aria-label="Jump to page"
+                  className="cursor-pointer appearance-none rounded-full bg-bg-muted py-1 pl-3 pr-7 text-xs font-semibold text-fg-muted outline-none transition hover:bg-border focus:ring-2 focus:ring-brand/30"
+                >
+                  {pages.map((_, i) => (
+                    <option key={i} value={i}>
+                      Page {i + 1} / {pages.length}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-fg-muted" />
+              </div>
             )}
           </div>
           <div className="relative">
