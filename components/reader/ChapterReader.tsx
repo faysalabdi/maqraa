@@ -478,9 +478,9 @@ export function ChapterReader(props: Props) {
                                 handleWordClick(w, p);
                               }}
                               className={cn(
-                                "cursor-pointer rounded px-0.5 transition hover:bg-accent-soft",
+                                "cursor-pointer rounded px-0.5 transition hover:bg-black/10",
                                 known && "underline decoration-brand decoration-2 underline-offset-[6px]",
-                                isSel && "bg-accent-soft ring-1 ring-accent/40",
+                                isSel && "outline outline-2 outline-offset-1 outline-brand",
                               )}
                             >
                               {w}
@@ -669,7 +669,7 @@ export function ChapterReader(props: Props) {
                   return (
                     <div
                       key={q.id}
-                      className={cn("rounded-xl border p-4", pq.correct ? "border-brand/30 bg-brand/5" : "border-rose-200 bg-rose-50")}
+                      className={cn("rounded-xl border p-4", pq.correct ? "border-brand/30 bg-brand/5" : "border-rose-200 bg-rose-50 text-rose-950")}
                     >
                       <p className="font-arabic text-lg font-semibold" dir="rtl">
                         {q.prompt_ar}
@@ -677,7 +677,7 @@ export function ChapterReader(props: Props) {
                       <p className="font-arabic mt-1 text-base" dir="rtl">
                         {pq.correct ? "✓" : "✗"} {q.choices[pq.answerIndex]}
                       </p>
-                      <p className="font-arabic mt-1 text-sm text-fg-muted" dir="rtl">
+                      <p className="font-arabic mt-1 text-sm opacity-70" dir="rtl">
                         {pq.rationaleAr}
                       </p>
                     </div>

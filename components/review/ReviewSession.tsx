@@ -11,7 +11,6 @@ import {
   Zap,
   Flame,
   ArrowRight,
-  Loader2,
 } from "lucide-react";
 import { gradeCard } from "@/server/actions/review";
 
@@ -127,28 +126,15 @@ export default function ReviewSession({ initialDeck }: { initialDeck: ReviewCard
 
       {/* Actions */}
       <div className="mt-5">
-        {stage === "front" ? (
-          <button
-            onClick={() => setStage("back")}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-4 text-base font-bold text-brand-fg shadow-glow-brand transition hover:bg-brand-dark"
-          >
-            Show answer
-          </button>
-        ) : (
+        {stage === "back" && (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <GradeButton onClick={() => grade(1)} disabled={isPending} tone="danger" icon={<X className="h-4 w-4" />} label="Again" sub="< 1d" />
-            <GradeButton onClick={() => grade(3)} disabled={isPending} tone="flame" icon={<CheckCircle2 className="h-4 w-4" />} label="Hard" sub="short" />
-            <GradeButton onClick={() => grade(4)} disabled={isPending} tone="brand" icon={<CheckCircle2 className="h-4 w-4" />} label="Good" sub="normal" />
-            <GradeButton onClick={() => grade(5)} disabled={isPending} tone="iris" icon={<Star className="h-4 w-4" />} label="Easy" sub="long" />
+            <GradeButton onClick={() => grade(1)} disabled={isPending} tone="danger" icon={<X className="h-4 w-4" />} label="Again" />
+            <GradeButton onClick={() => grade(3)} disabled={isPending} tone="flame" icon={<CheckCircle2 className="h-4 w-4" />} label="Hard" />
+            <GradeButton onClick={() => grade(4)} disabled={isPending} tone="brand" icon={<CheckCircle2 className="h-4 w-4" />} label="Good" />
+            <GradeButton onClick={() => grade(5)} disabled={isPending} tone="iris" icon={<Star className="h-4 w-4" />} label="Easy" />
           </div>
         )}
       </div>
-
-      {isPending && (
-        <p className="mt-3 flex items-center justify-center gap-2 text-sm text-fg-muted">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…
-        </p>
-      )}
     </main>
   );
 }
@@ -159,14 +145,12 @@ function GradeButton({
   tone,
   icon,
   label,
-  sub,
 }: {
   onClick: () => void;
   disabled: boolean;
   tone: "danger" | "flame" | "brand" | "iris";
   icon: React.ReactNode;
   label: string;
-  sub: string;
 }) {
   const cls =
     tone === "danger"
@@ -181,14 +165,9 @@ function GradeButton({
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`flex flex-col items-center gap-0.5 rounded-2xl py-3 font-extrabold text-white transition hover:opacity-90 disabled:opacity-60 ${cls}`}
+      className={`flex items-center justify-center gap-1.5 rounded-2xl py-3 text-sm font-extrabold text-white transition hover:opacity-90 disabled:opacity-60 ${cls}`}
     >
-      <span className="inline-flex items-center gap-1.5 text-sm">
-        {icon} {label}
-      </span>
-      <span className="text-[10px] font-bold uppercase tracking-widest opacity-80">
-        {sub}
-      </span>
+      {icon} {label}
     </button>
   );
 }
