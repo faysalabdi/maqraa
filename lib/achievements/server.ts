@@ -5,11 +5,13 @@ import { SRS_GRADUATED_INTERVAL_DAYS } from "@/lib/srs/sm2";
 
 /**
  * The achievement engine. The `achievements` table + 11 seeded badges already
- * exist; this turns them on by (a) computing progress toward each one from the
- * same sources their criteria reference and (b) awarding + granting XP the
- * moment criteria are met. Idempotent throughout: a badge is written to
- * `user_achievements` once (PK userId+achievementId) and its XP granted once
- * (grantXp refHash).
+ * exist; this turns them on by computing progress toward each from the same
+ * sources their criteria reference and awarding + granting XP the moment they
+ * are met. Idempotent throughout (PK on user_achievements, grantXp refHash).
+ *
+ * Every public function is defensive: if the achievements/user_achievements
+ * tables are missing or a query fails, it returns an empty result rather than
+ * throwing, so a stats/achievements page never crashes over gamification.
  */
 
 export type Criteria =
@@ -36,6 +38,23 @@ export type AchievementView = {
   unit: string;
 };
 
+export type AchievementsResult = {
+  items: AchievementView[];
+  earnedCount: number;
+  total: number;
+  xpEarned: number;
+  xpRemaining: number;
+  newly: AchievementView[];
+};
+
+export type SummaryBadge = { slug: string; icon: string; nameEn: string; earned: boolean };
+export type AchievementsSummary = {
+  items: SummaryBadge[];
+  earnedCount: number;
+  total: number;
+  xpEarned: number;
+};
+
 type Snapshot = {
   booksCompleted: number;
   testsPassed: number;
@@ -47,7 +66,17 @@ type Snapshot = {
   genreVariety: number;
 };
 
-// "one Islamic book, one novel, one translated work" for the genre-hopper badge.
+type AchievementRow = {
+  id: string;
+  slug: string;
+  nameEn: string;
+  nameAr: string;
+  description: string;
+  icon: string;
+  xpReward: number;
+  criteria: unknown;
+};
+
 const REQUIRED_GENRES = ["islamic", "arabic_literature", "translated"] as const;
 const STARTING_FREEZES = 2;
 
@@ -158,110 +187,134 @@ function progressFor(criteria: Criteria, s: Snapshot): { current: number; target
   }
 }
 
-/**
- * Award every achievement whose criteria are now met but isn't earned yet.
- * Returns the rows it newly awarded (for a toast). Safe to call on every load.
- */
-export async function awardNewAchievements(userId: string): Promise<AchievementView[]> {
-  const [allAch, earnedRows, snapshot] = await Promise.all([
-    db.select().from(schema.achievements),
-    db
-      .select({ id: schema.userAchievements.achievementId })
-      .from(schema.userAchievements)
-      .where(eq(schema.userAchievements.userId, userId)),
-    computeSnapshot(userId),
-  ]);
-  const earned = new Set(earnedRows.map((r) => r.id));
-  const newly: AchievementView[] = [];
-
-  for (const a of allAch) {
-    if (earned.has(a.id)) continue;
-    const { current, target } = progressFor(a.criteria as Criteria, snapshot);
-    if (current < target) continue;
-
-    const inserted = await db
-      .insert(schema.userAchievements)
-      .values({ userId, achievementId: a.id })
-      .onConflictDoNothing()
-      .returning({ id: schema.userAchievements.achievementId });
-    if (inserted.length === 0) continue; // already there (raced)
-
-    if (a.xpReward > 0) {
-      await grantXp({
-        userId,
-        delta: a.xpReward,
-        reason: "achievement",
-        ref: { slug: a.slug },
-        refHash: `achievement:${a.slug}`,
-      });
-    }
-    newly.push({
-      slug: a.slug,
-      nameEn: a.nameEn,
-      nameAr: a.nameAr,
-      description: a.description,
-      icon: a.icon,
-      xpReward: a.xpReward,
-      earned: true,
-      earnedAt: new Date().toISOString(),
-      current: target,
-      target,
-      unit: unitFor(a.criteria as Criteria),
-    });
-  }
-  return newly;
+function viewOf(a: AchievementRow, s: Snapshot, earnedAt: Date | null): AchievementView {
+  const c = a.criteria as Criteria;
+  const { current, target } = progressFor(c, s);
+  return {
+    slug: a.slug,
+    nameEn: a.nameEn,
+    nameAr: a.nameAr,
+    description: a.description,
+    icon: a.icon,
+    xpReward: a.xpReward,
+    earned: earnedAt !== null,
+    earnedAt: earnedAt ? earnedAt.toISOString() : null,
+    current: Math.min(current, target),
+    target,
+    unit: unitFor(c),
+  };
 }
 
-export type AchievementsView = {
-  items: AchievementView[];
-  earnedCount: number;
-  total: number;
-  xpEarned: number;
-  xpRemaining: number;
+function sortView(a: AchievementView, b: AchievementView): number {
+  if (a.earned !== b.earned) return a.earned ? -1 : 1;
+  if (a.earned && b.earned) return (b.earnedAt ?? "").localeCompare(a.earnedAt ?? "");
+  return b.current / b.target - a.current / a.target;
+}
+
+const EMPTY_RESULT: AchievementsResult = {
+  items: [],
+  earnedCount: 0,
+  total: 0,
+  xpEarned: 0,
+  xpRemaining: 0,
+  newly: [],
 };
 
-/** Read-only: every achievement with the user's progress, earned-first. */
-export async function loadAchievementsView(userId: string): Promise<AchievementsView> {
-  const [allAch, earnedRows, snapshot] = await Promise.all([
-    db.select().from(schema.achievements),
-    db
-      .select()
-      .from(schema.userAchievements)
-      .where(eq(schema.userAchievements.userId, userId)),
-    computeSnapshot(userId),
-  ]);
-  const earnedAtById = new Map(earnedRows.map((r) => [r.achievementId, r.earnedAt]));
+/**
+ * Single pass: compute the snapshot once, award anything newly met, and build
+ * the full view. Used by the /achievements page and the award watcher.
+ */
+export async function getAchievements(userId: string): Promise<AchievementsResult> {
+  try {
+    const snapshot = await computeSnapshot(userId);
+    const [allAch, earnedRows] = await Promise.all([
+      db.select().from(schema.achievements),
+      db.select().from(schema.userAchievements).where(eq(schema.userAchievements.userId, userId)),
+    ]);
+    const earnedAtById = new Map<string, Date>(
+      earnedRows.map((r) => [r.achievementId, r.earnedAt]),
+    );
 
-  const items: AchievementView[] = allAch
-    .map((a) => {
+    const newly: AchievementView[] = [];
+    for (const a of allAch as AchievementRow[]) {
+      if (earnedAtById.has(a.id)) continue;
       const { current, target } = progressFor(a.criteria as Criteria, snapshot);
-      const at = earnedAtById.get(a.id) ?? null;
-      return {
-        slug: a.slug,
-        nameEn: a.nameEn,
-        nameAr: a.nameAr,
-        description: a.description,
-        icon: a.icon,
-        xpReward: a.xpReward,
-        earned: at !== null,
-        earnedAt: at ? at.toISOString() : null,
-        current: Math.min(current, target),
-        target,
-        unit: unitFor(a.criteria as Criteria),
-      };
-    })
-    .sort((a, b) => {
-      if (a.earned !== b.earned) return a.earned ? -1 : 1;
-      if (a.earned && b.earned) return (b.earnedAt ?? "").localeCompare(a.earnedAt ?? "");
-      return b.current / b.target - a.current / a.target;
-    });
+      if (current < target) continue;
 
-  const earnedItems = items.filter((i) => i.earned);
-  return {
-    items,
-    earnedCount: earnedItems.length,
-    total: items.length,
-    xpEarned: earnedItems.reduce((s, i) => s + i.xpReward, 0),
-    xpRemaining: items.filter((i) => !i.earned).reduce((s, i) => s + i.xpReward, 0),
-  };
+      const inserted = await db
+        .insert(schema.userAchievements)
+        .values({ userId, achievementId: a.id })
+        .onConflictDoNothing()
+        .returning({ id: schema.userAchievements.achievementId });
+      if (inserted.length === 0) continue;
+
+      const now = new Date();
+      earnedAtById.set(a.id, now);
+      if (a.xpReward > 0) {
+        await grantXp({
+          userId,
+          delta: a.xpReward,
+          reason: "achievement",
+          ref: { slug: a.slug },
+          refHash: `achievement:${a.slug}`,
+        });
+      }
+      newly.push(viewOf(a, snapshot, now));
+    }
+
+    const items = (allAch as AchievementRow[])
+      .map((a) => viewOf(a, snapshot, earnedAtById.get(a.id) ?? null))
+      .sort(sortView);
+    const earnedItems = items.filter((i) => i.earned);
+    return {
+      items,
+      earnedCount: earnedItems.length,
+      total: items.length,
+      xpEarned: earnedItems.reduce((s, i) => s + i.xpReward, 0),
+      xpRemaining: items.filter((i) => !i.earned).reduce((s, i) => s + i.xpReward, 0),
+      newly,
+    };
+  } catch (e) {
+    console.error("[achievements] getAchievements failed", e);
+    return EMPTY_RESULT;
+  }
+}
+
+/**
+ * Lightweight, read-only badge summary for the stats-hub preview: two queries,
+ * no snapshot, no awarding. Keeps the stats page cheap.
+ */
+export async function getAchievementsSummary(userId: string): Promise<AchievementsSummary> {
+  try {
+    const [allAch, earnedRows] = await Promise.all([
+      db
+        .select({
+          id: schema.achievements.id,
+          slug: schema.achievements.slug,
+          icon: schema.achievements.icon,
+          nameEn: schema.achievements.nameEn,
+          xpReward: schema.achievements.xpReward,
+        })
+        .from(schema.achievements),
+      db
+        .select({ id: schema.userAchievements.achievementId })
+        .from(schema.userAchievements)
+        .where(eq(schema.userAchievements.userId, userId)),
+    ]);
+    const earned = new Set(earnedRows.map((r) => r.id));
+    const items: SummaryBadge[] = allAch
+      .map((a) => ({ slug: a.slug, icon: a.icon, nameEn: a.nameEn, earned: earned.has(a.id) }))
+      .sort((x, y) => (x.earned === y.earned ? 0 : x.earned ? -1 : 1));
+    return {
+      items,
+      earnedCount: items.filter((i) => i.earned).length,
+      total: allAch.length,
+      xpEarned: allAch
+        .filter((a) => earned.has(a.id))
+        .reduce((s, a) => s + a.xpReward, 0),
+    };
+  } catch (e) {
+    console.error("[achievements] getAchievementsSummary failed", e);
+    return { items: [], earnedCount: 0, total: 0, xpEarned: 0 };
+  }
 }

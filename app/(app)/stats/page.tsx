@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { XpChart, type XpDay } from "@/components/stats/XpChart";
 import { DailyGoalRing } from "@/components/stats/DailyGoalRing";
 import { StageCard, StreakBanner, AchievementsPreview } from "@/components/stats/ProgressHub";
-import { awardNewAchievements, loadAchievementsView } from "@/lib/achievements/server";
+import { getAchievementsSummary } from "@/lib/achievements/server";
 
 export const dynamic = "force-dynamic";
 
@@ -47,9 +47,9 @@ export default async function StatsPage() {
         .where(and(eq(schema.userBooks.userId, user.id), eq(schema.userBooks.status, "completed"))),
     ]);
 
-  // Award anything newly met on visit, then read the badge view for the preview.
-  await awardNewAchievements(user.id);
-  const achievements = await loadAchievementsView(user.id);
+  // Light read-only summary for the preview; awarding happens on /achievements
+  // and via the watcher, so the stats page stays cheap.
+  const achievements = await getAchievementsSummary(user.id);
 
   const profile = profileRows[0];
   const streak = streakRows[0];

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { awardNewAchievements, loadAchievementsView } from "@/lib/achievements/server";
+import { getAchievements } from "@/lib/achievements/server";
 import { AchievementsBoard } from "@/components/achievements/AchievementsBoard";
 
 export const dynamic = "force-dynamic";
@@ -12,9 +12,8 @@ export default async function AchievementsPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/sign-in?redirect=/achievements");
 
-  // Award anything newly met on visit, then read the fresh view.
-  await awardNewAchievements(user.id);
-  const view = await loadAchievementsView(user.id);
+  // Awards anything newly met and reads the view in one pass.
+  const view = await getAchievements(user.id);
 
   return (
     <main className="mx-auto max-w-3xl px-4 pb-24 pt-6 md:pt-8">
