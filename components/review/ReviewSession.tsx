@@ -165,7 +165,7 @@ function IntroScreen({ total, onPick }: { total: number; onPick: (n: number) => 
   const presets = [10, 20, 30].filter((n) => n < total);
   return (
     <main className="mx-auto max-w-md px-4 pb-24 pt-12 text-center">
-      <div className="rounded-3xl bg-white p-10 shadow-lift ring-1 ring-border">
+      <div className="rounded-3xl bg-surface p-10 shadow-lift ring-1 ring-border">
         <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-brand/15 text-brand">
           <Layers className="h-8 w-8" />
         </span>
@@ -247,7 +247,7 @@ function DoneScreen({
 }) {
   return (
     <main className="mx-auto max-w-md px-4 pb-24 pt-12 text-center">
-      <div className="rounded-3xl bg-white p-10 shadow-lift ring-1 ring-border">
+      <div className="rounded-3xl bg-surface p-10 shadow-lift ring-1 ring-border">
         <span className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-brand text-brand-fg shadow-glow-brand">
           <Sparkles className="h-10 w-10" />
         </span>
