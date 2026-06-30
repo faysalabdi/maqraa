@@ -35,12 +35,14 @@ export default async function WordsPage() {
           {words.length} {words.length === 1 ? "word" : "words"} collected. Every word you tap
           while reading lives here, grouped by how well you know it.
         </p>
-        <Link
-          href="/review"
-          className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-brand px-6 py-3 font-semibold text-brand-fg transition hover:bg-brand-dark"
-        >
-          <Flame className="h-4 w-4" /> Practice now
-        </Link>
+        {words.length > 0 && (
+          <Link
+            href="/review?mode=practice"
+            className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-brand px-6 py-3 font-semibold text-brand-fg transition hover:bg-brand-dark"
+          >
+            <Flame className="h-4 w-4" /> Practice now
+          </Link>
+        )}
       </div>
 
       <div className="mb-8 grid grid-cols-5 gap-2 text-center">
@@ -85,21 +87,22 @@ export default async function WordsPage() {
                 {items.map((w) => (
                   <div
                     key={w.id}
-                    className="flex items-center gap-3 rounded-2xl bg-surface px-4 py-3 shadow-card ring-1 ring-border sm:gap-4"
+                    className="flex items-center gap-3 rounded-2xl bg-surface px-4 py-3 shadow-card ring-1 ring-border"
                   >
                     <p className="font-arabic shrink-0 text-2xl font-bold" dir="rtl">
                       {w.lemmaAr}
                     </p>
-                    <p className="shrink-0 text-sm font-semibold">{w.glossEn}</p>
-                    {w.exampleAr && (
-                      <p className="font-arabic ml-auto hidden max-w-[40%] truncate text-sm text-fg-muted sm:block" dir="rtl">
-                        {w.exampleAr}
-                      </p>
-                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold">{w.glossEn}</p>
+                      {w.exampleAr && (
+                        <p className="font-arabic truncate text-xs text-fg-muted" dir="rtl">
+                          {w.exampleAr}
+                        </p>
+                      )}
+                    </div>
                     <span
                       className={cn(
                         "shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-bold ring-1",
-                        !w.exampleAr && "ml-auto",
                         STRENGTH_META[s].color,
                       )}
                     >
