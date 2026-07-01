@@ -368,7 +368,7 @@ export function ChapterReader(props: Props) {
                 >
                   {pages.map((_, i) => (
                     <option key={i} value={i}>
-                      Page {i + 1} / {pages.length}
+                      Page {i + 1}
                     </option>
                   ))}
                 </select>
