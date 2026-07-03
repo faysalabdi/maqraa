@@ -44,3 +44,6 @@ next-env.d.ts
 drizzle/
 
 design_handoff_maqra_reskin*
+
+# graphify
+graphify-out/
