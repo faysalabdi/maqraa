@@ -9,6 +9,7 @@ Read `README.md` first for the public overview. This file is for AI assistants p
 - **Drizzle ORM** (not Prisma, not raw supabase-js). Schema lives in `lib/db/schema.ts`. Migrations in `db/migrations/`. `pnpm db:push` applies; `pnpm db:seed` populates catalogue tables.
 - **Anthropic SDK** with `cache_control: { type: "ephemeral" }` on the system block. Default test model `claude-sonnet-4-6`. Fallback / short-answer grader `claude-haiku-4-5-20251001`. Never put model IDs in commit messages or files pushed to the repo (chat replies only).
 - Comprehension tests are whole-book. The user doesn't upload anything — Claude generates 12 questions from its training-knowledge of the famous book. Low confidence ⇒ `is_fallback: true` + generic level-appropriate test using a Claude-composed Arabic passage.
+- **OpenAI Realtime** powers `/talk` voice conversation practice only (everything else stays Anthropic). Server mints an ephemeral client secret at `app/api/realtime/session/route.ts` (auth + `conversation` quota kind), browser connects via WebRTC in `components/talk/TalkSession.tsx`. Tutor instructions live in `prompts/conversation-system.md`.
 - 8 levels (Emerging Reader → Imam). Each book is a node on the Duolingo-style path. Locked future-stage books render as silhouettes with no title shown.
 - Books span four genres: Islamic, Arabic literature, translated foreign works, graded readers, classical. The path is exposure-first, not genre-segregated.
 

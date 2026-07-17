@@ -7,6 +7,9 @@ export const env = createEnv({
     DATABASE_URL: z.string().url(),
     DIRECT_URL: z.string().url().optional(),
     ANTHROPIC_API_KEY: z.string().min(1),
+    // OpenAI Realtime (voice conversation practice). Optional: the /talk page
+    // shows a "not configured" state until it's set.
+    OPENAI_API_KEY: z.string().optional(),
     ANTHROPIC_TEST_MODEL: z.string().default("claude-sonnet-4-6"),
     ANTHROPIC_FALLBACK_MODEL: z.string().default("claude-haiku-4-5-20251001"),
     ADMIN_EMAILS: z.string().optional(), // comma-separated allowlist for /admin
@@ -27,6 +30,7 @@ export const env = createEnv({
     DATABASE_URL: process.env.DATABASE_URL,
     DIRECT_URL: process.env.DIRECT_URL,
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     ANTHROPIC_TEST_MODEL: process.env.ANTHROPIC_TEST_MODEL,
     ANTHROPIC_FALLBACK_MODEL: process.env.ANTHROPIC_FALLBACK_MODEL,
     ADMIN_EMAILS: process.env.ADMIN_EMAILS,

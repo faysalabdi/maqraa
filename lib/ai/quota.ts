@@ -12,6 +12,7 @@ const PRO_LIMITS: Record<string, number> = {
   test: 80, // whole-book test generations
   grade: 120, // open-ended test submissions graded by AI
   analyze: 50, // EPUB upload analyses
+  conversation: 25, // realtime voice conversation sessions (OpenAI, priced per minute)
 };
 
 const FREE_LIMITS: Record<string, number> = {
@@ -21,6 +22,7 @@ const FREE_LIMITS: Record<string, number> = {
   test: 5,
   grade: 8,
   analyze: 0, // uploads are Pro-only; free never analyses
+  conversation: 1, // one short taste per day; Pro unlocks real practice
 };
 
 export type QuotaKind = keyof typeof PRO_LIMITS;

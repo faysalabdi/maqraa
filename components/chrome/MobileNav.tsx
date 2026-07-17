@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, BookOpen, Brain, Repeat, Trophy } from "lucide-react";
+import { BarChart3, BookOpen, Brain, Mic, Repeat, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const TABS = [
   { href: "/path", label: "Read", Icon: BookOpen, reading: true },
+  { href: "/talk", label: "Talk", Icon: Mic },
   { href: "/words", label: "Words", Icon: Brain },
   { href: "/review", label: "Review", Icon: Repeat },
   { href: "/stats", label: "Stats", Icon: BarChart3 },
