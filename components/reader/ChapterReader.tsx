@@ -338,17 +338,17 @@ export function ChapterReader(props: Props) {
             className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-sm font-medium text-fg-muted transition hover:bg-bg-muted hover:text-fg"
           >
             <ArrowLeft className="h-4 w-4" />
-            <span className="font-arabic max-w-[7rem] truncate" dir="rtl">
+            <span className="font-arabic max-w-[4rem] truncate sm:max-w-[7rem]" dir="rtl">
               {props.bookTitleAr}
             </span>
           </Link>
-          <div className="mx-auto flex items-center gap-2">
-            <div className="relative">
+          <div className="mx-auto flex min-w-0 items-center gap-2">
+            <div className="relative min-w-0">
               <select
                 value={chapter.chapterNumber}
                 onChange={(e) => router.push(`/book/${props.bookSlug}/read/${e.target.value}`)}
                 aria-label="Jump to chapter"
-                className="max-w-[11rem] cursor-pointer appearance-none truncate rounded-full bg-bg-muted py-1 pl-3 pr-7 text-xs font-semibold text-fg-muted outline-none transition hover:bg-border focus:ring-2 focus:ring-brand/30"
+                className="max-w-[6rem] cursor-pointer appearance-none truncate rounded-full bg-bg-muted py-1 pl-3 pr-7 text-xs font-semibold text-fg-muted outline-none transition hover:bg-border focus:ring-2 focus:ring-brand/30 sm:max-w-[11rem]"
               >
                 {props.chapterList.map((c) => (
                   <option key={c.n} value={c.n}>
@@ -359,12 +359,12 @@ export function ChapterReader(props: Props) {
               <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-fg-muted" />
             </div>
             {phase === "reading" && pages.length > 1 && (
-              <div className="relative hidden shrink-0 sm:block">
+              <div className="relative shrink-0">
                 <select
                   value={pageIdx}
                   onChange={(e) => goPage(Number(e.target.value))}
                   aria-label="Jump to page"
-                  className="cursor-pointer appearance-none rounded-full bg-bg-muted py-1 pl-3 pr-7 text-xs font-semibold text-fg-muted outline-none transition hover:bg-border focus:ring-2 focus:ring-brand/30"
+                  className="max-w-[5rem] cursor-pointer appearance-none truncate rounded-full bg-bg-muted py-1 pl-3 pr-7 text-xs font-semibold text-fg-muted outline-none transition hover:bg-border focus:ring-2 focus:ring-brand/30 sm:max-w-none"
                 >
                   {pages.map((_, i) => (
                     <option key={i} value={i}>
