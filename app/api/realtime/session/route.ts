@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getApiUser } from "@/lib/api/require-user";
 import { consumeAiQuota } from "@/lib/ai/quota";
 import { getPlan } from "@/lib/entitlement";
 import { env } from "@/lib/env";
@@ -25,11 +25,9 @@ const INSTRUCTIONS = fs.readFileSync(
  * WebRTC session directly with OpenAI. The real API key never leaves the
  * server; the secret only authorizes the single pre-configured tutor session.
  */
-export async function POST() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+export async function POST(req: Request) {
+  // Web sends the session cookie; the mobile app sends a Bearer token.
+  const user = await getApiUser(req);
   if (!user) {
     return NextResponse.json({ error: "You need to be signed in." }, { status: 401 });
   }
