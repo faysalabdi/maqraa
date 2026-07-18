@@ -20,12 +20,19 @@ export function Button({
   onPress: () => void;
   disabled?: boolean;
   loading?: boolean;
-  variant?: "primary" | "ghost" | "danger";
+  variant?: "primary" | "ghost" | "danger" | "accent";
 }) {
   const c = usePalette();
   const bg =
-    variant === "primary" ? c.brand : variant === "danger" ? c.danger : "transparent";
-  const fg = variant === "ghost" ? c.fgMuted : c.brandFg;
+    variant === "primary"
+      ? c.brand
+      : variant === "danger"
+        ? c.danger
+        : variant === "accent"
+          ? c.accent
+          : "transparent";
+  const fg =
+    variant === "ghost" ? c.fgMuted : variant === "accent" ? c.accentFg : c.brandFg;
   return (
     <Pressable
       onPress={onPress}

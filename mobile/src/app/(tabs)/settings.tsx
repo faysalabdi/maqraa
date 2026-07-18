@@ -148,7 +148,7 @@ export default function SettingsScreen() {
           </View>
 
           {plan === "free" && purchasesAvailable() ? (
-            <Button title="Get Maqraa Pro" onPress={() => router.push("/paywall")} />
+            <Button variant="accent" title="Get Maqraa Pro" onPress={() => router.push("/paywall")} />
           ) : null}
           {plan === "pro" ? (
             <Row
@@ -160,8 +160,6 @@ export default function SettingsScreen() {
           {purchasesAvailable() ? (
             <Row icon="refresh" label="Restore purchases" onPress={() => router.push("/paywall")} />
           ) : null}
-          <Row icon="book" label="Add your own book" onPress={() => router.push("/upload")} />
-          <Row icon="trophy" label="Achievements" onPress={() => router.push("/awards")} />
 
           <View style={{ height: 12 }} />
           <Button title="Sign out" variant="ghost" onPress={() => supabase.auth.signOut()} />

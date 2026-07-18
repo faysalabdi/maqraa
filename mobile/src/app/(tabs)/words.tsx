@@ -43,6 +43,7 @@ function strengthColor(s: Strength, c: Palette): { bg: string; fg: string } {
 export default function WordsScreen() {
   const c = usePalette();
   const [items, setItems] = useState<VocabItem[] | null>(null);
+  const [filter, setFilter] = useState<Strength | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -153,20 +154,35 @@ export default function WordsScreen() {
             <View style={styles.summary}>
               {STRENGTH_ORDER.map((s) => {
                 const tone = strengthColor(s, c);
+                const active = filter === s;
                 return (
-                  <View key={s} style={[styles.summaryCell, { backgroundColor: tone.bg }]}>
+                  <Pressable
+                    key={s}
+                    onPress={() => setFilter(active ? null : s)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Filter ${STRENGTH_LABELS[s].labelEn}`}
+                    style={[
+                      styles.summaryCell,
+                      {
+                        backgroundColor: tone.bg,
+                        borderColor: active ? tone.fg : "transparent",
+                        borderWidth: 2,
+                        opacity: filter && !active ? 0.5 : 1,
+                      },
+                    ]}
+                  >
                     <Text style={[styles.summaryCount, { color: tone.fg }]}>
                       {counts.get(s) ?? 0}
                     </Text>
                     <Text style={{ color: tone.fg, fontSize: 11, fontWeight: "600" }}>
                       {STRENGTH_LABELS[s].labelEn}
                     </Text>
-                  </View>
+                  </Pressable>
                 );
               })}
             </View>
 
-            {STRENGTH_ORDER.map((s) => {
+            {STRENGTH_ORDER.filter((s) => !filter || s === filter).map((s) => {
               const group = withStrength.filter((w) => w.strength === s);
               if (group.length === 0) return null;
               const tone = strengthColor(s, c);

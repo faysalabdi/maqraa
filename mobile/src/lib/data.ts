@@ -293,6 +293,29 @@ export async function fetchWordsCount(): Promise<number> {
   return count ?? 0;
 }
 
+export async function fetchWordsSavedThisWeek(): Promise<number> {
+  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const { count, error } = await supabase
+    .from("vocab_items")
+    .select("id", { count: "exact", head: true })
+    .gte("created_at", since);
+  throwIf(error);
+  return count ?? 0;
+}
+
+/** Books this reader uploaded (owner_id = them). */
+export async function fetchUploadedBooksCount(): Promise<number> {
+  const { data: auth } = await supabase.auth.getUser();
+  const uid = auth.user?.id;
+  if (!uid) return 0;
+  const { count, error } = await supabase
+    .from("books")
+    .select("id", { count: "exact", head: true })
+    .eq("owner_id", uid);
+  throwIf(error);
+  return count ?? 0;
+}
+
 export async function fetchRecentXp(days: number): Promise<XpEvent[]> {
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
   const { data, error } = await supabase

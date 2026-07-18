@@ -14,7 +14,9 @@ import {
   fetchProfile,
   fetchRecentXp,
   fetchStreak,
+  fetchUploadedBooksCount,
   fetchWordsCount,
+  fetchWordsSavedThisWeek,
   type Level,
   type Profile,
   type Streak,
@@ -30,18 +32,22 @@ export default function ProgressScreen() {
   const [levels, setLevels] = useState<Level[]>([]);
   const [booksDone, setBooksDone] = useState(0);
   const [words, setWords] = useState(0);
+  const [wordsWeek, setWordsWeek] = useState(0);
+  const [uploaded, setUploaded] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const [p, s, ev, done, lv, w] = await Promise.all([
+      const [p, s, ev, done, lv, w, ww, up] = await Promise.all([
         fetchProfile(),
         fetchStreak(),
         fetchRecentXp(7),
         fetchCompletedBooksCount(),
         fetchLevels(),
         fetchWordsCount(),
+        fetchWordsSavedThisWeek(),
+        fetchUploadedBooksCount(),
       ]);
       setProfile(p);
       setStreak(s);
@@ -49,6 +55,8 @@ export default function ProgressScreen() {
       setBooksDone(done);
       setLevels(lv);
       setWords(w);
+      setWordsWeek(ww);
+      setUploaded(up);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't load progress.");
@@ -142,13 +150,12 @@ export default function ProgressScreen() {
             <Tile icon="albums" tint={c.iris} value={words} label="Words saved" />
           </View>
           <View style={styles.row2}>
+            <Tile icon="add-circle" tint={c.brand} value={wordsWeek} label="Words this week" />
+            <Tile icon="cloud-upload" tint={c.accent} value={uploaded} label="Books uploaded" />
+          </View>
+          <View style={styles.row2}>
             <Tile icon="star" tint={c.accent} value={profile?.xp_total ?? 0} label="Total XP" />
-            <Tile
-              icon="calendar"
-              tint={c.fgMuted}
-              value={events.reduce((s, e) => s + e.delta, 0)}
-              label="XP this week"
-            />
+            <Tile icon="flame" tint={c.flame} value={streak?.longest_days ?? 0} label="Longest streak" />
           </View>
 
           <Pressable
