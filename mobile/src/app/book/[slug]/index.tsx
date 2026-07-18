@@ -22,6 +22,7 @@ import {
   type ChapterProgress,
 } from "../../../lib/data";
 import { useMe } from "../../../lib/me-context";
+import { purchasesAvailable } from "../../../lib/purchases";
 import { usePalette } from "../../../lib/use-palette";
 
 export default function BookDetail() {
@@ -97,7 +98,9 @@ export default function BookDetail() {
                 {tierFor(book.level)} books are part of Maqraa Pro.
               </Text>
             </View>
-            <Button title="Get Maqraa Pro" onPress={() => router.push("/paywall")} />
+            {purchasesAvailable() ? (
+              <Button title="Get Maqraa Pro" onPress={() => router.push("/paywall")} />
+            ) : null}
           </>
         ) : (
           <>

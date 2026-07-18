@@ -15,6 +15,7 @@ import { ArabicText } from "../../components/ArabicText";
 import { BookCard } from "../../components/BookCard";
 import { fetchCatalogue, fetchUserBooks, type Book, type UserBook } from "../../lib/data";
 import { useMe } from "../../lib/me-context";
+import { purchasesAvailable } from "../../lib/purchases";
 import { usePalette } from "../../lib/use-palette";
 
 export default function PathScreen() {
@@ -148,7 +149,11 @@ function Shelf({
               book={book}
               locked={bookLocked}
               completed={byId.get(book.id)?.status === "completed"}
-              onPress={() => router.push(bookLocked ? "/paywall" : `/book/${book.slug}`)}
+              onPress={() =>
+                bookLocked && purchasesAvailable()
+                  ? router.push("/paywall")
+                  : router.push(`/book/${book.slug}`)
+              }
             />
           );
         })}

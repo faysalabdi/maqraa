@@ -7,6 +7,7 @@ import type { MeResponse } from "@maqraa/shared";
 import { Button } from "../../components/ui";
 import { api } from "../../lib/api";
 import { useMe } from "../../lib/me-context";
+import { purchasesAvailable } from "../../lib/purchases";
 import { supabase } from "../../lib/supabase";
 import { usePalette } from "../../lib/use-palette";
 
@@ -60,16 +61,19 @@ export default function SettingsScreen() {
           </Text>
         </View>
 
-        {plan === "free" ? (
+        {plan === "free" && purchasesAvailable() ? (
           <Button title="Get Maqraa Pro" onPress={() => router.push("/paywall")} />
-        ) : (
+        ) : null}
+        {plan === "pro" ? (
           <Row
             icon="card"
             label="Manage subscription"
             onPress={() => Linking.openURL("https://apps.apple.com/account/subscriptions")}
           />
-        )}
-        <Row icon="refresh" label="Restore purchases" onPress={() => router.push("/paywall")} />
+        ) : null}
+        {purchasesAvailable() ? (
+          <Row icon="refresh" label="Restore purchases" onPress={() => router.push("/paywall")} />
+        ) : null}
         <Row icon="trophy" label="Achievements" onPress={() => router.push("/achievements")} />
 
         <View style={{ height: 12 }} />
