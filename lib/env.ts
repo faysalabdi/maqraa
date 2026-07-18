@@ -19,6 +19,8 @@ export const env = createEnv({
     STRIPE_WEBHOOK_SECRET: z.string().optional(),
     STRIPE_PRICE_MONTHLY: z.string().optional(),
     STRIPE_PRICE_ANNUAL: z.string().optional(),
+    // RevenueCat (Apple IAP for the iOS app). Webhook is rejected until set.
+    REVENUECAT_WEBHOOK_SECRET: z.string().optional(),
   },
   client: {
     NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
@@ -38,6 +40,7 @@ export const env = createEnv({
     STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
     STRIPE_PRICE_MONTHLY: process.env.STRIPE_PRICE_MONTHLY,
     STRIPE_PRICE_ANNUAL: process.env.STRIPE_PRICE_ANNUAL,
+    REVENUECAT_WEBHOOK_SECRET: process.env.REVENUECAT_WEBHOOK_SECRET,
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,

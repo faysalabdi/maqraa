@@ -23,9 +23,32 @@ export async function syncSubscription(sub: Stripe.Subscription): Promise<string
     console.error("[stripe/sync] no user for customer", customerId);
     return null;
   }
+  // Mirror of the RevenueCat guard: never clobber a live Apple subscription.
+  const [existing] = await db
+    .select({
+      provider: schema.subscriptions.provider,
+      status: schema.subscriptions.status,
+      currentPeriodEnd: schema.subscriptions.currentPeriodEnd,
+    })
+    .from(schema.subscriptions)
+    .where(eq(schema.subscriptions.userId, userId))
+    .limit(1);
+  if (
+    existing &&
+    existing.provider === "apple" &&
+    existing.status &&
+    ["active", "trialing"].includes(existing.status) &&
+    (!existing.currentPeriodEnd || existing.currentPeriodEnd.getTime() >= Date.now())
+  ) {
+    console.warn("[stripe/sync] ignoring event for user with live apple sub:", userId);
+    return null;
+  }
+
   const item = sub.items.data[0];
   const periodEnd = item?.current_period_end ?? null;
   const values = {
+    provider: "stripe" as const,
+    rcOriginalTransactionId: null,
     stripeCustomerId: customerId,
     stripeSubscriptionId: sub.id,
     status: sub.status,

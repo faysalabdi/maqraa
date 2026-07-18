@@ -444,8 +444,11 @@ export const aiUsage = pgTable(
 // One row per user, kept in sync with Stripe by the webhook. Absence = free plan.
 export const subscriptions = pgTable("subscriptions", {
   userId: uuid("user_id").primaryKey(), // = auth.users.id
+  // Which store bills this user: web checkout or the iOS app.
+  provider: text("provider").notNull().default("stripe"), // stripe | apple
   stripeCustomerId: text("stripe_customer_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
+  rcOriginalTransactionId: text("rc_original_transaction_id"),
   status: subscriptionStatus("status"),
   priceId: text("price_id"),
   cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),

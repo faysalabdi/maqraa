@@ -90,12 +90,15 @@ export default function BookDetail() {
         <Text style={[styles.blurb, { color: c.fgMuted }]}>{book.blurb}</Text>
 
         {locked ? (
-          <View style={[styles.lockCard, { backgroundColor: c.surface, borderColor: c.border }]}>
-            <Ionicons name="lock-closed" size={20} color={c.accent} />
-            <Text style={{ color: c.fg, flex: 1 }}>
-              {tierFor(book.level)} books are part of Maqraa Pro.
-            </Text>
-          </View>
+          <>
+            <View style={[styles.lockCard, { backgroundColor: c.surface, borderColor: c.border }]}>
+              <Ionicons name="lock-closed" size={20} color={c.accent} />
+              <Text style={{ color: c.fg, flex: 1 }}>
+                {tierFor(book.level)} books are part of Maqraa Pro.
+              </Text>
+            </View>
+            <Button title="Get Maqraa Pro" onPress={() => router.push("/paywall")} />
+          </>
         ) : (
           <>
             {chapters.length > 0 && nextChapter ? (

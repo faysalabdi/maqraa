@@ -140,15 +140,18 @@ function Shelf({
         {locked ? <Text style={{ color: c.fgMuted, fontSize: 13 }}>Pro</Text> : null}
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.shelfRow}>
-        {books.map((book) => (
-          <BookCard
-            key={book.id}
-            book={book}
-            locked={!canRead(book)}
-            completed={byId.get(book.id)?.status === "completed"}
-            onPress={() => router.push(`/book/${book.slug}`)}
-          />
-        ))}
+        {books.map((book) => {
+          const bookLocked = !canRead(book);
+          return (
+            <BookCard
+              key={book.id}
+              book={book}
+              locked={bookLocked}
+              completed={byId.get(book.id)?.status === "completed"}
+              onPress={() => router.push(bookLocked ? "/paywall" : `/book/${book.slug}`)}
+            />
+          );
+        })}
       </ScrollView>
     </View>
   );

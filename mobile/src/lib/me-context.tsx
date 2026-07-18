@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import type { MeResponse } from "@maqraa/shared";
 import { api } from "./api";
 import { useSession } from "./auth-context";
+import { configurePurchases, logOutPurchases } from "./purchases";
 
 type MeState = {
   plan: "free" | "pro";
@@ -28,10 +29,13 @@ export function MeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (session) refresh();
-    else {
+    if (session) {
+      refresh();
+      configurePurchases(session.user.id);
+    } else {
       setPlan("free");
       setLoaded(false);
+      logOutPurchases();
     }
   }, [session, refresh]);
 
