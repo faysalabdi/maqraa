@@ -3,6 +3,7 @@ import { router, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Washed } from "../../components/Background";
 import type { MeResponse } from "@maqraa/shared";
 import { Button } from "../../components/ui";
 import { api } from "../../lib/api";
@@ -50,7 +51,8 @@ export default function SettingsScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]} edges={["top"]}>
+    <Washed>
+    <SafeAreaView style={styles.safe} edges={["top"]}>
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={[styles.heading, { color: c.fg }]}>Settings</Text>
 
@@ -82,6 +84,7 @@ export default function SettingsScreen() {
         <Button title="Delete account" variant="danger" loading={deleting} onPress={confirmDelete} />
       </ScrollView>
     </SafeAreaView>
+    </Washed>
   );
 }
 

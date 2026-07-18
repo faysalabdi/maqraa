@@ -13,7 +13,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { TIERS, tierFor, type Tier } from "@maqraa/shared";
 import { ArabicText } from "../../components/ArabicText";
+import { Washed } from "../../components/Background";
 import { BookCard } from "../../components/BookCard";
+import { BookCover } from "../../components/BookCover";
+import { cardShadow } from "../../lib/theme";
 import { fetchCatalogue, fetchUserBooks, type Book, type UserBook } from "../../lib/data";
 import { useMe } from "../../lib/me-context";
 import { purchasesAvailable } from "../../lib/purchases";
@@ -46,11 +49,13 @@ export default function PathScreen() {
 
   if (!books) {
     return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
-        <View style={styles.center}>
-          {error ? <Text style={{ color: c.danger }}>{error}</Text> : <ActivityIndicator />}
-        </View>
-      </SafeAreaView>
+      <Washed>
+        <SafeAreaView style={styles.safe}>
+          <View style={styles.center}>
+            {error ? <Text style={{ color: c.danger }}>{error}</Text> : <ActivityIndicator />}
+          </View>
+        </SafeAreaView>
+      </Washed>
     );
   }
 
@@ -63,7 +68,8 @@ export default function PathScreen() {
   const canRead = (book: Book) => plan === "pro" || tierFor(book.level) === "Beginner";
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]} edges={["top"]}>
+    <Washed>
+      <SafeAreaView style={styles.safe} edges={["top"]}>
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={
@@ -90,11 +96,24 @@ export default function PathScreen() {
         {continueBook ? (
           <Pressable
             onPress={() => router.push(`/book/${continueBook.slug}`)}
+            accessibilityRole="button"
+            accessibilityLabel={`Continue reading ${continueBook.title_en}`}
             style={({ pressed }) => [
               styles.hero,
-              { backgroundColor: c.surface, borderColor: c.border, opacity: pressed ? 0.9 : 1 },
+              cardShadow,
+              {
+                backgroundColor: c.surface,
+                borderColor: c.border,
+                transform: [{ scale: pressed ? 0.98 : 1 }],
+              },
             ]}
           >
+            <BookCover
+              titleAr={continueBook.title_ar}
+              level={continueBook.level}
+              size="sm"
+              showBand={false}
+            />
             <View style={{ flex: 1, gap: 4 }}>
               <Text style={[styles.heroLabel, { color: c.brand }]}>Continue reading</Text>
               <ArabicText style={[styles.heroTitle, { color: c.fg }]} numberOfLines={1}>
@@ -104,6 +123,7 @@ export default function PathScreen() {
                 {continueBook.title_en}
               </Text>
             </View>
+            <Ionicons name="chevron-forward" size={20} color={c.fgMuted} />
           </Pressable>
         ) : null}
 
@@ -143,7 +163,8 @@ export default function PathScreen() {
           );
         })}
       </ScrollView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </Washed>
   );
 }
 
@@ -198,10 +219,11 @@ const styles = StyleSheet.create({
   headingAr: { fontSize: 26 },
   hero: {
     borderWidth: 1,
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 18,
+    padding: 14,
     flexDirection: "row",
     alignItems: "center",
+    gap: 14,
   },
   heroLabel: { fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 1 },
   heroTitle: { fontSize: 22 },

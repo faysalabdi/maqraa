@@ -43,3 +43,20 @@ export const palette = {
 } as const;
 
 export type Palette = Record<keyof (typeof palette)["light"], string>;
+
+/** The web's shadow-card, translated to iOS shadow props. */
+export const cardShadow = {
+  shadowColor: "#14181e",
+  shadowOpacity: 0.12,
+  shadowRadius: 17,
+  shadowOffset: { width: 0, height: 8 },
+  elevation: 4,
+} as const;
+
+export const softShadow = {
+  shadowColor: "#14181e",
+  shadowOpacity: 0.08,
+  shadowRadius: 10,
+  shadowOffset: { width: 0, height: 4 },
+  elevation: 2,
+} as const;

@@ -1,16 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Image } from "expo-image";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { tierFor, type Tier } from "@maqraa/shared";
 import type { Book } from "../lib/data";
 import { usePalette } from "../lib/use-palette";
-import { ArabicText } from "./ArabicText";
-
-const TIER_COLORS: Record<Tier, string> = {
-  Beginner: "#0f9663",
-  Intermediate: "#e3a72f",
-  Advanced: "#5b6cf0",
-};
+import { BookCover } from "./BookCover";
 
 export function BookCard({
   book,
@@ -24,18 +16,22 @@ export function BookCard({
   onPress: () => void;
 }) {
   const c = usePalette();
-  const tierColor = TIER_COLORS[tierFor(book.level)];
 
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.card, { opacity: pressed ? 0.85 : 1 }]}>
-      <View style={[styles.cover, { backgroundColor: `${tierColor}22`, borderColor: c.border }]}>
-        {book.cover_url ? (
-          <Image source={{ uri: book.cover_url }} style={styles.coverImage} contentFit="cover" />
-        ) : (
-          <ArabicText style={[styles.coverTitle, { color: tierColor }]} numberOfLines={3}>
-            {book.title_ar}
-          </ArabicText>
-        )}
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${book.title_en}${locked ? ", locked" : ""}`}
+      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+    >
+      <View>
+        <BookCover
+          titleAr={book.title_ar}
+          authorAr={book.author_ar}
+          authorEn={book.author_en}
+          level={book.level}
+          size="md"
+        />
         {locked ? (
           <View style={styles.lockOverlay}>
             <Ionicons name="lock-closed" size={22} color="#ffffff" />
@@ -55,25 +51,15 @@ export function BookCard({
 }
 
 const styles = StyleSheet.create({
-  card: { width: 120, gap: 6 },
-  cover: {
-    width: 120,
-    height: 168,
-    borderRadius: 12,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-    padding: 10,
-  },
-  coverImage: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
-  coverTitle: { fontSize: 18, textAlign: "center" },
+  card: { width: 120, gap: 8 },
+  pressed: { transform: [{ scale: 0.97 }], opacity: 0.9 },
   lockOverlay: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
+    borderRadius: 16,
     backgroundColor: "rgba(20,24,30,0.45)",
     alignItems: "center",
     justifyContent: "center",
@@ -87,6 +73,8 @@ const styles = StyleSheet.create({
     borderRadius: 11,
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.85)",
   },
   title: { fontSize: 13, fontWeight: "500" },
 });

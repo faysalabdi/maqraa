@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Washed } from "../../components/Background";
 import {
   fetchCompletedBooksCount,
   fetchProfile,
@@ -58,7 +59,7 @@ export default function StatsScreen() {
 
   if (!loaded) {
     return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
+      <SafeAreaView style={styles.safe}>
         <View style={styles.center}>
           <ActivityIndicator />
         </View>
@@ -74,7 +75,8 @@ export default function StatsScreen() {
   const goal = profile?.daily_xp_goal ?? 50;
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]} edges={["top"]}>
+    <Washed>
+    <SafeAreaView style={styles.safe} edges={["top"]}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.headerRow}>
           <Text style={[styles.heading, { color: c.fg }]}>Stats</Text>
@@ -130,6 +132,7 @@ export default function StatsScreen() {
         </View>
       </ScrollView>
     </SafeAreaView>
+    </Washed>
   );
 }
 

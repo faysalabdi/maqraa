@@ -12,14 +12,19 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { tierFor } from "@maqraa/shared";
 import { ArabicText } from "../../../components/ArabicText";
+import { Washed } from "../../../components/Background";
+import { BookCover } from "../../../components/BookCover";
 import { Button } from "../../../components/ui";
+import { cardShadow } from "../../../lib/theme";
 import {
   fetchBookBySlug,
   fetchChapterMetas,
   fetchChapterProgress,
+  fetchUserBooks,
   type Book,
   type ChapterMeta,
   type ChapterProgress,
+  type UserBook,
 } from "../../../lib/data";
 import { useMe } from "../../../lib/me-context";
 import { purchasesAvailable } from "../../../lib/purchases";
@@ -32,6 +37,7 @@ export default function BookDetail() {
   const [book, setBook] = useState<Book | null>(null);
   const [chapters, setChapters] = useState<ChapterMeta[]>([]);
   const [progress, setProgress] = useState<Map<string, ChapterProgress>>(new Map());
+  const [userBook, setUserBook] = useState<UserBook | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -42,11 +48,12 @@ export default function BookDetail() {
         setError("Book not found");
         return;
       }
-      const metas = await fetchChapterMetas(b.id);
+      const [metas, mine] = await Promise.all([fetchChapterMetas(b.id), fetchUserBooks()]);
       const prog = await fetchChapterProgress(metas.map((m) => m.id));
       setBook(b);
       setChapters(metas);
       setProgress(new Map(prog.map((p) => [p.chapter_id, p])));
+      setUserBook(mine.find((ub) => ub.book_id === b.id) ?? null);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't load this book.");
@@ -85,13 +92,49 @@ export default function BookDetail() {
     classical: "Classical",
   };
 
+  const bestScore = userBook?.best_score ? Math.round(Number(userBook.best_score)) : null;
+
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]} edges={["top"]}>
+    <Washed>
+    <SafeAreaView style={styles.safe} edges={["top"]}>
       <Stack.Screen options={{ headerShown: false }} />
       <ScrollView contentContainerStyle={styles.content}>
-        <Pressable onPress={() => router.back()} hitSlop={12} style={styles.back}>
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={12}
+          style={styles.back}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+        >
           <Ionicons name="chevron-back" size={26} color={c.fg} />
         </Pressable>
+
+        <View style={styles.heroRow}>
+          <BookCover
+            titleAr={book.title_ar}
+            authorAr={book.author_ar}
+            authorEn={book.author_en}
+            level={book.level}
+            size="lg"
+          />
+          {bestScore != null || userBook?.status === "completed" ? (
+            <View style={[styles.scoreBadge, cardShadow, { backgroundColor: c.surface, borderColor: c.border }]}>
+              {userBook?.status === "completed" ? (
+                <Ionicons name="checkmark-circle" size={18} color={c.brand} />
+              ) : null}
+              {bestScore != null ? (
+                <Text style={{ color: c.fg, fontWeight: "700" }}>Best {bestScore}%</Text>
+              ) : (
+                <Text style={{ color: c.brand, fontWeight: "700" }}>Completed</Text>
+              )}
+              {userBook && userBook.attempts > 0 ? (
+                <Text style={{ color: c.fgMuted, fontSize: 12 }}>
+                  {userBook.attempts} attempt{userBook.attempts === 1 ? "" : "s"}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
+        </View>
 
         <ArabicText style={[styles.titleAr, { color: c.fg }]}>{book.title_ar}</ArabicText>
         <Text style={[styles.titleEn, { color: c.fgMuted }]}>
@@ -196,6 +239,7 @@ export default function BookDetail() {
         </View>
       </ScrollView>
     </SafeAreaView>
+    </Washed>
   );
 }
 
@@ -217,6 +261,17 @@ const styles = StyleSheet.create({
   },
   chapterList: { gap: 8, marginTop: 8 },
   sectionTitle: { fontSize: 18, fontWeight: "700", marginBottom: 4 },
+  heroRow: { flexDirection: "row", alignItems: "flex-end", gap: 14, marginBottom: 4 },
+  scoreBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    marginBottom: 8,
+  },
   badges: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
   badge: {
     borderRadius: 999,

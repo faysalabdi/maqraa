@@ -72,8 +72,14 @@ export default function BookTest() {
 
   if (!test) {
     return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
+      <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]} edges={["top"]}>
         <Stack.Screen options={{ headerShown: false }} />
+        <View style={styles.topBar}>
+          <Pressable onPress={() => router.back()} hitSlop={12} accessibilityLabel="Close">
+            <Ionicons name="close" size={24} color={c.fgMuted} />
+          </Pressable>
+          <View style={{ width: 24 }} />
+        </View>
         <View style={styles.center}>
           <ActivityIndicator />
           <Text style={{ color: c.fgMuted, marginTop: 12 }}>Preparing your test…</Text>

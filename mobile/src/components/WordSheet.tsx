@@ -34,8 +34,9 @@ export function WordSheet({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
+      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Close" />
       <View style={[styles.sheet, { backgroundColor: c.surface, borderColor: c.border }]}>
+        <View style={[styles.handle, { backgroundColor: c.border }]} />
         {loading ? (
           <ActivityIndicator style={{ paddingVertical: 24 }} />
         ) : error ? (
@@ -43,10 +44,12 @@ export function WordSheet({
         ) : word ? (
           <>
             <View style={styles.row}>
-              <ArabicText style={[styles.lemma, { color: c.fg }]}>{word.lemma_ar}</ArabicText>
               {word.pos ? (
                 <Text style={[styles.pos, { color: c.fgMuted }]}>{word.pos}</Text>
-              ) : null}
+              ) : (
+                <View />
+              )}
+              <ArabicText style={[styles.lemma, { color: c.fg }]}>{word.lemma_ar}</ArabicText>
             </View>
             <Text style={[styles.gloss, { color: c.fg }]}>{word.gloss_en}</Text>
             {word.example_ar ? (
@@ -77,12 +80,20 @@ export function WordSheet({
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.25)" },
   sheet: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     borderWidth: 1,
     padding: 20,
+    paddingTop: 10,
     paddingBottom: 36,
     gap: 10,
+  },
+  handle: {
+    alignSelf: "center",
+    width: 40,
+    height: 5,
+    borderRadius: 3,
+    marginBottom: 6,
   },
   row: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" },
   lemma: { fontSize: 30 },

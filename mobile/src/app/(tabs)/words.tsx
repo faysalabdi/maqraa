@@ -11,6 +11,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Washed } from "../../components/Background";
 import {
   STRENGTH_LABELS,
   STRENGTH_ORDER,
@@ -59,7 +60,7 @@ export default function WordsScreen() {
 
   if (!items) {
     return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
+      <SafeAreaView style={styles.safe}>
         <View style={styles.center}>
           {error ? <Text style={{ color: c.danger }}>{error}</Text> : <ActivityIndicator />}
         </View>
@@ -99,7 +100,8 @@ export default function WordsScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]} edges={["top"]}>
+    <Washed>
+    <SafeAreaView style={styles.safe} edges={["top"]}>
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.header}>
           <Text style={[styles.heading, { color: c.fg }]}>Words</Text>
@@ -195,6 +197,7 @@ export default function WordsScreen() {
         )}
       </ScrollView>
     </SafeAreaView>
+    </Washed>
   );
 }
 
