@@ -83,11 +83,14 @@ export default function TalkScreen() {
     [cleanup],
   );
 
-  // Tear down when leaving the tab, and on unmount.
+  // Tear down when leaving the tab, and on unmount — but only if a session is
+  // actually running, so an untouched Talk tab stays in its idle state.
   useEffect(() => () => cleanup(), [cleanup]);
   useFocusEffect(
     useCallback(() => {
-      return () => end();
+      return () => {
+        if (pcRef.current) end();
+      };
     }, [end]),
   );
 
