@@ -22,9 +22,9 @@
     "production": {
       "ios": {
         "ascAppId": "SET_AFTER_ASC_APP_CREATED",
-        "ascApiKeyPath": "~/.private_keys/AuthKey_REPLACE.p8",
+        "ascApiKeyPath": "~/.private_keys/AuthKey_R6N32V99KC.p8",
         "ascApiKeyIssuerId": "REPLACE_ISSUER_ID",
-        "ascApiKeyId": "REPLACE_KEY_ID"
+        "ascApiKeyId": "R6N32V99KC"
       }
     }
   }

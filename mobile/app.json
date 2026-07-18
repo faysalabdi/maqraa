@@ -8,7 +8,7 @@
     "scheme": "maqraa",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "bundleIdentifier": "com.maqraa.app",
+      "bundleIdentifier": "app.maqraa.ios",
       "supportsTablet": false,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
@@ -35,6 +35,13 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "a3cfbafb-dd19-4a77-99e2-3e0f8f7a25e2"
+      }
+    },
+    "owner": "faysalabdi"
   }
 }
