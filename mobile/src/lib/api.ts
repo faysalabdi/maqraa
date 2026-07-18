@@ -1,0 +1,57 @@
+import { supabase } from "./supabase";
+
+const API_URL = process.env.EXPO_PUBLIC_API_URL!;
+
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
+async function accessToken(): Promise<string | null> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  return session?.access_token ?? null;
+}
+
+/**
+ * Authenticated fetch against the Next.js /api routes. Sends the Supabase
+ * access token as a Bearer header; on a 401 refreshes the session once and
+ * retries, so an expired token doesn't surface as a sign-out.
+ */
+export async function api<T>(
+  path: string,
+  init?: { method?: string; body?: unknown },
+): Promise<T> {
+  const doFetch = async (token: string | null) => {
+    return fetch(`${API_URL}${path}`, {
+      method: init?.method ?? (init?.body !== undefined ? "POST" : "GET"),
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(init?.body !== undefined ? { "Content-Type": "application/json" } : {}),
+      },
+      body: init?.body !== undefined ? JSON.stringify(init.body) : undefined,
+    });
+  };
+
+  let res = await doFetch(await accessToken());
+
+  if (res.status === 401) {
+    const { data } = await supabase.auth.refreshSession();
+    if (data.session) res = await doFetch(data.session.access_token);
+  }
+
+  const json = (await res.json().catch(() => null)) as
+    | (T & { error?: string })
+    | { error?: string }
+    | null;
+  if (!res.ok) {
+    const message =
+      (json && "error" in json && json.error) || `Request failed (${res.status})`;
+    throw new ApiError(message, res.status);
+  }
+  return json as T;
+}

@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  transpilePackages: ["@maqraa/shared"],
   experimental: {
     serverActions: {
       bodySizeLimit: "25mb", // PDF imports
