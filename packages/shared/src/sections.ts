@@ -44,3 +44,28 @@ export function sectionize(contentAr: string): Section[] {
 export function sectionText(section: Section): string {
   return section.paragraphs.join("\n\n");
 }
+
+const PAGE_CHARS = 1100;
+
+/**
+ * Char-based pagination matching the web reader: pack paragraphs into
+ * screen-sized pages of ~PAGE_CHARS, never splitting a paragraph. Deterministic,
+ * so a saved page index stays valid across reopens.
+ */
+export function paginate(contentAr: string): string[][] {
+  const paras = paragraphs(contentAr);
+  const out: string[][] = [];
+  let cur: string[] = [];
+  let len = 0;
+  for (const p of paras) {
+    if (len > 0 && len + p.length > PAGE_CHARS) {
+      out.push(cur);
+      cur = [];
+      len = 0;
+    }
+    cur.push(p);
+    len += p.length;
+  }
+  if (cur.length) out.push(cur);
+  return out.length ? out : [[]];
+}

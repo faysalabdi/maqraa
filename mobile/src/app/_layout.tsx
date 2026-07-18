@@ -9,12 +9,31 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { SessionProvider } from "../lib/auth-context";
 import { MeProvider } from "../lib/me-context";
-import { usePalette } from "../lib/use-palette";
+import { ThemeProvider, useTheme } from "../lib/theme-context";
 
 SplashScreen.preventAutoHideAsync();
 
+function Root() {
+  const { scheme, palette } = useTheme();
+  return (
+    <SessionProvider>
+      <MeProvider>
+        <StatusBar style={scheme === "dark" ? "light" : "dark"} />
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: palette.bg },
+          }}
+        >
+          <Stack.Screen name="(auth)" />
+          <Stack.Screen name="(tabs)" />
+        </Stack>
+      </MeProvider>
+    </SessionProvider>
+  );
+}
+
 export default function RootLayout() {
-  const c = usePalette();
   const [fontsLoaded] = useFonts({
     NotoNaskhArabic_400Regular,
     NotoNaskhArabic_700Bold,
@@ -27,19 +46,8 @@ export default function RootLayout() {
   if (!fontsLoaded) return null;
 
   return (
-    <SessionProvider>
-      <MeProvider>
-        <StatusBar style="auto" />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: c.bg },
-          }}
-        >
-          <Stack.Screen name="(auth)" />
-          <Stack.Screen name="(tabs)" />
-        </Stack>
-      </MeProvider>
-    </SessionProvider>
+    <ThemeProvider>
+      <Root />
+    </ThemeProvider>
   );
 }

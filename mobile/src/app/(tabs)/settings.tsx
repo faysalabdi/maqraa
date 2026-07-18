@@ -77,7 +77,7 @@ export default function SettingsScreen() {
           <Row icon="refresh" label="Restore purchases" onPress={() => router.push("/paywall")} />
         ) : null}
         <Row icon="book" label="Add your own book" onPress={() => router.push("/upload")} />
-        <Row icon="trophy" label="Achievements" onPress={() => router.push("/achievements")} />
+        <Row icon="trophy" label="Achievements" onPress={() => router.push("/awards")} />
 
         <View style={{ height: 12 }} />
         <Button title="Sign out" variant="ghost" onPress={() => supabase.auth.signOut()} />

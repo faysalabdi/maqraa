@@ -18,21 +18,24 @@ import {
   cleanWord,
   isArabicWord,
   lookupKey,
-  sectionize,
+  paginate,
   type SaveWordRequest,
   type SaveWordResponse,
   type WordLookupResponse,
 } from "@maqraa/shared";
 import { ArabicText } from "../../../../components/ArabicText";
+import { JumpPicker } from "../../../../components/JumpPicker";
 import { WordSheet, type WordInfo } from "../../../../components/WordSheet";
 import { api } from "../../../../lib/api";
 import {
   fetchBookBySlug,
   fetchCachedLookups,
   fetchChapter,
+  fetchChapterMetas,
   fetchSavedWordKeys,
   type Book,
   type Chapter,
+  type ChapterMeta,
 } from "../../../../lib/data";
 import { usePalette } from "../../../../lib/use-palette";
 
@@ -69,6 +72,11 @@ export default function Reader() {
   const [tint, setTint] = useState<Tint>("paper");
   const cacheRef = useRef<Map<string, WordInfo>>(new Map());
   const [finishing, setFinishing] = useState(false);
+  const [chapters, setChapters] = useState<ChapterMeta[]>([]);
+  const [picker, setPicker] = useState<null | "page" | "chapter">(null);
+  const pageRestored = useRef(false);
+
+  const pageStoreKey = book && chapter ? `page:${book.slug}:${chapter.chapter_number}` : null;
 
   // Reader prefs + already-saved words (underlined in the text).
   useEffect(() => {
@@ -103,8 +111,13 @@ export default function Reader() {
         const ch = await fetchChapter(b.id, chapterNumber);
         if (!ch) throw new Error("Chapter not found");
         if (!alive) return;
+        pageRestored.current = false;
+        setPage(0);
         setBook(b);
         setChapter(ch);
+        fetchChapterMetas(b.id)
+          .then((m) => alive && setChapters(m))
+          .catch(() => {});
         // Mark opened (book flips to in_progress on the path).
         api(`/api/v1/chapters/${ch.id}/read`, { body: { status: "reading" } }).catch(() => {});
       } catch (e) {
@@ -116,16 +129,34 @@ export default function Reader() {
     };
   }, [slug, chapterNumber]);
 
-  const sections = useMemo(
-    () => (chapter ? sectionize(chapter.content_ar) : []),
+  const pages = useMemo(
+    () => (chapter ? paginate(chapter.content_ar) : []),
     [chapter],
   );
 
+  // Restore the exact page the reader last left this chapter on.
+  useEffect(() => {
+    if (!pageStoreKey || pages.length === 0 || pageRestored.current) return;
+    pageRestored.current = true;
+    AsyncStorage.getItem(pageStoreKey)
+      .then((saved) => {
+        if (saved != null) setPage(Math.max(0, Math.min(pages.length - 1, Number(saved))));
+      })
+      .catch(() => {});
+  }, [pageStoreKey, pages.length]);
+
+  // Persist the current page whenever it changes.
+  useEffect(() => {
+    if (pageStoreKey && pageRestored.current) {
+      AsyncStorage.setItem(pageStoreKey, String(page)).catch(() => {});
+    }
+  }, [pageStoreKey, page]);
+
   // Warm the lookup cache for the visible page so taps are instant.
   useEffect(() => {
-    const section = sections[page];
-    if (!section) return;
-    const keys = section.paragraphs
+    const para = pages[page];
+    if (!para) return;
+    const keys = para
       .flatMap((p) => p.split(/\s+/))
       .map((w) => lookupKey(w))
       .filter((k) => k && !COMMON_WORDS[k] && !cacheRef.current.has(k));
@@ -144,7 +175,7 @@ export default function Reader() {
         }
       })
       .catch(() => {});
-  }, [sections, page]);
+  }, [pages, page]);
 
   const openWord = useCallback(
     async (surface: string, context: string) => {
@@ -219,7 +250,7 @@ export default function Reader() {
   const turnPage = useCallback(
     (dir: 1 | -1) => {
       setPage((p) => {
-        const next = Math.min(Math.max(p + dir, 0), sections.length - 1);
+        const next = Math.min(Math.max(p + dir, 0), pages.length - 1);
         if (next !== p && dir === 1) {
           // Genuine reading activity: streak + small capped XP.
           api("/api/v1/reading/activity", { body: {} }).catch(() => {});
@@ -227,7 +258,15 @@ export default function Reader() {
         return next;
       });
     },
-    [sections.length],
+    [pages.length],
+  );
+
+  const jumpToChapter = useCallback(
+    (num: number) => {
+      setPicker(null);
+      if (book && num !== chapterNumber) router.replace(`/book/${book.slug}/read/${num}`);
+    },
+    [book, chapterNumber],
   );
 
   const finishChapter = useCallback(async () => {
@@ -258,7 +297,7 @@ export default function Reader() {
     );
   }
 
-  if (!chapter || sections.length === 0) {
+  if (!chapter || pages.length === 0) {
     return (
       <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
         <Stack.Screen options={{ headerShown: false }} />
@@ -269,8 +308,8 @@ export default function Reader() {
     );
   }
 
-  const section = sections[page];
-  const lastPage = page === sections.length - 1;
+  const paras = pages[page];
+  const lastPage = page === pages.length - 1;
   const pageBg = tint === "paper" ? c.readPage : TINTS[tint].bg;
   const ink = tint === "paper" ? c.fg : TINTS[tint].ink;
   const fontSize = SIZES[sizeIdx];
@@ -319,14 +358,30 @@ export default function Reader() {
             </Pressable>
           ))}
         </View>
-        <Text style={{ color: c.fgMuted, fontSize: 13 }}>
-          {page + 1} / {sections.length}
-        </Text>
+        <Pressable
+          onPress={() => setPicker("page")}
+          hitSlop={8}
+          style={[styles.pageJump, { borderColor: c.border }]}
+          accessibilityLabel="Jump to page"
+        >
+          <Text style={{ color: c.fgMuted, fontSize: 13, fontWeight: "600" }}>
+            {page + 1} / {pages.length}
+          </Text>
+          <Ionicons name="chevron-down" size={12} color={c.fgMuted} />
+        </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={styles.pageContent}>
-        <ArabicText style={[styles.chapterTitle, { color: ink }]}>{chapter.title_ar}</ArabicText>
-        {section.paragraphs.map((para, pi) => (
+        <Pressable
+          onPress={() => chapters.length > 1 && setPicker("chapter")}
+          style={styles.chapterTitleRow}
+        >
+          <ArabicText style={[styles.chapterTitle, { color: ink }]}>{chapter.title_ar}</ArabicText>
+          {chapters.length > 1 ? (
+            <Ionicons name="chevron-down" size={16} color={c.fgMuted} />
+          ) : null}
+        </Pressable>
+        {paras.map((para, pi) => (
           <View key={pi} style={styles.paragraph}>
             {para.split(/\s+/).map((token, ti) => {
               const id = `${pi}-${ti}`;
@@ -400,6 +455,30 @@ export default function Reader() {
           setSelectedToken(null);
         }}
       />
+
+      <JumpPicker
+        visible={picker === "page"}
+        title="Jump to page"
+        options={pages.map((_, i) => ({ key: String(i), label: `Page ${i + 1}` }))}
+        selectedKey={String(page)}
+        onSelect={(k) => {
+          setPage(Number(k));
+          setPicker(null);
+        }}
+        onClose={() => setPicker(null)}
+      />
+      <JumpPicker
+        visible={picker === "chapter"}
+        title="Chapters"
+        options={chapters.map((m) => ({
+          key: String(m.chapter_number),
+          label: `${m.chapter_number}. ${m.title_ar}`,
+          arabic: true,
+        }))}
+        selectedKey={String(chapterNumber)}
+        onSelect={(k) => jumpToChapter(Number(k))}
+        onClose={() => setPicker(null)}
+      />
     </SafeAreaView>
   );
 }
@@ -415,7 +494,22 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   pageContent: { paddingHorizontal: 24, paddingBottom: 24, gap: 18 },
-  chapterTitle: { fontSize: 24, marginBottom: 6 },
+  chapterTitleRow: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 6,
+  },
+  chapterTitle: { fontSize: 24 },
+  pageJump: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
   paragraph: {
     flexDirection: "row-reverse",
     flexWrap: "wrap",

@@ -2,6 +2,15 @@ import { supabase } from "./supabase";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL!;
 
+/** The API origin, for callers that build their own fetch (e.g. WebRTC). */
+export const API_BASE = API_URL;
+
+/** Bearer auth header for a manual fetch. Empty object when signed out. */
+export async function authHeader(): Promise<Record<string, string>> {
+  const token = await accessToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 export class ApiError extends Error {
   status: number;
   constructor(message: string, status: number) {

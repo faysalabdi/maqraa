@@ -11,7 +11,8 @@
       "bundleIdentifier": "app.maqraa.ios",
       "supportsTablet": false,
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSMicrophoneUsageDescription": "Maqraa uses your microphone for voice conversation practice with the Arabic tutor."
       }
     },
     "android": {
@@ -25,11 +26,17 @@
       "expo-router",
       "expo-secure-store",
       [
+        "@config-plugins/react-native-webrtc",
+        {
+          "microphonePermission": "Maqraa uses your microphone for voice conversation practice with the Arabic tutor."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "backgroundColor": "#0f9663",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 140
+          "imageWidth": 200
         }
       ]
     ],

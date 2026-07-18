@@ -1,9 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
-import { router, Stack } from "expo-router";
-import { useEffect, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,49 +10,57 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { AchievementsSyncResponse } from "@maqraa/shared";
-import { ArabicText } from "../components/ArabicText";
-import { api } from "../lib/api";
+import { AppHeader } from "../../components/AppHeader";
+import { ArabicText } from "../../components/ArabicText";
+import { Washed } from "../../components/Background";
+import { api } from "../../lib/api";
 import {
   fetchAchievements,
   fetchEarnedAchievementIds,
   type Achievement,
-} from "../lib/data";
-import { usePalette } from "../lib/use-palette";
+} from "../../lib/data";
+import { usePalette } from "../../lib/use-palette";
 
-export default function AchievementsScreen() {
+export default function AwardsScreen() {
   const c = usePalette();
   const [all, setAll] = useState<Achievement[] | null>(null);
   const [earned, setEarned] = useState<Set<string>>(new Set());
   const [justEarned, setJustEarned] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        // Sync first so anything newly met shows as earned right away.
-        const sync = await api<AchievementsSyncResponse>("/api/v1/achievements/sync", { body: {} });
-        setJustEarned(sync.earned.map((b) => b.slug));
-        const [catalogue, mine] = await Promise.all([
-          fetchAchievements(),
-          fetchEarnedAchievementIds(),
-        ]);
-        setAll(catalogue);
-        setEarned(mine);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Couldn't load achievements.");
-      }
-    })();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      (async () => {
+        try {
+          // Sync first so anything newly met shows as earned right away.
+          const sync = await api<AchievementsSyncResponse>("/api/v1/achievements/sync", {
+            body: {},
+          });
+          setJustEarned(sync.earned.map((b) => b.slug));
+          const [catalogue, mine] = await Promise.all([
+            fetchAchievements(),
+            fetchEarnedAchievementIds(),
+          ]);
+          setAll(catalogue);
+          setEarned(mine);
+        } catch (e) {
+          setError(e instanceof Error ? e.message : "Couldn't load achievements.");
+        }
+      })();
+    }, []),
+  );
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]} edges={["top"]}>
-      <Stack.Screen options={{ headerShown: false }} />
-      <View style={styles.topBar}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <Ionicons name="chevron-back" size={26} color={c.fg} />
-        </Pressable>
-        <Text style={[styles.heading, { color: c.fg }]}>Achievements</Text>
-        <View style={{ width: 26 }} />
+    <Washed>
+    <SafeAreaView style={styles.safe} edges={["top"]}>
+      <AppHeader />
+      <View style={styles.titleRow}>
+        <Text style={[styles.heading, { color: c.fg }]}>Awards</Text>
+        {all ? (
+          <Text style={{ color: c.fgMuted, fontWeight: "600" }}>
+            {earned.size} / {all.length}
+          </Text>
+        ) : null}
       </View>
 
       {!all ? (
@@ -102,19 +109,20 @@ export default function AchievementsScreen() {
         </ScrollView>
       )}
     </SafeAreaView>
+    </Washed>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  topBar: {
+  titleRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "baseline",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingTop: 12,
   },
-  heading: { fontSize: 17, fontWeight: "700" },
+  heading: { fontSize: 30, fontWeight: "700" },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   grid: {
     flexDirection: "row",

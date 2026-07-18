@@ -3,6 +3,7 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "dependencies": {
+    "@config-plugins/react-native-webrtc": "^15.0.1",
     "@expo-google-fonts/noto-naskh-arabic": "^0.4.2",
     "@expo/vector-icons": "^15.1.1",
     "@maqraa/shared": "workspace:*",
@@ -34,7 +35,8 @@
     "react-native-reanimated": "4.5.0",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "4.25.2",
-    "react-native-svg": "~15.14.0",
+    "react-native-svg": "~15.15.4",
+    "react-native-webrtc": "^124.0.7",
     "react-native-worklets": "0.10.0"
   },
   "devDependencies": {

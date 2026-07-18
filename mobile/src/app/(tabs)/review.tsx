@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { router, Stack, useLocalSearchParams } from "expo-router";
-import { useEffect, useState } from "react";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -11,11 +11,12 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { GradeCardResponse, PracticeCardResponse } from "@maqraa/shared";
-import { ArabicText } from "../components/ArabicText";
-import { Button } from "../components/ui";
-import { api } from "../lib/api";
-import { fetchDueVocab, fetchPracticeVocab, type VocabItem } from "../lib/data";
-import { usePalette } from "../lib/use-palette";
+import { ArabicText } from "../../components/ArabicText";
+import { Washed } from "../../components/Background";
+import { Button } from "../../components/ui";
+import { api } from "../../lib/api";
+import { fetchDueVocab, fetchPracticeVocab, type VocabItem } from "../../lib/data";
+import { usePalette } from "../../lib/use-palette";
 
 // UI grades → SM-2 quality (same mapping as the web review page).
 const GRADES = [
@@ -36,11 +37,22 @@ export default function ReviewScreen() {
   const [error, setError] = useState<string | null>(null);
   const [grading, setGrading] = useState(false);
 
-  useEffect(() => {
+  const reload = useCallback(() => {
+    setQueue(null);
+    setRevealed(false);
+    setXpTotal(0);
+    setDoneCount(0);
+    setError(null);
     (practice ? fetchPracticeVocab() : fetchDueVocab())
       .then((deck) => setQueue(practice ? deck.slice(0, 20) : deck))
       .catch((e) => setError(e.message));
   }, [practice]);
+
+  useFocusEffect(
+    useCallback(() => {
+      reload();
+    }, [reload]),
+  );
 
   const grade = async (quality: number) => {
     if (!queue || queue.length === 0 || grading) return;
@@ -71,12 +83,12 @@ export default function ReviewScreen() {
     tone === "danger" ? c.danger : tone === "warn" ? c.accent : tone === "iris" ? c.iris : c.brand;
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]} edges={["top", "bottom"]}>
-      <Stack.Screen options={{ headerShown: false }} />
+    <Washed>
+    <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
       <View style={styles.topBar}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <Ionicons name="close" size={24} color={c.fgMuted} />
-        </Pressable>
+        <Text style={[styles.headerTitle, { color: c.fg }]}>
+          {practice ? "Practice" : "Review"}
+        </Text>
         <Text style={{ color: c.fgMuted }}>
           {doneCount} done{xpTotal > 0 ? ` · +${xpTotal} XP` : ""}
         </Text>
@@ -85,7 +97,7 @@ export default function ReviewScreen() {
       {error ? (
         <View style={styles.center}>
           <Text style={{ color: c.danger, textAlign: "center", padding: 24 }}>{error}</Text>
-          <Button title="Back" variant="ghost" onPress={() => router.back()} />
+          <Button title="Try again" variant="ghost" onPress={reload} />
         </View>
       ) : !queue ? (
         <View style={styles.center}>
@@ -100,7 +112,11 @@ export default function ReviewScreen() {
           <Text style={{ color: c.fgMuted }}>
             {doneCount > 0 ? `${doneCount} cards reviewed · +${xpTotal} XP` : "Come back later."}
           </Text>
-          <Button title="Done" onPress={() => router.back()} />
+          {doneCount > 0 ? (
+            <Button title={practice ? "Practice more" : "Review again"} onPress={reload} />
+          ) : (
+            <Button title="Back to books" variant="ghost" onPress={() => router.push("/path")} />
+          )}
         </View>
       ) : (
         <View style={styles.body}>
@@ -144,6 +160,7 @@ export default function ReviewScreen() {
         </View>
       )}
     </SafeAreaView>
+    </Washed>
   );
 }
 
@@ -151,11 +168,12 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   topBar: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "baseline",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingVertical: 12,
   },
+  headerTitle: { fontSize: 30, fontWeight: "700" },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10 },
   doneTitle: { fontSize: 22, fontWeight: "700" },
   body: { flex: 1, padding: 20, gap: 20, justifyContent: "center" },

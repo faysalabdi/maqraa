@@ -11,6 +11,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { AppHeader } from "../../components/AppHeader";
 import { Washed } from "../../components/Background";
 import {
   STRENGTH_LABELS,
@@ -102,6 +103,7 @@ export default function WordsScreen() {
   return (
     <Washed>
     <SafeAreaView style={styles.safe} edges={["top"]}>
+      <AppHeader />
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.header}>
           <Text style={[styles.heading, { color: c.fg }]}>Words</Text>

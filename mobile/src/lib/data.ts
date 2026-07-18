@@ -114,6 +114,17 @@ export async function fetchChapter(
   return data as Chapter | null;
 }
 
+/** Count due review cards — for the header "tasks" chip. */
+export async function fetchDueCount(): Promise<number> {
+  const { count, error } = await supabase
+    .from("vocab_items")
+    .select("id", { count: "exact", head: true })
+    .lte("due_at", new Date().toISOString())
+    .eq("suspended", false);
+  throwIf(error);
+  return count ?? 0;
+}
+
 export async function fetchChapterProgress(chapterIds: string[]): Promise<ChapterProgress[]> {
   if (chapterIds.length === 0) return [];
   const { data, error } = await supabase
@@ -230,18 +241,18 @@ export async function fetchProfile(): Promise<Profile | null> {
   const { data, error } = await supabase
     .from("profiles")
     .select("id, display_name, current_level, xp_total, daily_xp_goal, font_scale")
-    .maybeSingle();
+    .limit(1);
   throwIf(error);
-  return data as Profile | null;
+  return ((data ?? [])[0] as Profile) ?? null;
 }
 
 export async function fetchStreak(): Promise<Streak | null> {
   const { data, error } = await supabase
     .from("streaks")
     .select("current_days, longest_days, last_active_date")
-    .maybeSingle();
+    .limit(1);
   throwIf(error);
-  return data as Streak | null;
+  return ((data ?? [])[0] as Streak) ?? null;
 }
 
 export async function fetchRecentXp(days: number): Promise<XpEvent[]> {

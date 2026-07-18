@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { AppHeader } from "../../components/AppHeader";
 import { Washed } from "../../components/Background";
 import {
   fetchCompletedBooksCount,
@@ -77,10 +78,11 @@ export default function StatsScreen() {
   return (
     <Washed>
     <SafeAreaView style={styles.safe} edges={["top"]}>
+      <AppHeader />
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.headerRow}>
           <Text style={[styles.heading, { color: c.fg }]}>Stats</Text>
-          <Pressable onPress={() => router.push("/achievements")} hitSlop={10}>
+          <Pressable onPress={() => router.push("/awards")} hitSlop={10}>
             <Ionicons name="trophy" size={24} color={c.accent} />
           </Pressable>
         </View>

@@ -1,6 +1,7 @@
-import { useColorScheme } from "react-native";
-import { palette, type Palette } from "./theme";
+import { useTheme } from "./theme-context";
+import type { Palette } from "./theme";
 
+/** The active palette, honouring the user's light/dark/system preference. */
 export function usePalette(): Palette {
-  return useColorScheme() === "dark" ? palette.dark : palette.light;
+  return useTheme().palette;
 }
