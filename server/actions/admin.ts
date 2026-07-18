@@ -7,6 +7,7 @@ import { requireAdmin, requireUploader } from "@/lib/admin";
 import { slugify } from "@/lib/utils";
 import { analyzeBook, type BookAnalysis } from "@/lib/ai/book-analyze";
 import { consumeAiQuota } from "@/lib/ai/quota";
+import { analyzeBookDraftCore, createBookWithChaptersCore } from "@/server/core/books";
 
 export type Genre =
   | "islamic"
@@ -84,69 +85,11 @@ export async function createBookWithChapters(
   input: CreateBookInput,
   chapters: DraftChapterInput[],
 ): Promise<{ id: string; slug: string; chapters: number }> {
-  // Admins add public/curated books; everyone else's uploads are private to them.
   const uploader = await requireUploader();
-  const ownerId = uploader.isAdmin ? null : uploader.userId;
-
-  const slug = slugify(input.slug);
-  if (!slug)
-    throw new Error("slug must contain Latin letters or numbers (e.g. animal-farm)");
-  if (!clean(input.titleAr) || !clean(input.titleEn)) throw new Error("title is required");
-
-  const cleaned = chapters
-    .map((c) => ({
-      titleAr: clean(c.titleAr),
-      titleEn: clean(c.titleEn),
-      contentAr: c.contentAr.trim(),
-    }))
-    .filter((c) => c.contentAr.length > 0);
-  if (cleaned.length === 0) throw new Error("no chapters to add");
-
-  const [existing] = await db
-    .select({ id: schema.books.id })
-    .from(schema.books)
-    .where(eq(schema.books.slug, slug))
-    .limit(1);
-  if (existing) throw new Error(`a book with slug "${slug}" already exists — pick another slug`);
-
-  const [{ nextOrder }] = await db
-    .select({ nextOrder: sql<number>`coalesce(max(${schema.books.orderInLevel}), -1) + 1` })
-    .from(schema.books)
-    .where(eq(schema.books.level, input.level));
-
-  const [book] = await db
-    .insert(schema.books)
-    .values({
-      slug,
-      level: input.level,
-      orderInLevel: nextOrder,
-      titleAr: clean(input.titleAr),
-      titleEn: clean(input.titleEn),
-      authorAr: input.authorAr ? clean(input.authorAr) : null,
-      authorEn: input.authorEn ? clean(input.authorEn) : null,
-      blurb: clean(input.blurb),
-      difficulty: input.difficulty,
-      genre: input.genre,
-      recommendedPages: input.recommendedPages ?? null,
-      hasFullText: true,
-      ownerId,
-    })
-    .returning({ id: schema.books.id });
-
-  await db.insert(schema.bookChapters).values(
-    cleaned.map((c, i) => ({
-      bookId: book.id,
-      chapterNumber: i + 1,
-      titleAr: c.titleAr || `الفصل ${i + 1}`,
-      titleEn: c.titleEn || `Chapter ${i + 1}`,
-      contentAr: c.contentAr,
-      source: "public_domain" as const,
-    })),
-  );
-
+  const result = await createBookWithChaptersCore(uploader, input, chapters);
   revalidatePath("/upload");
   revalidatePath("/path");
-  return { id: book.id, slug, chapters: cleaned.length };
+  return result;
 }
 
 /**
@@ -159,18 +102,7 @@ export async function analyzeBookDraft(
   chapters: { titleAr: string; contentAr: string }[],
 ): Promise<BookAnalysis> {
   const uploader = await requireUploader();
-  if (chapters.length === 0) throw new Error("no chapters to analyze");
-  // Admins are unlimited; non-admin uploaders are Pro (resolved by subscription).
-  if (!uploader.isAdmin) await consumeAiQuota(uploader.userId, "analyze");
-  const sample = chapters
-    .map((c) => c.contentAr)
-    .join("\n")
-    .slice(0, 2000);
-  return analyzeBook({
-    titleHint,
-    sample,
-    pages: chapters.map((c) => ({ excerpt: c.contentAr.slice(0, 300) })),
-  });
+  return analyzeBookDraftCore(uploader, titleHint, chapters);
 }
 
 export type AddChapterInput = {

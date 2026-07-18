@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   COMMON_WORDS,
   cleanWord,
@@ -29,10 +30,21 @@ import {
   fetchBookBySlug,
   fetchCachedLookups,
   fetchChapter,
+  fetchSavedWordKeys,
   type Book,
   type Chapter,
 } from "../../../../lib/data";
 import { usePalette } from "../../../../lib/use-palette";
+
+// Reading tints mirror the web reader (Paper follows the app theme).
+const TINTS = {
+  sepia: { bg: "#f6efdc", ink: "#3a2f1c" },
+  mint: { bg: "#e8f3ec", ink: "#1f3b30" },
+} as const;
+type Tint = "paper" | keyof typeof TINTS;
+
+const SIZES = [18, 20, 22, 25, 28];
+const PREFS_KEY = "reader-prefs";
 
 export default function Reader() {
   const { slug, chapter: chapterParam } = useLocalSearchParams<{
@@ -51,8 +63,35 @@ export default function Reader() {
   const [wordLoading, setWordLoading] = useState(false);
   const [wordError, setWordError] = useState<string | null>(null);
   const [savedLemmas, setSavedLemmas] = useState<Set<string>>(new Set());
+  const [savedKeys, setSavedKeys] = useState<Set<string>>(new Set());
+  const [selectedToken, setSelectedToken] = useState<string | null>(null);
+  const [sizeIdx, setSizeIdx] = useState(2);
+  const [tint, setTint] = useState<Tint>("paper");
   const cacheRef = useRef<Map<string, WordInfo>>(new Map());
   const [finishing, setFinishing] = useState(false);
+
+  // Reader prefs + already-saved words (underlined in the text).
+  useEffect(() => {
+    AsyncStorage.getItem(PREFS_KEY)
+      .then((raw) => {
+        if (!raw) return;
+        const prefs = JSON.parse(raw) as { sizeIdx?: number; tint?: Tint };
+        if (typeof prefs.sizeIdx === "number") setSizeIdx(Math.min(SIZES.length - 1, Math.max(0, prefs.sizeIdx)));
+        if (prefs.tint) setTint(prefs.tint);
+      })
+      .catch(() => {});
+    fetchSavedWordKeys()
+      .then((keys) => setSavedKeys(new Set(keys.map((k) => cleanWord(k)).filter(Boolean))))
+      .catch(() => {});
+  }, []);
+
+  const setPrefs = useCallback((nextSize: number, nextTint: Tint) => {
+    setSizeIdx(nextSize);
+    setTint(nextTint);
+    AsyncStorage.setItem(PREFS_KEY, JSON.stringify({ sizeIdx: nextSize, tint: nextTint })).catch(
+      () => {},
+    );
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -168,6 +207,13 @@ export default function Reader() {
       } satisfies SaveWordRequest,
     });
     setSavedLemmas((prev) => new Set(prev).add(word.lemma_ar));
+    // Underline both the lemma and the tapped surface form, like the web reader.
+    setSavedKeys((prev) => {
+      const next = new Set(prev);
+      next.add(cleanWord(word.lemma_ar));
+      next.add(word.surfaceKey);
+      return next;
+    });
   }, [word, book, chapter]);
 
   const turnPage = useCallback(
@@ -225,28 +271,96 @@ export default function Reader() {
 
   const section = sections[page];
   const lastPage = page === sections.length - 1;
+  const pageBg = tint === "paper" ? c.readPage : TINTS[tint].bg;
+  const ink = tint === "paper" ? c.fg : TINTS[tint].ink;
+  const fontSize = SIZES[sizeIdx];
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: c.readPage }]} edges={["top", "bottom"]}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: pageBg }]} edges={["top", "bottom"]}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.topBar}>
         <Pressable onPress={() => router.back()} hitSlop={12}>
           <Ionicons name="close" size={24} color={c.fgMuted} />
         </Pressable>
+        <View style={styles.tools}>
+          <Pressable
+            onPress={() => setPrefs(Math.max(0, sizeIdx - 1), tint)}
+            hitSlop={8}
+            disabled={sizeIdx === 0}
+          >
+            <Text style={[styles.sizeBtn, { color: sizeIdx === 0 ? c.locked : c.fgMuted }]}>A−</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setPrefs(Math.min(SIZES.length - 1, sizeIdx + 1), tint)}
+            hitSlop={8}
+            disabled={sizeIdx === SIZES.length - 1}
+          >
+            <Text
+              style={[
+                styles.sizeBtn,
+                { fontSize: 20, color: sizeIdx === SIZES.length - 1 ? c.locked : c.fgMuted },
+              ]}
+            >
+              A+
+            </Text>
+          </Pressable>
+          {(["paper", "sepia", "mint"] as Tint[]).map((t) => (
+            <Pressable key={t} onPress={() => setPrefs(sizeIdx, t)} hitSlop={8}>
+              <View
+                style={[
+                  styles.tintDot,
+                  {
+                    backgroundColor: t === "paper" ? c.readPage : TINTS[t].bg,
+                    borderColor: tint === t ? c.brand : c.border,
+                    borderWidth: tint === t ? 2.5 : 1,
+                  },
+                ]}
+              />
+            </Pressable>
+          ))}
+        </View>
         <Text style={{ color: c.fgMuted, fontSize: 13 }}>
           {page + 1} / {sections.length}
         </Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.pageContent}>
-        <ArabicText style={[styles.chapterTitle, { color: c.fg }]}>{chapter.title_ar}</ArabicText>
+        <ArabicText style={[styles.chapterTitle, { color: ink }]}>{chapter.title_ar}</ArabicText>
         {section.paragraphs.map((para, pi) => (
           <View key={pi} style={styles.paragraph}>
-            {para.split(/\s+/).map((token, ti) => (
-              <Pressable key={`${pi}-${ti}`} onPress={() => openWord(token, para.slice(0, 300))}>
-                <ArabicText style={[styles.token, { color: c.fg }]}>{token}</ArabicText>
-              </Pressable>
-            ))}
+            {para.split(/\s+/).map((token, ti) => {
+              const id = `${pi}-${ti}`;
+              const key = cleanWord(token);
+              const isSaved = !!key && savedKeys.has(key);
+              const isSelected = selectedToken === id;
+              return (
+                <Pressable
+                  key={id}
+                  onPress={() => {
+                    setSelectedToken(id);
+                    openWord(token, para.slice(0, 300));
+                  }}
+                >
+                  <ArabicText
+                    style={[
+                      styles.token,
+                      { color: ink, fontSize, lineHeight: fontSize * 2 },
+                      isSaved && {
+                        textDecorationLine: "underline",
+                        textDecorationColor: c.brand,
+                      },
+                      isSelected && {
+                        backgroundColor: `${c.brand}2e`,
+                        borderRadius: 6,
+                        color: c.brandDark,
+                      },
+                    ]}
+                  >
+                    {token}
+                  </ArabicText>
+                </Pressable>
+              );
+            })}
           </View>
         ))}
       </ScrollView>
@@ -283,6 +397,7 @@ export default function Reader() {
           setWord(null);
           setWordError(null);
           setWordLoading(false);
+          setSelectedToken(null);
         }}
       />
     </SafeAreaView>
@@ -307,7 +422,10 @@ const styles = StyleSheet.create({
     columnGap: 6,
     rowGap: 2,
   },
-  token: { fontSize: 22, lineHeight: 44 },
+  token: {},
+  tools: { flexDirection: "row", alignItems: "center", gap: 12 },
+  sizeBtn: { fontSize: 15, fontWeight: "700" },
+  tintDot: { width: 22, height: 22, borderRadius: 11 },
   bottomBar: {
     flexDirection: "row",
     alignItems: "center",

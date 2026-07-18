@@ -70,10 +70,20 @@ export default function BookDetail() {
     );
   }
 
-  const locked = plan !== "pro" && tierFor(book.level) !== "Beginner";
+  // A reader's own uploads are always readable; curated books gate by tier.
+  const locked = !book.owner_id && plan !== "pro" && tierFor(book.level) !== "Beginner";
   const doneCount = chapters.filter((ch) => progress.get(ch.id)?.status === "completed").length;
   const nextChapter =
     chapters.find((ch) => progress.get(ch.id)?.status !== "completed") ?? chapters[0];
+  const progressPct = chapters.length > 0 ? Math.round((doneCount / chapters.length) * 100) : 0;
+
+  const GENRE_LABEL: Record<string, string> = {
+    islamic: "Islamic",
+    arabic_literature: "Arabic literature",
+    translated: "Translated",
+    graded_reader: "Graded reader",
+    classical: "Classical",
+  };
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]} edges={["top"]}>
@@ -88,6 +98,19 @@ export default function BookDetail() {
           {book.title_en}
           {book.author_en ? ` — ${book.author_en}` : ""}
         </Text>
+        <View style={styles.badges}>
+          <Text style={[styles.badge, { backgroundColor: `${c.brand}18`, color: c.brandDark }]}>
+            {tierFor(book.level)}
+          </Text>
+          <Text style={[styles.badge, { backgroundColor: c.bgMuted, color: c.fgMuted }]}>
+            {GENRE_LABEL[book.genre] ?? book.genre}
+          </Text>
+          {book.recommended_pages ? (
+            <Text style={[styles.badge, { backgroundColor: c.bgMuted, color: c.fgMuted }]}>
+              ~{book.recommended_pages} pages
+            </Text>
+          ) : null}
+        </View>
         <Text style={[styles.blurb, { color: c.fgMuted }]}>{book.blurb}</Text>
 
         {locked ? (
@@ -124,8 +147,16 @@ export default function BookDetail() {
           <Text style={[styles.sectionTitle, { color: c.fg }]}>
             Chapters {chapters.length > 0 ? `(${doneCount}/${chapters.length})` : ""}
           </Text>
+          {chapters.length > 0 ? (
+            <View style={[styles.progressTrack, { backgroundColor: c.bgMuted }]}>
+              <View
+                style={[styles.progressFill, { backgroundColor: c.brand, width: `${progressPct}%` }]}
+              />
+            </View>
+          ) : null}
           {chapters.map((ch) => {
-            const st = progress.get(ch.id)?.status;
+            const chProgress = progress.get(ch.id);
+            const st = chProgress?.status;
             return (
               <Pressable
                 key={ch.id}
@@ -154,6 +185,11 @@ export default function BookDetail() {
                 <ArabicText style={[styles.chapterTitle, { color: c.fg }]} numberOfLines={1}>
                   {ch.title_ar}
                 </ArabicText>
+                {chProgress?.quiz_score != null ? (
+                  <Text style={{ color: c.brand, fontSize: 13, fontWeight: "700" }}>
+                    {Math.round(Number(chProgress.quiz_score))}%
+                  </Text>
+                ) : null}
               </Pressable>
             );
           })}
@@ -181,6 +217,17 @@ const styles = StyleSheet.create({
   },
   chapterList: { gap: 8, marginTop: 8 },
   sectionTitle: { fontSize: 18, fontWeight: "700", marginBottom: 4 },
+  badges: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+  badge: {
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    fontSize: 12,
+    fontWeight: "700",
+    overflow: "hidden",
+  },
+  progressTrack: { height: 8, borderRadius: 4, overflow: "hidden", marginBottom: 6 },
+  progressFill: { height: "100%", borderRadius: 4 },
   chapterRow: {
     flexDirection: "row",
     alignItems: "center",

@@ -4,16 +4,38 @@ import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  STRENGTH_LABELS,
+  STRENGTH_ORDER,
+  strengthFor,
+  type Strength,
+} from "@maqraa/shared";
 import { ArabicText } from "../../components/ArabicText";
 import { deleteVocabItem, fetchVocab, type VocabItem } from "../../lib/data";
 import { usePalette } from "../../lib/use-palette";
+import type { Palette } from "../../lib/theme";
+
+function strengthColor(s: Strength, c: Palette): { bg: string; fg: string } {
+  switch (s) {
+    case "new":
+      return { bg: c.bgMuted, fg: c.fgMuted };
+    case "weak":
+      return { bg: `${c.danger}1c`, fg: c.danger };
+    case "learning":
+      return { bg: `${c.accent}26`, fg: c.accentFg };
+    case "strong":
+      return { bg: `${c.iris}1c`, fg: c.iris };
+    case "mastered":
+      return { bg: `${c.brand}1c`, fg: c.brandDark };
+  }
+}
 
 export default function WordsScreen() {
   const c = usePalette();
@@ -35,9 +57,28 @@ export default function WordsScreen() {
     }, [load]),
   );
 
-  const dueCount = items
-    ? items.filter((i) => new Date(i.due_at).getTime() <= Date.now()).length
-    : 0;
+  if (!items) {
+    return (
+      <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
+        <View style={styles.center}>
+          {error ? <Text style={{ color: c.danger }}>{error}</Text> : <ActivityIndicator />}
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const withStrength = items.map((item) => ({
+    item,
+    strength: strengthFor({
+      repetitions: item.repetitions,
+      intervalDays: item.interval_days,
+      lapses: item.lapses,
+      ease: Number(item.ease),
+    }),
+  }));
+  const counts = new Map<Strength, number>();
+  for (const w of withStrength) counts.set(w.strength, (counts.get(w.strength) ?? 0) + 1);
+  const dueCount = items.filter((i) => new Date(i.due_at).getTime() <= Date.now()).length;
 
   const remove = (item: VocabItem) => {
     Alert.alert("Remove word", `Remove “${item.lemma_ar}” from your deck?`, [
@@ -59,79 +100,129 @@ export default function WordsScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]} edges={["top"]}>
-      <View style={styles.header}>
-        <Text style={[styles.heading, { color: c.fg }]}>Words</Text>
-        {items && items.length > 0 ? (
-          <Pressable
-            onPress={() => router.push("/review")}
-            style={[styles.reviewButton, { backgroundColor: dueCount > 0 ? c.brand : c.bgMuted }]}
-          >
-            <Text style={{ color: dueCount > 0 ? c.brandFg : c.fgMuted, fontWeight: "600" }}>
-              Review{dueCount > 0 ? ` (${dueCount})` : ""}
-            </Text>
-          </Pressable>
-        ) : null}
-      </View>
-
-      {!items ? (
-        <View style={styles.center}>
-          {error ? <Text style={{ color: c.danger }}>{error}</Text> : <ActivityIndicator />}
-        </View>
-      ) : items.length === 0 ? (
-        <View style={styles.center}>
-          <Ionicons name="albums-outline" size={40} color={c.fgMuted} />
-          <Text style={{ color: c.fgMuted, textAlign: "center", paddingHorizontal: 40 }}>
-            Tap words while reading to build your review deck.
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={items}
-          keyExtractor={(i) => i.id}
-          contentContainerStyle={styles.list}
-          renderItem={({ item }) => {
-            const due = new Date(item.due_at).getTime() <= Date.now();
-            return (
+      <ScrollView contentContainerStyle={styles.scroll}>
+        <View style={styles.header}>
+          <Text style={[styles.heading, { color: c.fg }]}>Words</Text>
+          {items.length > 0 ? (
+            <View style={{ flexDirection: "row", gap: 8 }}>
               <Pressable
-                onLongPress={() => remove(item)}
-                style={[styles.row, { backgroundColor: c.surface, borderColor: c.border }]}
+                onPress={() => router.push({ pathname: "/review", params: { mode: "practice" } })}
+                style={[styles.headerBtn, { backgroundColor: c.bgMuted }]}
               >
-                <View style={{ flex: 1, gap: 2 }}>
-                  <ArabicText style={[styles.lemma, { color: c.fg }]}>{item.lemma_ar}</ArabicText>
-                  <Text style={{ color: c.fgMuted, fontSize: 14 }}>{item.gloss_en}</Text>
-                </View>
-                <View
-                  style={[
-                    styles.dueBadge,
-                    { backgroundColor: due ? `${c.accent}30` : c.bgMuted },
-                  ]}
-                >
-                  <Text style={{ color: due ? c.accentFg : c.fgMuted, fontSize: 11 }}>
-                    {due ? "due" : `${item.interval_days}d`}
-                  </Text>
-                </View>
+                <Text style={{ color: c.fg, fontWeight: "600" }}>Practice</Text>
               </Pressable>
-            );
-          }}
-        />
-      )}
+              <Pressable
+                onPress={() => router.push("/review")}
+                style={[styles.headerBtn, { backgroundColor: dueCount > 0 ? c.brand : c.bgMuted }]}
+              >
+                <Text style={{ color: dueCount > 0 ? c.brandFg : c.fgMuted, fontWeight: "600" }}>
+                  Review{dueCount > 0 ? ` (${dueCount})` : ""}
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
+        </View>
+
+        {items.length === 0 ? (
+          <View style={[styles.center, { paddingVertical: 120 }]}>
+            <Ionicons name="albums-outline" size={40} color={c.fgMuted} />
+            <Text style={{ color: c.fgMuted, textAlign: "center", paddingHorizontal: 40 }}>
+              Tap words while reading to build your review deck.
+            </Text>
+          </View>
+        ) : (
+          <>
+            <View style={styles.summary}>
+              {STRENGTH_ORDER.map((s) => {
+                const tone = strengthColor(s, c);
+                return (
+                  <View key={s} style={[styles.summaryCell, { backgroundColor: tone.bg }]}>
+                    <Text style={[styles.summaryCount, { color: tone.fg }]}>
+                      {counts.get(s) ?? 0}
+                    </Text>
+                    <Text style={{ color: tone.fg, fontSize: 11, fontWeight: "600" }}>
+                      {STRENGTH_LABELS[s].labelEn}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+
+            {STRENGTH_ORDER.map((s) => {
+              const group = withStrength.filter((w) => w.strength === s);
+              if (group.length === 0) return null;
+              const tone = strengthColor(s, c);
+              return (
+                <View key={s} style={{ gap: 8 }}>
+                  <View style={styles.groupHeader}>
+                    <Text
+                      style={[styles.pill, { backgroundColor: tone.bg, color: tone.fg }]}
+                    >
+                      {STRENGTH_LABELS[s].labelEn}
+                    </Text>
+                    <ArabicText style={{ color: c.fgMuted, fontSize: 16 }}>
+                      {STRENGTH_LABELS[s].labelAr}
+                    </ArabicText>
+                  </View>
+                  {group.map(({ item }) => (
+                    <Pressable
+                      key={item.id}
+                      onLongPress={() => remove(item)}
+                      style={[styles.row, { backgroundColor: c.surface, borderColor: c.border }]}
+                    >
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <ArabicText style={[styles.lemma, { color: c.fg }]}>
+                          {item.lemma_ar}
+                        </ArabicText>
+                        <Text style={{ color: c.fgMuted, fontSize: 14 }} numberOfLines={1}>
+                          {item.gloss_en}
+                        </Text>
+                        {item.example_ar ? (
+                          <ArabicText
+                            style={{ color: c.fgMuted, fontSize: 15 }}
+                            numberOfLines={1}
+                          >
+                            {item.example_ar}
+                          </ArabicText>
+                        ) : null}
+                      </View>
+                    </Pressable>
+                  ))}
+                </View>
+              );
+            })}
+          </>
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: 20,
-    paddingBottom: 10,
-  },
+  scroll: { padding: 20, gap: 16, paddingBottom: 40 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   heading: { fontSize: 30, fontWeight: "700" },
-  reviewButton: { borderRadius: 999, paddingHorizontal: 16, paddingVertical: 8 },
+  headerBtn: { borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10 },
-  list: { padding: 20, paddingTop: 6, gap: 8 },
+  summary: { flexDirection: "row", gap: 8 },
+  summaryCell: {
+    flex: 1,
+    borderRadius: 12,
+    paddingVertical: 10,
+    alignItems: "center",
+    gap: 2,
+  },
+  summaryCount: { fontSize: 20, fontWeight: "800" },
+  groupHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 8 },
+  pill: {
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    fontSize: 12,
+    fontWeight: "700",
+    overflow: "hidden",
+  },
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -141,5 +232,4 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   lemma: { fontSize: 22, textAlign: "left", writingDirection: "rtl" },
-  dueBadge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
 });

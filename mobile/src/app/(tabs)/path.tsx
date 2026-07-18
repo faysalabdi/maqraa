@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import {
@@ -78,7 +79,12 @@ export default function PathScreen() {
       >
         <View style={styles.header}>
           <Text style={[styles.heading, { color: c.fg }]}>Read</Text>
-          <ArabicText style={[styles.headingAr, { color: c.brand }]}>مقرأة</ArabicText>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
+            <Pressable onPress={() => router.push("/upload")} hitSlop={10}>
+              <Ionicons name="add-circle-outline" size={28} color={c.brand} />
+            </Pressable>
+            <ArabicText style={[styles.headingAr, { color: c.brand }]}>مقرأة</ArabicText>
+          </View>
         </View>
 
         {continueBook ? (
@@ -101,8 +107,29 @@ export default function PathScreen() {
           </Pressable>
         ) : null}
 
+        {books.some((b) => b.owner_id) ? (
+          <View style={styles.shelf}>
+            <View style={styles.shelfHeader}>
+              <Text style={[styles.shelfTitle, { color: c.fg }]}>Your library</Text>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.shelfRow}>
+              {books
+                .filter((b) => b.owner_id)
+                .map((book) => (
+                  <BookCard
+                    key={book.id}
+                    book={book}
+                    locked={false}
+                    completed={byId.get(book.id)?.status === "completed"}
+                    onPress={() => router.push(`/book/${book.slug}`)}
+                  />
+                ))}
+            </ScrollView>
+          </View>
+        ) : null}
+
         {TIERS.map((tier) => {
-          const shelf = books.filter((b) => tierFor(b.level) === tier);
+          const shelf = books.filter((b) => !b.owner_id && tierFor(b.level) === tier);
           if (shelf.length === 0) return null;
           return (
             <Shelf

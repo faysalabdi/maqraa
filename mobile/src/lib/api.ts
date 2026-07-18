@@ -55,3 +55,32 @@ export async function api<T>(
   }
   return json as T;
 }
+
+/** Multipart upload to the API (book imports). `fileUri` comes from a document picker. */
+export async function apiUpload<T>(
+  path: string,
+  fileUri: string,
+  fileName: string,
+  fields?: Record<string, string>,
+): Promise<T> {
+  const token = await accessToken();
+  const form = new FormData();
+  // React Native FormData file part: { uri, name, type }.
+  form.append("file", {
+    uri: fileUri,
+    name: fileName,
+    type: fileName.toLowerCase().endsWith(".epub") ? "application/epub+zip" : "text/plain",
+  } as unknown as Blob);
+  for (const [k, v] of Object.entries(fields ?? {})) form.append(k, v);
+
+  const res = await fetch(`${API_URL}${path}`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: form,
+  });
+  const json = (await res.json().catch(() => null)) as (T & { error?: string }) | null;
+  if (!res.ok) {
+    throw new ApiError(json?.error ?? `Upload failed (${res.status})`, res.status);
+  }
+  return json as T;
+}

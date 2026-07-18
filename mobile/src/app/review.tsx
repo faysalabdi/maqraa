@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { router, Stack } from "expo-router";
+import { router, Stack, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -10,11 +10,11 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import type { GradeCardResponse } from "@maqraa/shared";
+import type { GradeCardResponse, PracticeCardResponse } from "@maqraa/shared";
 import { ArabicText } from "../components/ArabicText";
 import { Button } from "../components/ui";
 import { api } from "../lib/api";
-import { fetchDueVocab, type VocabItem } from "../lib/data";
+import { fetchDueVocab, fetchPracticeVocab, type VocabItem } from "../lib/data";
 import { usePalette } from "../lib/use-palette";
 
 // UI grades → SM-2 quality (same mapping as the web review page).
@@ -27,6 +27,8 @@ const GRADES = [
 
 export default function ReviewScreen() {
   const c = usePalette();
+  const { mode } = useLocalSearchParams<{ mode?: string }>();
+  const practice = mode === "practice";
   const [queue, setQueue] = useState<VocabItem[] | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [xpTotal, setXpTotal] = useState(0);
@@ -35,19 +37,22 @@ export default function ReviewScreen() {
   const [grading, setGrading] = useState(false);
 
   useEffect(() => {
-    fetchDueVocab()
-      .then(setQueue)
+    (practice ? fetchPracticeVocab() : fetchDueVocab())
+      .then((deck) => setQueue(practice ? deck.slice(0, 20) : deck))
       .catch((e) => setError(e.message));
-  }, []);
+  }, [practice]);
 
   const grade = async (quality: number) => {
     if (!queue || queue.length === 0 || grading) return;
     const card = queue[0];
     setGrading(true);
     try {
-      const res = await api<GradeCardResponse>(`/api/v1/review/${card.id}/grade`, {
-        body: { quality },
-      });
+      // Practice drills never touch the SRS schedule — separate endpoint.
+      const res = practice
+        ? await api<PracticeCardResponse>(`/api/v1/review/${card.id}/practice`, { body: {} })
+        : await api<GradeCardResponse>(`/api/v1/review/${card.id}/grade`, {
+            body: { quality },
+          });
       Haptics.impactAsync(
         quality < 3 ? Haptics.ImpactFeedbackStyle.Rigid : Haptics.ImpactFeedbackStyle.Light,
       );

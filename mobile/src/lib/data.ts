@@ -56,13 +56,13 @@ function throwIf(error: { message: string } | null): void {
   if (error) throw new Error(error.message);
 }
 
+/** All books this user can read: curated catalogue + their own uploads (RLS scopes it). */
 export async function fetchCatalogue(): Promise<Book[]> {
   const { data, error } = await supabase
     .from("books")
     .select(
       "id, slug, level, order_in_level, title_ar, title_en, author_ar, author_en, blurb, cover_url, difficulty, genre, recommended_pages, has_full_text, owner_id",
     )
-    .is("owner_id", null)
     .eq("has_full_text", true)
     .order("level")
     .order("order_in_level");
@@ -124,6 +124,40 @@ export async function fetchChapterProgress(chapterIds: string[]): Promise<Chapte
   return (data ?? []) as ChapterProgress[];
 }
 
+/**
+ * Keys the reader underlines as already-saved: the cleaned lemma of every saved
+ * word plus the surface form the user originally tapped (source_ref.surfaceKey),
+ * so inflected forms still match. Mirrors the web reader's savedKeys seeding.
+ */
+export async function fetchSavedWordKeys(): Promise<string[]> {
+  const { data, error } = await supabase.from("vocab_items").select("lemma_ar, source_ref");
+  throwIf(error);
+  const keys: string[] = [];
+  for (const row of (data ?? []) as { lemma_ar: string; source_ref: { surfaceKey?: string } | null }[]) {
+    keys.push(row.lemma_ar);
+    if (row.source_ref?.surfaceKey) keys.push(row.source_ref.surfaceKey);
+  }
+  return keys;
+}
+
+/** Practice deck: weakest band first, shuffled within — never touches the schedule. */
+export async function fetchPracticeVocab(): Promise<VocabItem[]> {
+  const { data, error } = await supabase
+    .from("vocab_items")
+    .select("id, lemma_ar, gloss_en, example_ar, due_at, interval_days, repetitions, lapses, ease, created_at")
+    .eq("suspended", false)
+    .order("interval_days")
+    .limit(100);
+  throwIf(error);
+  const items = (data ?? []) as VocabItem[];
+  // Shuffle within the fetched set (already weakest-first overall).
+  for (let i = items.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [items[i], items[j]] = [items[j], items[i]];
+  }
+  return items;
+}
+
 /** Global lookup cache — read-only warm so taps on known words are instant. */
 export async function fetchCachedLookups(keys: string[]): Promise<Record<string, CachedLookupRow>> {
   const uniq = [...new Set(keys.filter(Boolean))].slice(0, 400);
@@ -152,13 +186,14 @@ export type VocabItem = {
   interval_days: number;
   repetitions: number;
   lapses: number;
+  ease: string;
   created_at: string;
 };
 
 export async function fetchVocab(): Promise<VocabItem[]> {
   const { data, error } = await supabase
     .from("vocab_items")
-    .select("id, lemma_ar, gloss_en, example_ar, due_at, interval_days, repetitions, lapses, created_at")
+    .select("id, lemma_ar, gloss_en, example_ar, due_at, interval_days, repetitions, lapses, ease, created_at")
     .order("created_at", { ascending: false });
   throwIf(error);
   return (data ?? []) as VocabItem[];
@@ -247,7 +282,7 @@ export async function fetchEarnedAchievementIds(): Promise<Set<string>> {
 export async function fetchDueVocab(): Promise<VocabItem[]> {
   const { data, error } = await supabase
     .from("vocab_items")
-    .select("id, lemma_ar, gloss_en, example_ar, due_at, interval_days, repetitions, lapses, created_at")
+    .select("id, lemma_ar, gloss_en, example_ar, due_at, interval_days, repetitions, lapses, ease, created_at")
     .lte("due_at", new Date().toISOString())
     .eq("suspended", false)
     .order("due_at")

@@ -74,6 +74,7 @@ export default function SettingsScreen() {
         {purchasesAvailable() ? (
           <Row icon="refresh" label="Restore purchases" onPress={() => router.push("/paywall")} />
         ) : null}
+        <Row icon="book" label="Add your own book" onPress={() => router.push("/upload")} />
         <Row icon="trophy" label="Achievements" onPress={() => router.push("/achievements")} />
 
         <View style={{ height: 12 }} />
