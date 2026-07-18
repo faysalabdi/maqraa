@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -188,6 +189,7 @@ export default function Reader() {
     setFinishing(true);
     try {
       await api(`/api/v1/chapters/${chapter.id}/read`, { body: {} });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert("Chapter finished", "Nice work — keep the streak going.", [
         { text: "Take the quiz", onPress: () => router.replace(`/book/${book.slug}/quiz/${chapter.id}`) },
         { text: "Done", onPress: () => router.back() },

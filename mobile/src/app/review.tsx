@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { router, Stack } from "expo-router";
 import { useEffect, useState } from "react";
 import {
@@ -47,6 +48,9 @@ export default function ReviewScreen() {
       const res = await api<GradeCardResponse>(`/api/v1/review/${card.id}/grade`, {
         body: { quality },
       });
+      Haptics.impactAsync(
+        quality < 3 ? Haptics.ImpactFeedbackStyle.Rigid : Haptics.ImpactFeedbackStyle.Light,
+      );
       setXpTotal((x) => x + res.xpEarned);
       setDoneCount((n) => n + 1);
       setQueue((q) => (q ? q.slice(1) : q));

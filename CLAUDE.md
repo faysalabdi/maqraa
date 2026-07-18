@@ -13,6 +13,16 @@ Read `README.md` first for the public overview. This file is for AI assistants p
 - 8 levels (Emerging Reader → Imam). Each book is a node on the Duolingo-style path. Locked future-stage books render as silhouettes with no title shown.
 - Books span four genres: Islamic, Arabic literature, translated foreign works, graded readers, classical. The path is exposure-first, not genre-segregated.
 
+## Mobile app (iOS, Expo)
+
+- `mobile/` is an Expo (SDK 57, expo-router) app in the pnpm workspace; `packages/shared` (`@maqraa/shared`) holds pure logic both clients import (SM-2, XP rewards, Arabic utils, `tierFor`, reader sectionizer, API wire types). Web files under `lib/` re-export from the package — edit the package, not the shims.
+- Mobile reads catalogue/per-user data straight from Supabase under RLS, and calls `app/api/v1/*` (Bearer `Authorization` header) for anything that grants XP, consumes AI quota, checks plan, or must hide answers. Those routes and the server actions share one implementation in `server/core/*` — change behavior there, keep both wrappers thin.
+- `lib/api/require-user.ts getApiUser` resolves Bearer token first, then session cookie. New API routes for mobile follow this pattern.
+- Payments: web = Stripe, iOS = Apple IAP via RevenueCat (`react-native-purchases`, entitlement `pro`, products `maqraa_pro_monthly`/`maqraa_pro_yearly`). Both webhooks upsert the single `subscriptions` row; each sync refuses to overwrite the other provider's still-live sub. `getPlan` is provider-agnostic — don't fork entitlement logic.
+- Never mention or link web/Stripe pricing inside the iOS app (App Store guideline 3.1.1).
+- Voice `/talk` is deferred to mobile v1.1; the realtime session route already accepts Bearer tokens.
+- Mobile env: `mobile/.env.local` (`EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_API_URL`, `EXPO_PUBLIC_REVENUECAT_IOS_KEY`). Before any EAS production build, mirror every `EXPO_PUBLIC_*` into EAS env vars — missing ones crash the store binary at launch.
+
 ## Build status
 
 See README "Path / what's built". The plan file at `/root/.claude/plans/i-want-to-create-binary-swan.md` contains the full implementation plan.

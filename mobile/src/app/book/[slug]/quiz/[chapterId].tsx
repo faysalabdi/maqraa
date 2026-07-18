@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import {
@@ -39,6 +40,11 @@ export default function ChapterQuiz() {
       const res = await api<ChapterQuizSubmitResponse>(`/api/v1/chapters/${chapterId}/quiz`, {
         body: { answers },
       });
+      Haptics.notificationAsync(
+        res.score >= 70
+          ? Haptics.NotificationFeedbackType.Success
+          : Haptics.NotificationFeedbackType.Warning,
+      );
       setResult(res);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't grade the quiz.");
