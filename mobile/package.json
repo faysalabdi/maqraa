@@ -4,7 +4,9 @@
   "version": "1.0.0",
   "dependencies": {
     "@config-plugins/react-native-webrtc": "^15.0.1",
+    "@expo-google-fonts/hanken-grotesk": "^0.4.3",
     "@expo-google-fonts/noto-naskh-arabic": "^0.4.2",
+    "@expo-google-fonts/spectral": "^0.4.1",
     "@expo/vector-icons": "^15.1.1",
     "@maqraa/shared": "workspace:*",
     "@react-native-async-storage/async-storage": "2.2.0",

@@ -104,3 +104,17 @@ export type RealtimeSessionResponse = {
   plan: "free" | "pro";
   maxSeconds: number;
 };
+
+export type LeaderRow = {
+  userId: string;
+  name: string;
+  xp: number;
+  streak: number;
+  isYou: boolean;
+};
+
+export type LeaderboardResponse = {
+  scope: "week" | "all";
+  rows: LeaderRow[];
+  you: (LeaderRow & { rank: number }) | null;
+};

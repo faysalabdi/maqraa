@@ -3,6 +3,7 @@ import { router, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
+  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -15,6 +16,8 @@ import { AppHeader } from "../../components/AppHeader";
 import { Washed } from "../../components/Background";
 import { BookCard } from "../../components/BookCard";
 import { ContinueCard } from "../../components/ContinueCard";
+import { Serif } from "../../components/Serif";
+import { cardShadow } from "../../lib/theme";
 import { api } from "../../lib/api";
 import {
   fetchCatalogue,
@@ -99,7 +102,6 @@ export default function PathScreen() {
   }
 
   const byId = new Map(userBooks.map((ub) => [ub.book_id, ub]));
-  const name = (profile?.display_name || session?.user.email?.split("@")[0] || "").trim();
   const canRead = (book: Book) => plan === "pro" || tierFor(book.level) === "Beginner";
 
   const stopReading = async () => {
@@ -135,21 +137,14 @@ export default function PathScreen() {
             />
           }
         >
-          <View style={styles.headerRow}>
-            <View style={{ flex: 1 }}>
-              {name ? (
-                <Text style={[styles.welcome, { color: c.fgMuted }]}>
-                  WELCOME BACK, {name.toUpperCase()}
-                </Text>
-              ) : null}
-              <Text style={[styles.heading, { color: c.fg }]}>Read</Text>
-            </View>
+          <View style={styles.topLine}>
+            <Text style={[styles.eyebrow, { color: c.fgMuted }]}>{dayLabel()} · READ</Text>
             <View style={styles.chips}>
               <Chip icon="flame" tint={c.flame} value={streak} filled />
-              <Chip icon="sparkles" tint={c.brand} value={profile?.xp_total ?? 0} />
-              <Chip icon="checkbox" tint={c.fgMuted} value={dueCount} />
+              <Chip icon="flash" tint={c.accent} value={profile?.xp_total ?? 0} filled />
             </View>
           </View>
+          <Serif style={[styles.heading, { color: c.fg }]}>Read</Serif>
 
           {cont ? (
             <ContinueCard
@@ -160,6 +155,8 @@ export default function PathScreen() {
               onStop={stopReading}
             />
           ) : null}
+
+          <LibraryCard hasBooks={books.some((b) => b.owner_id)} plan={plan} />
 
           {books.some((b) => b.owner_id) ? (
             <Shelf
@@ -190,6 +187,39 @@ export default function PathScreen() {
         </ScrollView>
       </SafeAreaView>
     </Washed>
+  );
+}
+
+function dayLabel(): string {
+  return ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"][new Date().getDay()];
+}
+
+function LibraryCard({ hasBooks, plan }: { hasBooks: boolean; plan: "free" | "pro" }) {
+  const c = usePalette();
+  return (
+    <Pressable
+      onPress={() => router.push(plan === "pro" ? "/upload" : "/paywall")}
+      accessibilityRole="button"
+      accessibilityLabel="Your library — add your own book"
+      style={({ pressed }) => [
+        styles.libraryCard,
+        cardShadow,
+        { backgroundColor: c.surface, borderColor: c.border, opacity: pressed ? 0.9 : 1 },
+      ]}
+    >
+      <View style={[styles.libraryIcon, { backgroundColor: `${c.brand}22` }]}>
+        <Ionicons name="library" size={22} color={c.brand} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.libraryTitle, { color: c.fg }]}>Your library</Text>
+        <Text style={{ color: c.fgMuted, fontSize: 13 }} numberOfLines={2}>
+          {hasBooks
+            ? "Add another book — drop an EPUB to your shelf."
+            : "Bring your own books — drop an EPUB to add it to your shelf."}
+        </Text>
+      </View>
+      <Ionicons name="arrow-forward" size={20} color={c.fgMuted} />
+    </Pressable>
   );
 }
 
@@ -271,20 +301,30 @@ function Shelf({
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  content: { padding: 20, gap: 22, paddingBottom: 40 },
-  headerRow: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between" },
-  welcome: { fontSize: 11, fontWeight: "800", letterSpacing: 1 },
-  heading: { fontSize: 32, fontWeight: "800", marginTop: 2 },
-  chips: { flexDirection: "row", gap: 7, marginBottom: 4 },
+  content: { padding: 20, gap: 20, paddingBottom: 40 },
+  topLine: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  eyebrow: { fontSize: 12, fontWeight: "800", letterSpacing: 1.2 },
+  heading: { fontSize: 38, marginTop: -6, marginBottom: 2 },
+  chips: { flexDirection: "row", gap: 7 },
   chip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 5,
     borderWidth: 1,
     borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
+  libraryCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 16,
+  },
+  libraryIcon: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  libraryTitle: { fontSize: 16, fontWeight: "700", marginBottom: 2 },
   shelf: { gap: 12 },
   shelfHeader: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" },
   shelfTitle: { fontSize: 22, fontWeight: "800" },

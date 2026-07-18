@@ -223,6 +223,14 @@ export type Streak = {
   current_days: number;
   longest_days: number;
   last_active_date: string | null;
+  freezes_remaining: number;
+};
+
+export type Level = {
+  level: number;
+  name_en: string;
+  name_ar: string;
+  books_required_to_clear: number;
 };
 
 export type XpEvent = { delta: number; reason: string; occurred_at: string };
@@ -249,10 +257,27 @@ export async function fetchProfile(): Promise<Profile | null> {
 export async function fetchStreak(): Promise<Streak | null> {
   const { data, error } = await supabase
     .from("streaks")
-    .select("current_days, longest_days, last_active_date")
+    .select("current_days, longest_days, last_active_date, freezes_remaining")
     .limit(1);
   throwIf(error);
   return ((data ?? [])[0] as Streak) ?? null;
+}
+
+export async function fetchLevels(): Promise<Level[]> {
+  const { data, error } = await supabase
+    .from("levels")
+    .select("level, name_en, name_ar, books_required_to_clear")
+    .order("level");
+  throwIf(error);
+  return (data ?? []) as Level[];
+}
+
+export async function fetchWordsCount(): Promise<number> {
+  const { count, error } = await supabase
+    .from("vocab_items")
+    .select("id", { count: "exact", head: true });
+  throwIf(error);
+  return count ?? 0;
 }
 
 export async function fetchRecentXp(days: number): Promise<XpEvent[]> {

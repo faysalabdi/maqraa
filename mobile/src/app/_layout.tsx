@@ -1,8 +1,9 @@
 import {
   NotoNaskhArabic_400Regular,
   NotoNaskhArabic_700Bold,
-  useFonts,
 } from "@expo-google-fonts/noto-naskh-arabic";
+import { Spectral_700Bold } from "@expo-google-fonts/spectral";
+import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
@@ -37,6 +38,7 @@ export default function RootLayout() {
   const [fontsLoaded] = useFonts({
     NotoNaskhArabic_400Regular,
     NotoNaskhArabic_700Bold,
+    Spectral_700Bold,
   });
 
   useEffect(() => {

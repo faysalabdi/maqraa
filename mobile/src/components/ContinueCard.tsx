@@ -1,11 +1,25 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { useMemo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { useTheme } from "../lib/theme-context";
 import { cardShadow } from "../lib/theme";
 import { ArabicText } from "./ArabicText";
 import { BookCover } from "./BookCover";
 import type { Book } from "../lib/data";
+
+// A rotating set of gradient schemes so the Continue banner feels fresh each
+// open — brand green, indigo, amber, teal, plum.
+const SCHEMES: [string, string][] = [
+  ["#17a06a", "#0c6e46"],
+  ["#4657c4", "#2b338f"],
+  ["#c78a1e", "#8a5511"],
+  ["#1c8f92", "#0e5c5e"],
+  ["#8a4fc4", "#5a2b8f"],
+];
+
+export function randomScheme(): [string, string] {
+  return SCHEMES[Math.floor(Math.random() * SCHEMES.length)];
+}
 
 /**
  * The hero "Continue reading" card — a deep indigo gradient with the book's
@@ -16,19 +30,20 @@ export function ContinueCard({
   book,
   chaptersDone,
   chaptersTotal,
+  scheme: colorScheme,
   onPlay,
   onStop,
 }: {
   book: Book;
   chaptersDone: number;
   chaptersTotal: number;
+  scheme?: [string, string];
   onPlay: () => void;
   onStop: () => void;
 }) {
-  const { scheme } = useTheme();
   const pct = chaptersTotal > 0 ? Math.round((chaptersDone / chaptersTotal) * 100) : 0;
-  const grad: [string, string] =
-    scheme === "dark" ? ["#2a2f66", "#16183a"] : ["#4657c4", "#2b338f"];
+  // Colour is chosen once per mount (or handed in) so it varies between opens.
+  const grad = useMemo(() => colorScheme ?? randomScheme(), [colorScheme]);
 
   return (
     <View style={[styles.wrap, cardShadow]}>

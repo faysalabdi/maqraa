@@ -171,9 +171,15 @@ importers:
       '@config-plugins/react-native-webrtc':
         specifier: ^15.0.1
         version: 15.0.1(expo@57.0.7)
+      '@expo-google-fonts/hanken-grotesk':
+        specifier: ^0.4.3
+        version: 0.4.3
       '@expo-google-fonts/noto-naskh-arabic':
         specifier: ^0.4.2
         version: 0.4.5
+      '@expo-google-fonts/spectral':
+        specifier: ^0.4.1
+        version: 0.4.1
       '@expo/vector-icons':
         specifier: ^15.1.1
         version: 15.1.1(expo-font@57.0.1)(react-native@0.86.0(@babel/core@7.29.7)(@react-native/metro-config@0.86.0(@babel/core@7.29.7))(@types/react@19.2.14)(react@19.2.3))(react@19.2.3)
@@ -1374,11 +1380,17 @@ packages:
     resolution: {integrity: sha512-43/qtrDUokr7LJqoF2c3+RInu/t4zfrpYdoSDfYyhg52rwLV6TnOvdG4fXm7IkSB3wErkcmJS9iEhjVtOSEjjA==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
+  '@expo-google-fonts/hanken-grotesk@0.4.3':
+    resolution: {integrity: sha512-TZn/Ux+nCxEjG/zAenCFbEhOAPxSXN3lo2YU2jHcPsNBPFeicm8feQStL81igJuAwJLCn62VvEOdTtmVEBDl0g==}
+
   '@expo-google-fonts/material-symbols@0.4.41':
     resolution: {integrity: sha512-BKNSJ6oFGWi+aXu6PF+1EdI43J8Ag+Sm7Ste1SXYmC2eYOJasyjXHkKjgkIieBB1eDZQJSPWuPv421Vg6N5tCQ==}
 
   '@expo-google-fonts/noto-naskh-arabic@0.4.5':
     resolution: {integrity: sha512-KN73tROdoKQubTZ/ZsERCdAlZ1cBLRbRIe196tISAcPLgIqMvIgFCUs1xsrS/pe3fIYxT9l+c95sQF8wv48ijA==}
+
+  '@expo-google-fonts/spectral@0.4.1':
+    resolution: {integrity: sha512-9bbehW/XUAoHWAsd5rgLYRY/I1+FZFZJOyvbsM1mD9vqNJEB3izviAyZ5k7lEQpYcHV1cxChGg9HpWW+0YkJog==}
 
   '@expo/cli@57.0.9':
     resolution: {integrity: sha512-41z9z68SynNXasZOjuT1si5Sq5OKL6SLf40ZjikbtZgDuvBO8HaUsaDzsJ0c1UZJ3N+vMzYCc1JUIDyRkVBjkA==}
@@ -7442,9 +7454,13 @@ snapshots:
       '@eslint/core': 0.17.0
       levn: 0.4.1
 
+  '@expo-google-fonts/hanken-grotesk@0.4.3': {}
+
   '@expo-google-fonts/material-symbols@0.4.41': {}
 
   '@expo-google-fonts/noto-naskh-arabic@0.4.5': {}
+
+  '@expo-google-fonts/spectral@0.4.1': {}
 
   '@expo/cli@57.0.9(@expo/dom-webview@57.0.1)(@expo/metro-runtime@57.0.6)(expo-constants@57.0.6)(expo-font@57.0.1)(expo-router@57.0.7)(expo@57.0.7)(react-dom@19.2.3(react@19.2.3))(react-native@0.86.0(@babel/core@7.29.7)(@react-native/metro-config@0.86.0(@babel/core@7.29.7))(@types/react@19.2.14)(react@19.2.3))(react@19.2.3)(typescript@6.0.3)':
     dependencies:

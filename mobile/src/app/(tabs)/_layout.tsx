@@ -36,7 +36,8 @@ export default function TabsLayout() {
       <Tabs.Screen name="talk" options={{ title: "Talk", tabBarIcon: icon("mic") }} />
       <Tabs.Screen name="words" options={{ title: "Words", tabBarIcon: icon("book-outline") }} />
       <Tabs.Screen name="review" options={{ title: "Review", tabBarIcon: icon("repeat") }} />
-      <Tabs.Screen name="stats" options={{ title: "Stats", tabBarIcon: icon("stats-chart") }} />
+      <Tabs.Screen name="stats" options={{ title: "Progress", tabBarIcon: icon("stats-chart") }} />
+      <Tabs.Screen name="leaderboard" options={{ title: "Ranks", tabBarIcon: icon("podium") }} />
       <Tabs.Screen name="awards" options={{ title: "Awards", tabBarIcon: icon("trophy") }} />
       {/* Settings lives behind the header avatar, not a tab. */}
       <Tabs.Screen name="settings" options={{ href: null }} />

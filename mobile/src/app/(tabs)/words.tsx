@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { router, useFocusEffect } from "expo-router";
+import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AppHeader } from "../../components/AppHeader";
 import { Washed } from "../../components/Background";
+import { Serif } from "../../components/Serif";
 import {
   STRENGTH_LABELS,
   STRENGTH_ORDER,
@@ -80,7 +81,6 @@ export default function WordsScreen() {
   }));
   const counts = new Map<Strength, number>();
   for (const w of withStrength) counts.set(w.strength, (counts.get(w.strength) ?? 0) + 1);
-  const dueCount = items.filter((i) => new Date(i.due_at).getTime() <= Date.now()).length;
 
   const remove = (item: VocabItem) => {
     Alert.alert("Remove word", `Remove “${item.lemma_ar}” from your deck?`, [
@@ -106,24 +106,11 @@ export default function WordsScreen() {
       <AppHeader />
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.header}>
-          <Text style={[styles.heading, { color: c.fg }]}>Words</Text>
+          <Serif style={[styles.heading, { color: c.fg }]}>My words</Serif>
           {items.length > 0 ? (
-            <View style={{ flexDirection: "row", gap: 8 }}>
-              <Pressable
-                onPress={() => router.push({ pathname: "/review", params: { mode: "practice" } })}
-                style={[styles.headerBtn, { backgroundColor: c.bgMuted }]}
-              >
-                <Text style={{ color: c.fg, fontWeight: "600" }}>Practice</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => router.push("/review")}
-                style={[styles.headerBtn, { backgroundColor: dueCount > 0 ? c.brand : c.bgMuted }]}
-              >
-                <Text style={{ color: dueCount > 0 ? c.brandFg : c.fgMuted, fontWeight: "600" }}>
-                  Review{dueCount > 0 ? ` (${dueCount})` : ""}
-                </Text>
-              </Pressable>
-            </View>
+            <Text style={{ color: c.fgMuted, fontSize: 13 }}>
+              {items.length} saved · by strength
+            </Text>
           ) : null}
         </View>
 
@@ -206,9 +193,8 @@ export default function WordsScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   scroll: { padding: 20, gap: 16, paddingBottom: 40 },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  heading: { fontSize: 30, fontWeight: "700" },
-  headerBtn: { borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
+  header: { gap: 2 },
+  heading: { fontSize: 34 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10 },
   summary: { flexDirection: "row", gap: 8 },
   summaryCell: {
