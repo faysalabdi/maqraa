@@ -15,14 +15,14 @@
     },
     "production": {
       "autoIncrement": true,
-      "ios": { "image": "latest" }
+      "ios": { "image": "latest", "credentialsSource": "local" }
     }
   },
   "submit": {
     "production": {
       "ios": {
         "ascAppId": "6792192544",
-        "ascApiKeyPath": "~/.private_keys/AuthKey_2Y729N8V2V.p8",
+        "ascApiKeyPath": "/Users/faysalabdi/.private_keys/AuthKey_2Y729N8V2V.p8",
         "ascApiKeyIssuerId": "692a290b-3dd6-48e5-a3db-315b97fd3311",
         "ascApiKeyId": "2Y729N8V2V"
       }
