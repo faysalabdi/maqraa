@@ -5,6 +5,7 @@ import type { CoreUser } from "./user";
 export type LeaderRow = {
   userId: string;
   name: string;
+  avatar: string | null;
   xp: number;
   streak: number;
   isYou: boolean;
@@ -49,7 +50,7 @@ export async function getLeaderboard(
     .from(schema.streaks);
   const streakBy = new Map(streaks.map((s) => [s.userId, s.days]));
 
-  let ranked: { userId: string; name: string | null; xp: number }[];
+  let ranked: { userId: string; name: string | null; avatar: string | null; xp: number }[];
 
   if (scope === "week") {
     const rows = await db
@@ -63,19 +64,29 @@ export async function getLeaderboard(
       .orderBy(desc(sql`sum(${schema.xpEvents.delta})`))
       .limit(100);
     const ids = rows.map((r) => r.userId);
-    const names = ids.length
+    const profs = ids.length
       ? await db
-          .select({ id: schema.profiles.id, name: schema.profiles.displayName })
+          .select({
+            id: schema.profiles.id,
+            name: schema.profiles.displayName,
+            avatar: schema.profiles.avatar,
+          })
           .from(schema.profiles)
           .where(inArray(schema.profiles.id, ids))
       : [];
-    const nameBy = new Map(names.map((n) => [n.id, n.name]));
-    ranked = rows.map((r) => ({ userId: r.userId, name: nameBy.get(r.userId) ?? null, xp: r.xp }));
+    const by = new Map(profs.map((n) => [n.id, n]));
+    ranked = rows.map((r) => ({
+      userId: r.userId,
+      name: by.get(r.userId)?.name ?? null,
+      avatar: by.get(r.userId)?.avatar ?? null,
+      xp: r.xp,
+    }));
   } else {
     const rows = await db
       .select({
         userId: schema.profiles.id,
         name: schema.profiles.displayName,
+        avatar: schema.profiles.avatar,
         xp: schema.profiles.xpTotal,
       })
       .from(schema.profiles)
@@ -87,6 +98,7 @@ export async function getLeaderboard(
   const rows: LeaderRow[] = ranked.map((r) => ({
     userId: r.userId,
     name: displayName(r.name),
+    avatar: r.avatar,
     xp: r.xp ?? 0,
     streak: streakBy.get(r.userId) ?? 0,
     isYou: r.userId === user.id,
@@ -107,9 +119,15 @@ async function selfRow(
   scope: "week" | "all",
   streak: number,
 ): Promise<(LeaderRow & { rank: number }) | null> {
+  const [prof] = await db
+    .select({ name: schema.profiles.displayName, avatar: schema.profiles.avatar })
+    .from(schema.profiles)
+    .where(eq(schema.profiles.id, user.id))
+    .limit(1);
+
   if (scope === "all") {
     const [me] = await db
-      .select({ name: schema.profiles.displayName, xp: schema.profiles.xpTotal })
+      .select({ xp: schema.profiles.xpTotal })
       .from(schema.profiles)
       .where(eq(schema.profiles.id, user.id))
       .limit(1);
@@ -120,7 +138,8 @@ async function selfRow(
       .where(sql`${schema.profiles.xpTotal} > ${me.xp}`);
     return {
       userId: user.id,
-      name: displayName(me.name),
+      name: displayName(prof?.name ?? null),
+      avatar: prof?.avatar ?? null,
       xp: me.xp ?? 0,
       streak,
       isYou: true,
@@ -139,6 +158,7 @@ async function selfRow(
   return {
     userId: user.id,
     name: "You",
+    avatar: prof?.avatar ?? null,
     xp: me?.xp ?? 0,
     streak,
     isYou: true,

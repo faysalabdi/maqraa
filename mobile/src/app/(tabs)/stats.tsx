@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AppHeader } from "../../components/AppHeader";
 import { Washed } from "../../components/Background";
@@ -151,6 +151,26 @@ export default function ProgressScreen() {
             />
           </View>
 
+          <Pressable
+            onPress={() => router.push("/awards")}
+            style={({ pressed }) => [
+              styles.linkRow,
+              cardShadow,
+              { backgroundColor: c.surface, borderColor: c.border, opacity: pressed ? 0.9 : 1 },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Achievements"
+          >
+            <View style={[styles.linkIcon, { backgroundColor: `${c.accent}22` }]}>
+              <Ionicons name="trophy" size={20} color={c.accent} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: c.fg, fontWeight: "700", fontSize: 15 }}>Achievements</Text>
+              <Text style={{ color: c.fgMuted, fontSize: 13 }}>Badges you've earned and what's next</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={c.fgMuted} />
+          </Pressable>
+
           <Text style={[styles.sectionTitle, { color: c.fg }]}>Recent activity</Text>
           <View style={{ gap: 6 }}>
             {events.slice(0, 12).map((e, i) => (
@@ -227,6 +247,16 @@ const styles = StyleSheet.create({
   bigNum: { fontSize: 26, fontWeight: "800" },
   track: { height: 6, borderRadius: 3, overflow: "hidden" },
   fill: { height: "100%", borderRadius: 3 },
+  linkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 14,
+    marginTop: 4,
+  },
+  linkIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   sectionTitle: { fontSize: 18, fontWeight: "700", marginTop: 8 },
   eventRow: {
     flexDirection: "row",

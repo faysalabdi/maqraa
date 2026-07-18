@@ -86,9 +86,14 @@ export default function ReviewScreen() {
     <Washed>
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
       <View style={styles.topBar}>
-        <Text style={[styles.headerTitle, { color: c.fg }]}>
-          {practice ? "Practice" : "Review"}
-        </Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <Pressable onPress={() => router.back()} hitSlop={12} accessibilityLabel="Back">
+            <Ionicons name="chevron-back" size={26} color={c.fg} />
+          </Pressable>
+          <Text style={[styles.headerTitle, { color: c.fg }]}>
+            {practice ? "Practice" : "Review"}
+          </Text>
+        </View>
         <Text style={{ color: c.fgMuted }}>
           {doneCount} done{xpTotal > 0 ? ` · +${xpTotal} XP` : ""}
         </Text>

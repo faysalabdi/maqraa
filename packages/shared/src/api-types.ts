@@ -108,6 +108,7 @@ export type RealtimeSessionResponse = {
 export type LeaderRow = {
   userId: string;
   name: string;
+  avatar: string | null;
   xp: number;
   streak: number;
   isYou: boolean;

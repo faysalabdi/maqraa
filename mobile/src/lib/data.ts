@@ -213,11 +213,24 @@ export async function fetchVocab(): Promise<VocabItem[]> {
 export type Profile = {
   id: string;
   display_name: string | null;
+  avatar: string | null;
   current_level: number;
   xp_total: number;
   daily_xp_goal: number;
   font_scale: string;
 };
+
+/** Update the reader's own display name + avatar (profiles RLS: update own). */
+export async function updateProfile(input: {
+  display_name?: string | null;
+  avatar?: string | null;
+}): Promise<void> {
+  const { data: auth } = await supabase.auth.getUser();
+  const uid = auth.user?.id;
+  if (!uid) throw new Error("Not signed in");
+  const { error } = await supabase.from("profiles").update(input).eq("id", uid);
+  throwIf(error);
+}
 
 export type Streak = {
   current_days: number;
@@ -248,7 +261,7 @@ export type Achievement = {
 export async function fetchProfile(): Promise<Profile | null> {
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, display_name, current_level, xp_total, daily_xp_goal, font_scale")
+    .select("id, display_name, avatar, current_level, xp_total, daily_xp_goal, font_scale")
     .limit(1);
   throwIf(error);
   return ((data ?? [])[0] as Profile) ?? null;

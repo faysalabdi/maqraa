@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
@@ -81,6 +81,7 @@ export default function WordsScreen() {
   }));
   const counts = new Map<Strength, number>();
   for (const w of withStrength) counts.set(w.strength, (counts.get(w.strength) ?? 0) + 1);
+  const dueCount = items.filter((i) => new Date(i.due_at).getTime() <= Date.now()).length;
 
   const remove = (item: VocabItem) => {
     Alert.alert("Remove word", `Remove “${item.lemma_ar}” from your deck?`, [
@@ -123,6 +124,32 @@ export default function WordsScreen() {
           </View>
         ) : (
           <>
+            <View style={styles.ctaRow}>
+              <Pressable
+                onPress={() => router.push("/review")}
+                style={[styles.reviewCta, { backgroundColor: dueCount > 0 ? c.brand : c.bgMuted }]}
+                accessibilityRole="button"
+                accessibilityLabel="Start review"
+              >
+                <Ionicons
+                  name="repeat"
+                  size={18}
+                  color={dueCount > 0 ? c.brandFg : c.fgMuted}
+                />
+                <Text style={{ color: dueCount > 0 ? c.brandFg : c.fgMuted, fontWeight: "700" }}>
+                  {dueCount > 0 ? `Review ${dueCount} due` : "Nothing due"}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => router.push({ pathname: "/review", params: { mode: "practice" } })}
+                style={[styles.practiceCta, { borderColor: c.border }]}
+                accessibilityRole="button"
+                accessibilityLabel="Practice"
+              >
+                <Text style={{ color: c.fg, fontWeight: "600" }}>Practice</Text>
+              </Pressable>
+            </View>
+
             <View style={styles.summary}>
               {STRENGTH_ORDER.map((s) => {
                 const tone = strengthColor(s, c);
@@ -195,6 +222,23 @@ const styles = StyleSheet.create({
   scroll: { padding: 20, gap: 16, paddingBottom: 40 },
   header: { gap: 2 },
   heading: { fontSize: 34 },
+  ctaRow: { flexDirection: "row", gap: 10 },
+  reviewCta: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: 14,
+    paddingVertical: 14,
+  },
+  practiceCta: {
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10 },
   summary: { flexDirection: "row", gap: 8 },
   summaryCell: {

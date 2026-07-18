@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -79,6 +79,14 @@ export default function AwardsScreen() {
       <SafeAreaView style={styles.safe} edges={["top"]}>
         <AppHeader />
         <ScrollView contentContainerStyle={styles.content}>
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={12}
+            style={{ marginBottom: 4 }}
+            accessibilityLabel="Back"
+          >
+            <Ionicons name="chevron-back" size={26} color={c.fg} />
+          </Pressable>
           <Serif style={[styles.title, { color: c.fg }]}>Achievements</Serif>
           {all ? (
             <Text style={[styles.sub, { color: c.fgMuted }]}>

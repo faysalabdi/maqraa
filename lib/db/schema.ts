@@ -129,6 +129,7 @@ export const achievements = pgTable("achievements", {
 export const profiles = pgTable("profiles", {
   id: uuid("id").primaryKey(), // = auth.users.id
   displayName: text("display_name"),
+  avatar: text("avatar"), // optional emoji avatar (leaderboard + header)
   currentLevel: integer("current_level").notNull().default(1),
   xpTotal: integer("xp_total").notNull().default(0),
   dailyXpGoal: integer("daily_xp_goal").notNull().default(50),

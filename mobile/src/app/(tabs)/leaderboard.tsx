@@ -152,7 +152,9 @@ function Avatar({ row, tint, big }: { row: LeaderRow; tint: string; big?: boolea
         },
       ]}
     >
-      {row.isYou ? (
+      {row.avatar ? (
+        <Text style={{ fontSize: big ? 30 : 24 }}>{row.avatar}</Text>
+      ) : row.isYou ? (
         <Ionicons name="star" size={big ? 26 : 22} color={c.brandFg} />
       ) : (
         <Text style={{ color: "#1a1a1a", fontWeight: "800", fontSize: big ? 24 : 20 }}>
@@ -178,9 +180,13 @@ function Row({ row, rank }: { row: LeaderRow; rank: number }) {
     >
       <Text style={[styles.rank, { color: c.fgMuted }]}>{rank}</Text>
       <View style={[styles.rowAvatar, { backgroundColor: row.isYou ? c.brand : c.iris }]}>
-        <Text style={{ color: row.isYou ? c.brandFg : "#fff", fontWeight: "800" }}>
-          {initials(row.name)}
-        </Text>
+        {row.avatar ? (
+          <Text style={{ fontSize: 18 }}>{row.avatar}</Text>
+        ) : (
+          <Text style={{ color: row.isYou ? c.brandFg : "#fff", fontWeight: "800" }}>
+            {initials(row.name)}
+          </Text>
+        )}
       </View>
       <Text style={[styles.rowName, { color: c.fg }]} numberOfLines={1}>
         {row.isYou ? "You" : row.name}
