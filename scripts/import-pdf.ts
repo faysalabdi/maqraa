@@ -26,7 +26,7 @@ config({ path: ".env" });
 
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { promisify } from "node:util";
 import { resolve } from "node:path";
 import { normalizePage, countArabicChars } from "../lib/import/normalize";
@@ -64,11 +64,12 @@ type CliArgs = {
   dryRun: boolean;
   out?: string;
   guidance?: string;
+  fromExtract?: string;
 };
 
 function usage(): never {
   console.error(`Usage:
-  pnpm import-pdf --pdf <file.pdf> --slug <slug> --title-ar <t> --title-en <t>
+  pnpm import-pdf (--pdf <file.pdf> | --from-extract <saved.json>) --slug <slug> --title-ar <t> --title-en <t>
     [--level N] [--order N] [--author-ar T] [--author-en T]
     [--genre ${GENRES.join("|")}] [--difficulty 1-5] [--blurb T]
     [--pages-per-chunk N] [--concurrency N] [--force-ocr] [--dpi N]
@@ -97,7 +98,9 @@ function parseArgs(argv: string[]): CliArgs {
   const slug = get("slug");
   const titleAr = get("title-ar");
   const titleEn = get("title-en");
-  if (!pdf || !slug || !titleAr || !titleEn) usage();
+  const fromExtract = get("from-extract");
+  // --from-extract reuses a saved extractor JSON, so --pdf isn't needed then.
+  if (!slug || !titleAr || !titleEn || (!pdf && !fromExtract)) usage();
   if (argv.includes("--help") || argv.includes("-h")) usage();
 
   const genre = (get("genre") ?? "classical") as Genre;
@@ -112,7 +115,7 @@ function parseArgs(argv: string[]): CliArgs {
   }
 
   return {
-    pdf,
+    pdf: pdf ?? "",
     slug,
     titleAr,
     titleEn,
@@ -130,6 +133,7 @@ function parseArgs(argv: string[]): CliArgs {
     dryRun: argv.includes("--dry-run"),
     out: get("out"),
     guidance: get("guidance"),
+    fromExtract,
   };
 }
 
@@ -145,18 +149,25 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   const t0 = Date.now();
 
-  // ── Stage 1: extract ────────────────────────────────────────────────
-  log(`\n[1/6] Extracting ${args.pdf} …`);
-  const extractor = resolve(__dirname, "pdf-extract/extract.py");
-  const pyArgs = [extractor, resolve(args.pdf), "--dpi", String(args.dpi)];
-  if (args.forceOcr) pyArgs.push("--force-ocr");
-  const { stdout, stderr } = await execFileAsync(pythonBin(), pyArgs, {
-    maxBuffer: 1024 * 1024 * 1024,
-  });
-  if (stderr.trim()) log(stderr.trim());
-  const extracted = JSON.parse(stdout) as
+  // ── Stage 1: extract (or reuse a saved extractor JSON) ──────────────
+  type Extracted =
     | { mode: "text"; pages: { page: number; text: string }[] }
     | { mode: "vision"; pages: { page: number; image_b64: string }[] };
+  let extracted: Extracted;
+  if (args.fromExtract) {
+    log(`\n[1/6] Reusing saved extract ${args.fromExtract} (no OCR)…`);
+    extracted = JSON.parse(await readFile(args.fromExtract, "utf8")) as Extracted;
+  } else {
+    log(`\n[1/6] Extracting ${args.pdf} …`);
+    const extractor = resolve(__dirname, "pdf-extract/extract.py");
+    const pyArgs = [extractor, resolve(args.pdf), "--dpi", String(args.dpi)];
+    if (args.forceOcr) pyArgs.push("--force-ocr");
+    const { stdout, stderr } = await execFileAsync(pythonBin(), pyArgs, {
+      maxBuffer: 1024 * 1024 * 1024,
+    });
+    if (stderr.trim()) log(stderr.trim());
+    extracted = JSON.parse(stdout) as Extracted;
+  }
   if (!extracted.pages?.length) throw new Error("extractor returned no pages");
   log(
     `  → ${extracted.pages.length} pages (${extracted.mode === "vision" ? "scanned → Claude vision" : "text layer"})`,
