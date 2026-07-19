@@ -372,15 +372,42 @@ export default function Reader() {
       </View>
 
       <ScrollView contentContainerStyle={styles.pageContent}>
-        <Pressable
-          onPress={() => chapters.length > 1 && setPicker("chapter")}
-          style={styles.chapterTitleRow}
-        >
-          <ArabicText style={[styles.chapterTitle, { color: ink }]}>{chapter.title_ar}</ArabicText>
-          {chapters.length > 1 ? (
-            <Ionicons name="chevron-down" size={16} color={c.fgMuted} />
-          ) : null}
-        </Pressable>
+        {page === 0 ? (
+          <Pressable
+            onPress={() => chapters.length > 1 && setPicker("chapter")}
+            style={styles.chapterHeader}
+          >
+            <Text style={[styles.chapterEyebrow, { color: c.fgMuted }]}>
+              {`Chapter ${chapter.chapter_number}`}
+            </Text>
+            <View style={styles.chapterTitleBigRow}>
+              <ArabicText style={[styles.chapterTitleBig, { color: ink }]}>
+                {chapter.title_ar}
+              </ArabicText>
+              {chapters.length > 1 ? (
+                <Ionicons name="chevron-down" size={18} color={c.fgMuted} />
+              ) : null}
+            </View>
+            {chapter.title_en ? (
+              <Text style={[styles.chapterTitleEn, { color: c.fgMuted }]}>{chapter.title_en}</Text>
+            ) : null}
+            <View style={styles.ornamentRow}>
+              <View style={[styles.ornamentLine, { backgroundColor: ink }]} />
+              <ArabicText style={[styles.ornamentDot, { color: ink }]}>۞</ArabicText>
+              <View style={[styles.ornamentLine, { backgroundColor: ink }]} />
+            </View>
+          </Pressable>
+        ) : (
+          <Pressable
+            onPress={() => chapters.length > 1 && setPicker("chapter")}
+            style={styles.chapterTitleRow}
+          >
+            <ArabicText style={[styles.chapterTitle, { color: ink }]}>{chapter.title_ar}</ArabicText>
+            {chapters.length > 1 ? (
+              <Ionicons name="chevron-down" size={16} color={c.fgMuted} />
+            ) : null}
+          </Pressable>
+        )}
         {paras.map((para, pi) => (
           <View key={pi} style={styles.paragraph}>
             {para.split(/\s+/).map((token, ti) => {
@@ -501,6 +528,20 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   chapterTitle: { fontSize: 24 },
+  chapterHeader: { alignItems: "center", gap: 8, marginBottom: 22, paddingTop: 4 },
+  chapterEyebrow: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 3,
+    textTransform: "uppercase",
+    opacity: 0.5,
+  },
+  chapterTitleBigRow: { flexDirection: "row-reverse", alignItems: "center", gap: 8 },
+  chapterTitleBig: { fontSize: 30, fontWeight: "700", textAlign: "center", lineHeight: 44 },
+  chapterTitleEn: { fontSize: 13, opacity: 0.65 },
+  ornamentRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 8, opacity: 0.4 },
+  ornamentLine: { height: 1, width: 44 },
+  ornamentDot: { fontSize: 16, lineHeight: 18 },
   pageJump: {
     flexDirection: "row",
     alignItems: "center",
