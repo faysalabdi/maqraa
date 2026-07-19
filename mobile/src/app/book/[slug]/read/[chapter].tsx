@@ -400,11 +400,13 @@ export default function Reader() {
         ) : (
           <Pressable
             onPress={() => chapters.length > 1 && setPicker("chapter")}
-            style={styles.chapterTitleRow}
+            style={[styles.runningHead, { borderBottomColor: c.border }]}
           >
-            <ArabicText style={[styles.chapterTitle, { color: ink }]}>{chapter.title_ar}</ArabicText>
+            <ArabicText style={[styles.runningHeadText, { color: c.fgMuted }]} numberOfLines={1}>
+              {chapter.title_ar}
+            </ArabicText>
             {chapters.length > 1 ? (
-              <Ionicons name="chevron-down" size={16} color={c.fgMuted} />
+              <Ionicons name="chevron-down" size={13} color={c.fgMuted} />
             ) : null}
           </Pressable>
         )}
@@ -521,13 +523,16 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   pageContent: { paddingHorizontal: 24, paddingBottom: 24, gap: 18 },
-  chapterTitleRow: {
+  runningHead: {
     flexDirection: "row-reverse",
     alignItems: "center",
-    gap: 8,
-    marginBottom: 6,
+    justifyContent: "center",
+    gap: 6,
+    paddingBottom: 10,
+    marginBottom: 16,
+    borderBottomWidth: 1,
   },
-  chapterTitle: { fontSize: 24 },
+  runningHeadText: { fontSize: 15, fontWeight: "600", opacity: 0.9 },
   chapterHeader: { alignItems: "center", gap: 8, marginBottom: 22, paddingTop: 4 },
   chapterEyebrow: {
     fontSize: 11,
