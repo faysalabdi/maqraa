@@ -23,14 +23,15 @@ export default function SignUp() {
   const signUp = async () => {
     setBusy(true);
     setError(null);
-    const { error } = await supabase.auth.signUp({ email, password });
+    const cleanEmail = email.trim().toLowerCase();
+    const { error } = await supabase.auth.signUp({ email: cleanEmail, password });
     setBusy(false);
     if (error) {
       setError(error.message);
       return;
     }
     // Supabase sent a 6-digit confirmation code to the email.
-    router.push({ pathname: "/(auth)/verify", params: { email } });
+    router.push({ pathname: "/(auth)/verify", params: { email: cleanEmail } });
   };
 
   return (

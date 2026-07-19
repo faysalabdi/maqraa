@@ -23,7 +23,10 @@ export default function SignIn() {
   const signIn = async () => {
     setBusy(true);
     setError(null);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password,
+    });
     if (error) setError(error.message);
     setBusy(false);
     // On success the auth listener flips the session and (auth)/_layout redirects.
