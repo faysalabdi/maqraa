@@ -59,3 +59,6 @@ __pycache__/
 /sahabiyat.json
 /ilm.json
 /siyrat.json
+
+# local iOS build artifacts
+build-*.ipa
