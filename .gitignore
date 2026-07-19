@@ -48,3 +48,14 @@ design_handoff_maqra_reskin*
 # graphify
 graphify-out/
 *.p8
+
+# python sidecar for scripts/import-pdf.ts
+scripts/pdf-extract/.venv/
+__pycache__/
+
+# import source PDFs + extracted chapter artifacts (outputs, not source)
+*.pdf
+/qasas.json
+/sahabiyat.json
+/ilm.json
+/siyrat.json

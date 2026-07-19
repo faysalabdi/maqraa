@@ -1,0 +1,4 @@
+# Text-layer extraction + page rendering. Small and fast; the only dependency.
+# Scanned PDFs are rendered to images here and OCR'd by Claude vision TS-side,
+# so no local OCR engine (torch/surya) is needed.
+pymupdf>=1.24
