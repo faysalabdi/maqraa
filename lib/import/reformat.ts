@@ -201,8 +201,17 @@ async function withRetry(
     } catch (e) {
       lastErr = e;
       const retryable = isRetryable(e);
+      // Surface the real network cause the SDK hides behind "Connection error."
+      // (undici wraps the socket error: err.cause.cause = ECONNRESET/ENOTFOUND/…).
+      const err = e as Error & {
+        status?: number;
+        cause?: { message?: string; code?: string; cause?: { message?: string; code?: string } };
+      };
+      const detail = [err.message, err.cause?.message, err.cause?.code, err.cause?.cause?.message, err.cause?.cause?.code]
+        .filter(Boolean)
+        .join(" <- ");
       opts.onLog?.(
-        `  ${label} attempt ${attempt}/${maxAttempts} failed: ${(e as Error).message}` +
+        `  ${label} attempt ${attempt}/${maxAttempts} failed [${err.name}${err.status ? " " + err.status : ""}]: ${detail}` +
           `${retryable && attempt < maxAttempts ? " — retrying" : ""}`,
       );
       if (!retryable || attempt === maxAttempts) break;

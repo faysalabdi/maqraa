@@ -109,7 +109,7 @@ jobs:
           GUIDANCE: ${{ inputs.guidance }}
           FORCE_OCR: ${{ inputs.forceOcr }}
         run: |
-          args=(--pdf import.pdf --slug "$SLUG" --title-ar "$TITLE_AR" --title-en "$TITLE_EN" --level "$LEVEL" --genre "$GENRE" --difficulty "$DIFFICULTY")
+          args=(--pdf import.pdf --slug "$SLUG" --title-ar "$TITLE_AR" --title-en "$TITLE_EN" --level "$LEVEL" --genre "$GENRE" --difficulty "$DIFFICULTY" --concurrency 1)
           [ -n "$AUTHOR_AR" ] && args+=(--author-ar "$AUTHOR_AR")
           [ -n "$AUTHOR_EN" ] && args+=(--author-en "$AUTHOR_EN")
           [ -n "$BLURB" ] && args+=(--blurb "$BLURB")
