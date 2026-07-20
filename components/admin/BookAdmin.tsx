@@ -2,8 +2,15 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, Plus, Settings2, Trash2 } from "lucide-react";
-import { addChapter, deleteBook, deleteChapter } from "@/server/actions/admin";
+import { Check, ChevronDown, Pencil, Plus, Settings2, Trash2, X } from "lucide-react";
+import {
+  addChapter,
+  deleteBook,
+  deleteChapter,
+  updateBook,
+  updateChapter,
+  type Genre,
+} from "@/server/actions/admin";
 import { ImportPanel } from "@/components/admin/ImportPanel";
 import { BookCover, tierFor, TIERS } from "@/components/book/BookCover";
 import { cn } from "@/lib/utils";
@@ -13,11 +20,24 @@ export type AdminBook = {
   slug: string;
   titleAr: string;
   titleEn: string;
+  authorAr: string | null;
+  authorEn: string | null;
+  blurb: string | null;
+  difficulty: number;
+  recommendedPages: number | null;
   level: number;
   genre: string;
   hasFullText: boolean;
   chapterCount: number;
 };
+
+const GENRES: { value: Genre; label: string }[] = [
+  { value: "classical", label: "Classical" },
+  { value: "islamic", label: "Islamic" },
+  { value: "arabic_literature", label: "Arabic literature" },
+  { value: "translated", label: "Translated" },
+  { value: "graded_reader", label: "Graded reader" },
+];
 
 export type AdminChapter = {
   id: string;
@@ -120,6 +140,7 @@ function BookRow({ book, chapters }: { book: AdminBook; chapters: AdminChapter[]
 
       {open && (
         <div className="space-y-4 border-t border-border bg-bg-muted/30 p-4">
+          <EditBook book={book} />
           <ChapterList chapters={chapters} bookId={book.id} />
           <ImportPanel bookId={book.id} />
           <ManualAddChapter bookId={book.id} />
@@ -130,8 +151,6 @@ function BookRow({ book, chapters }: { book: AdminBook; chapters: AdminChapter[]
 }
 
 function ChapterList({ chapters, bookId }: { chapters: AdminChapter[]; bookId: string }) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
   if (chapters.length === 0) {
     return <p className="text-sm text-fg-muted">No chapters yet. Upload an EPUB below.</p>;
   }
@@ -142,31 +161,247 @@ function ChapterList({ chapters, bookId }: { chapters: AdminChapter[]; bookId: s
           .slice()
           .sort((a, b) => a.chapterNumber - b.chapterNumber)
           .map((c) => (
-            <li key={c.id} className="flex items-center gap-3 px-3 py-2 text-sm">
-              <span className="w-6 shrink-0 text-center font-bold text-fg-muted">
-                {c.chapterNumber}
-              </span>
-              <span className="font-arabic min-w-0 flex-1 truncate" dir="rtl">
-                {c.titleAr}
-              </span>
-              <span className="hidden truncate text-xs text-fg-muted sm:inline">{c.titleEn}</span>
-              <button
-                title="Delete chapter"
-                disabled={pending}
-                onClick={() =>
-                  startTransition(async () => {
-                    await deleteChapter(c.id, bookId);
-                    router.refresh();
-                  })
-                }
-                className="shrink-0 text-fg-muted transition hover:text-danger disabled:opacity-50"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </li>
+            <ChapterRow key={c.id} chapter={c} bookId={bookId} />
           ))}
       </ul>
     </div>
+  );
+}
+
+/** One chapter: rename its titles inline, or delete it. Text is left untouched. */
+function ChapterRow({ chapter, bookId }: { chapter: AdminChapter; bookId: string }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [editing, setEditing] = useState(false);
+  const [titleAr, setTitleAr] = useState(chapter.titleAr);
+  const [titleEn, setTitleEn] = useState(chapter.titleEn);
+
+  function save() {
+    startTransition(async () => {
+      await updateChapter({ chapterId: chapter.id, titleAr, titleEn });
+      setEditing(false);
+      router.refresh();
+    });
+  }
+
+  return (
+    <li className="flex items-center gap-3 px-3 py-2 text-sm">
+      <span className="w-6 shrink-0 text-center font-bold text-fg-muted">
+        {chapter.chapterNumber}
+      </span>
+
+      {editing ? (
+        <>
+          <input
+            className="font-arabic min-w-0 flex-1 rounded-lg border border-border bg-bg-muted px-2 py-1"
+            dir="rtl"
+            value={titleAr}
+            onChange={(e) => setTitleAr(e.target.value)}
+          />
+          <input
+            className="min-w-0 flex-1 rounded-lg border border-border bg-bg-muted px-2 py-1 text-xs"
+            value={titleEn}
+            onChange={(e) => setTitleEn(e.target.value)}
+          />
+          <button
+            title="Save title"
+            disabled={pending}
+            onClick={save}
+            className="shrink-0 text-brand transition hover:opacity-70 disabled:opacity-50"
+          >
+            <Check className="h-4 w-4" />
+          </button>
+          <button
+            title="Cancel"
+            disabled={pending}
+            onClick={() => {
+              setTitleAr(chapter.titleAr);
+              setTitleEn(chapter.titleEn);
+              setEditing(false);
+            }}
+            className="shrink-0 text-fg-muted transition hover:text-fg disabled:opacity-50"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </>
+      ) : (
+        <>
+          <span className="font-arabic min-w-0 flex-1 truncate" dir="rtl">
+            {chapter.titleAr}
+          </span>
+          <span className="hidden truncate text-xs text-fg-muted sm:inline">{chapter.titleEn}</span>
+          <button
+            title="Rename chapter"
+            onClick={() => setEditing(true)}
+            className="shrink-0 text-fg-muted transition hover:text-brand"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+          <button
+            title="Delete chapter"
+            disabled={pending}
+            onClick={() =>
+              startTransition(async () => {
+                await deleteChapter(chapter.id, bookId);
+                router.refresh();
+              })
+            }
+            className="shrink-0 text-fg-muted transition hover:text-danger disabled:opacity-50"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </>
+      )}
+    </li>
+  );
+}
+
+/** Edit a book's catalogue metadata — title, slug (its URL), level, genre, blurb. */
+function EditBook({ book }: { book: AdminBook }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const [form, setForm] = useState({
+    slug: book.slug,
+    titleAr: book.titleAr,
+    titleEn: book.titleEn,
+    authorAr: book.authorAr ?? "",
+    authorEn: book.authorEn ?? "",
+    blurb: book.blurb ?? "",
+    level: book.level,
+    genre: book.genre as Genre,
+    difficulty: book.difficulty,
+    recommendedPages: book.recommendedPages ?? ("" as number | ""),
+  });
+
+  function set<K extends keyof typeof form>(k: K, v: (typeof form)[K]) {
+    setSaved(false);
+    setForm((f) => ({ ...f, [k]: v }));
+  }
+
+  function save() {
+    setError(null);
+    startTransition(async () => {
+      try {
+        await updateBook({
+          id: book.id,
+          slug: form.slug,
+          titleAr: form.titleAr,
+          titleEn: form.titleEn,
+          authorAr: form.authorAr || undefined,
+          authorEn: form.authorEn || undefined,
+          blurb: form.blurb,
+          level: form.level,
+          genre: form.genre,
+          difficulty: form.difficulty,
+          recommendedPages: form.recommendedPages === "" ? undefined : Number(form.recommendedPages),
+        });
+        setSaved(true);
+        router.refresh();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to save book");
+      }
+    });
+  }
+
+  return (
+    <details className="rounded-2xl border border-dashed border-border">
+      <summary className="cursor-pointer px-4 py-2.5 text-sm font-semibold text-fg-muted">
+        Edit book details
+      </summary>
+      <div className="space-y-3 border-t border-border p-3">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <input
+            className={`${inputCls} font-arabic`}
+            dir="rtl"
+            placeholder="العنوان"
+            value={form.titleAr}
+            onChange={(e) => set("titleAr", e.target.value)}
+          />
+          <input
+            className={inputCls}
+            placeholder="Title (English)"
+            value={form.titleEn}
+            onChange={(e) => set("titleEn", e.target.value)}
+          />
+          <label className="text-xs font-semibold text-fg-muted">
+            URL slug · /book/…
+            <input
+              className={`${inputCls} mt-1`}
+              value={form.slug}
+              onChange={(e) => set("slug", e.target.value)}
+            />
+          </label>
+          <label className="text-xs font-semibold text-fg-muted">
+            Level (1–8)
+            <input
+              type="number"
+              min={1}
+              max={8}
+              className={`${inputCls} mt-1`}
+              value={form.level}
+              onChange={(e) => set("level", Number(e.target.value))}
+            />
+          </label>
+          <input
+            className={`${inputCls} font-arabic`}
+            dir="rtl"
+            placeholder="المؤلف (اختياري)"
+            value={form.authorAr}
+            onChange={(e) => set("authorAr", e.target.value)}
+          />
+          <input
+            className={inputCls}
+            placeholder="Author (English, optional)"
+            value={form.authorEn}
+            onChange={(e) => set("authorEn", e.target.value)}
+          />
+          <label className="text-xs font-semibold text-fg-muted">
+            Genre
+            <select
+              className={`${inputCls} mt-1`}
+              value={form.genre}
+              onChange={(e) => set("genre", e.target.value as Genre)}
+            >
+              {GENRES.map((g) => (
+                <option key={g.value} value={g.value}>
+                  {g.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-xs font-semibold text-fg-muted">
+            Difficulty (1–5)
+            <input
+              type="number"
+              min={1}
+              max={5}
+              className={`${inputCls} mt-1`}
+              value={form.difficulty}
+              onChange={(e) => set("difficulty", Number(e.target.value))}
+            />
+          </label>
+        </div>
+        <textarea
+          className={`${inputCls} min-h-20`}
+          placeholder="Blurb"
+          value={form.blurb}
+          onChange={(e) => set("blurb", e.target.value)}
+        />
+        {error && <p className="text-sm font-medium text-danger">{error}</p>}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={save}
+            disabled={pending}
+            className="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-brand-fg transition hover:bg-brand-dark disabled:opacity-60"
+          >
+            <Check className="h-4 w-4" /> {pending ? "Saving…" : "Save changes"}
+          </button>
+          {saved && !pending && <span className="text-sm font-semibold text-brand">Saved</span>}
+        </div>
+      </div>
+    </details>
   );
 }
 
