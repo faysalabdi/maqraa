@@ -118,15 +118,36 @@ export function PdfImport() {
     setSubmitting(true);
     setError(null);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      for (const [k, v] of Object.entries(form)) fd.append(k, String(v));
-      const res = await fetch("/api/v1/admin/pdf-import", { method: "POST", body: fd });
+      // 1. Mint a signed upload URL (tiny request).
+      const signRes = await fetch("/api/v1/admin/pdf-import/sign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug: form.slug || form.titleEn }),
+      });
+      const sign = (await signRes.json().catch(() => null)) as
+        | { jobId?: string; uploadUrl?: string; error?: string }
+        | null;
+      if (!signRes.ok || !sign?.jobId || !sign.uploadUrl) {
+        throw new Error(sign?.error ?? `Couldn't start the upload (${signRes.status}).`);
+      }
+      // 2. Upload the PDF straight to Supabase Storage — bypasses the 4.5 MB API cap.
+      const put = await fetch(sign.uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": "application/pdf", "x-upsert": "true" },
+        body: file,
+      });
+      if (!put.ok) throw new Error(`Storage upload failed (${put.status}).`);
+      // 3. Dispatch the workflow with the metadata (small JSON).
+      const res = await fetch("/api/v1/admin/pdf-import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId: sign.jobId, ...form }),
+      });
       const json = (await res.json().catch(() => null)) as
         | { jobId?: string; slug?: string; error?: string }
         | null;
       if (!res.ok || !json?.jobId || !json.slug) {
-        throw new Error(json?.error ?? `Upload failed (${res.status})`);
+        throw new Error(json?.error ?? `Import failed (${res.status})`);
       }
       const active: ActiveJob = {
         jobId: json.jobId,
