@@ -21,6 +21,11 @@ export const env = createEnv({
     STRIPE_PRICE_ANNUAL: z.string().optional(),
     // RevenueCat (Apple IAP for the iOS app). Webhook is rejected until set.
     REVENUECAT_WEBHOOK_SECRET: z.string().optional(),
+    // Admin PDF import: dispatches the import-pdf GitHub Actions workflow.
+    // Optional — the /api/v1/admin/pdf-import route 500s with a clear message
+    // until both are set.
+    GITHUB_IMPORT_TOKEN: z.string().optional(),
+    GITHUB_REPO: z.string().optional(), // "owner/name", e.g. faysalabdi/arabic-xp
   },
   client: {
     NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
@@ -41,6 +46,8 @@ export const env = createEnv({
     STRIPE_PRICE_MONTHLY: process.env.STRIPE_PRICE_MONTHLY,
     STRIPE_PRICE_ANNUAL: process.env.STRIPE_PRICE_ANNUAL,
     REVENUECAT_WEBHOOK_SECRET: process.env.REVENUECAT_WEBHOOK_SECRET,
+    GITHUB_IMPORT_TOKEN: process.env.GITHUB_IMPORT_TOKEN,
+    GITHUB_REPO: process.env.GITHUB_REPO,
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,

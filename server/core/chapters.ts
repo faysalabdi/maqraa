@@ -193,26 +193,15 @@ export async function markChapterReadCore(user: CoreUser, chapterId: string): Pr
 }
 
 export async function markChapterReadingCore(user: CoreUser, chapterId: string): Promise<void> {
+  // Opening a chapter only records the chapter as "reading" (drives the chapter
+  // dot). It deliberately does NOT flip the book to in_progress: a book enters
+  // "Continue reading" only on genuine reading — a page turn (see
+  // creditReadingActivityCore) or chapter completion — so merely peeking at a
+  // book doesn't pin it to the Continue slot.
   await db
     .insert(schema.userChapterProgress)
     .values({ userId: user.id, chapterId, status: "reading" })
     .onConflictDoNothing();
-
-  // Also mark the parent book in_progress on the path.
-  const ch = await db
-    .select({ bookId: schema.bookChapters.bookId })
-    .from(schema.bookChapters)
-    .where(eq(schema.bookChapters.id, chapterId))
-    .limit(1);
-  if (ch[0]) {
-    await db
-      .insert(schema.userBooks)
-      .values({ userId: user.id, bookId: ch[0].bookId, status: "in_progress", startedAt: new Date() })
-      .onConflictDoUpdate({
-        target: [schema.userBooks.userId, schema.userBooks.bookId],
-        set: { updatedAt: new Date() },
-      });
-  }
 }
 
 /**
@@ -237,11 +226,45 @@ export async function setBookNotReadingCore(user: CoreUser, bookId: string): Pro
  * Genuine reading activity — called when the reader turns a page (not on bare
  * chapter-open). Keeps the streak alive plus a little daily-capped XP.
  */
-export async function creditReadingActivityCore(user: CoreUser): Promise<void> {
+export async function creditReadingActivityCore(user: CoreUser, chapterId?: string): Promise<void> {
   const todayPages = await todayXp(user.id, "page_logged");
   const grantable = Math.min(XP_REWARDS.pageLogged, Math.max(0, DAILY_CAPS.pageLogged - todayPages));
   if (grantable > 0) {
     await grantXp({ userId: user.id, delta: grantable, reason: "page_logged" });
   }
   await recordActivity(user.id);
+
+  // Turning a page is the first genuine sign the reader has started this book —
+  // flip it to in_progress so it shows in "Continue reading". Don't downgrade a
+  // book that's already completed or in testing.
+  if (chapterId) {
+    const ch = await db
+      .select({ bookId: schema.bookChapters.bookId })
+      .from(schema.bookChapters)
+      .where(eq(schema.bookChapters.id, chapterId))
+      .limit(1);
+    if (ch[0]) {
+      const bookId = ch[0].bookId;
+      const updated = await db
+        .update(schema.userBooks)
+        .set({ status: "in_progress", updatedAt: new Date() })
+        .where(
+          and(
+            eq(schema.userBooks.userId, user.id),
+            eq(schema.userBooks.bookId, bookId),
+            ne(schema.userBooks.status, "completed"),
+            ne(schema.userBooks.status, "testing"),
+          ),
+        )
+        .returning({ bookId: schema.userBooks.bookId });
+      if (updated.length === 0) {
+        // No editable row updated: either no row yet (insert), or it's
+        // completed/testing (onConflictDoNothing preserves it).
+        await db
+          .insert(schema.userBooks)
+          .values({ userId: user.id, bookId, status: "in_progress", startedAt: new Date() })
+          .onConflictDoNothing();
+      }
+    }
+  }
 }

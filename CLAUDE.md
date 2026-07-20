@@ -30,7 +30,7 @@ See README "Path / what's built". The plan file at `/root/.claude/plans/i-want-t
 ## When extending
 
 - **New tables**: edit `lib/db/schema.ts`, `pnpm db:generate`, then `pnpm db:push`. Add RLS policy SQL to the next migration manually for now.
-- **New books**: two paths. For the baseline catalogue, append to `db/seed/books.ts` (+ `db/seed/chapters.ts`) and run `pnpm db:seed` — it upserts on `slug`. For ongoing additions, use the admin UI at `/admin/books` (gated by `ADMIN_EMAILS`): it writes `books` + `book_chapters` directly via `server/actions/admin.ts` and flips `has_full_text` on once a book has a chapter. There is no user upload / PDF-import path — reading material is curated only.
+- **New books**: two paths. For the baseline catalogue, append to `db/seed/books.ts` (+ `db/seed/chapters.ts`) and run `pnpm db:seed` — it upserts on `slug`. For ongoing additions, use the admin UI at `/admin/books` (gated by `ADMIN_EMAILS`): it writes `books` + `book_chapters` directly via `server/actions/admin.ts` and flips `has_full_text` on once a book has a chapter. Pro users can upload EPUBs at `/upload` (private shelves; admins' uploads join the catalogue). Admins can also import whole PDFs from Settings (web + iOS) — the upload dispatches the `import-pdf` GitHub Actions workflow, the same pipeline as `pnpm import-pdf`; see docs/CONTENT-SOURCING.md for setup.
 - **New levels**: append to `db/seed/levels.ts`. Re-seed.
 - **Prompt changes**: edit `prompts/test-system.md`, bump `PROMPT_VERSION` in `lib/ai/test-generator.ts`. The ephemeral-cache key changes automatically.
 - **New server actions**: place in `server/actions/`. Always start by calling `createClient()` from `lib/supabase/server.ts` and asserting `user` before any DB write.

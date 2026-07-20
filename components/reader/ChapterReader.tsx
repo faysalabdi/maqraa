@@ -207,7 +207,7 @@ export function ChapterReader(props: Props) {
     setSelected(null);
     if (next > pageIdx && !credited.current) {
       credited.current = true;
-      creditReadingActivity().catch(() => {});
+      creditReadingActivity(chapter.id).catch(() => {});
     }
     setPageIdx(Math.max(0, Math.min(pages.length - 1, next)));
     window.scrollTo({ top: 0, behavior: "smooth" });

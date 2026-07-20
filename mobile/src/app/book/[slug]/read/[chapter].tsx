@@ -252,13 +252,14 @@ export default function Reader() {
       setPage((p) => {
         const next = Math.min(Math.max(p + dir, 0), pages.length - 1);
         if (next !== p && dir === 1) {
-          // Genuine reading activity: streak + small capped XP.
-          api("/api/v1/reading/activity", { body: {} }).catch(() => {});
+          // Genuine reading activity: streak + small capped XP, and this is what
+          // flips the book to "Continue reading" (opening a chapter no longer does).
+          api("/api/v1/reading/activity", { body: { chapterId: chapter?.id } }).catch(() => {});
         }
         return next;
       });
     },
-    [pages.length],
+    [pages.length, chapter?.id],
   );
 
   const jumpToChapter = useCallback(

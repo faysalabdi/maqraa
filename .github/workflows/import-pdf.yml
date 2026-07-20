@@ -1,0 +1,118 @@
+name: import-pdf
+# run-name carries the jobId so the app's status route can find this run.
+run-name: pdf-import:${{ inputs.jobId }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      jobId:
+        required: true
+        type: string
+      pdfUrl:
+        required: true
+        type: string
+        description: Signed URL the runner downloads the PDF from
+      slug:
+        required: true
+        type: string
+      titleAr:
+        required: true
+        type: string
+      titleEn:
+        required: true
+        type: string
+      authorAr:
+        required: false
+        type: string
+        default: ""
+      authorEn:
+        required: false
+        type: string
+        default: ""
+      level:
+        required: true
+        type: string
+        default: "3"
+      genre:
+        required: true
+        type: string
+        default: "classical"
+      difficulty:
+        required: true
+        type: string
+        default: "3"
+      blurb:
+        required: false
+        type: string
+        default: ""
+      guidance:
+        required: false
+        type: string
+        default: ""
+      forceOcr:
+        required: false
+        type: string
+        default: "false"
+
+# One import at a time — extra dispatches queue instead of racing the DB.
+concurrency:
+  group: pdf-import
+  cancel-in-progress: false
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: pnpm install --frozen-lockfile
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install pymupdf
+
+      - name: Download the PDF
+        env:
+          PDF_URL: ${{ inputs.pdfUrl }}
+        run: curl -fL "$PDF_URL" -o import.pdf
+
+      # Bash arrays keep Arabic titles / quotes intact without manual escaping.
+      - name: Run the import
+        env:
+          SKIP_ENV_VALIDATION: "true"
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_TEST_MODEL: ${{ secrets.ANTHROPIC_TEST_MODEL }}
+          ANTHROPIC_IMPORT_MODEL: ${{ secrets.ANTHROPIC_IMPORT_MODEL }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          SLUG: ${{ inputs.slug }}
+          TITLE_AR: ${{ inputs.titleAr }}
+          TITLE_EN: ${{ inputs.titleEn }}
+          AUTHOR_AR: ${{ inputs.authorAr }}
+          AUTHOR_EN: ${{ inputs.authorEn }}
+          LEVEL: ${{ inputs.level }}
+          GENRE: ${{ inputs.genre }}
+          DIFFICULTY: ${{ inputs.difficulty }}
+          BLURB: ${{ inputs.blurb }}
+          GUIDANCE: ${{ inputs.guidance }}
+          FORCE_OCR: ${{ inputs.forceOcr }}
+        run: |
+          args=(--pdf import.pdf --slug "$SLUG" --title-ar "$TITLE_AR" --title-en "$TITLE_EN" --level "$LEVEL" --genre "$GENRE" --difficulty "$DIFFICULTY")
+          [ -n "$AUTHOR_AR" ] && args+=(--author-ar "$AUTHOR_AR")
+          [ -n "$AUTHOR_EN" ] && args+=(--author-en "$AUTHOR_EN")
+          [ -n "$BLURB" ] && args+=(--blurb "$BLURB")
+          [ -n "$GUIDANCE" ] && args+=(--guidance "$GUIDANCE")
+          [ "$FORCE_OCR" = "true" ] && args+=(--force-ocr)
+          pnpm import-pdf "${args[@]}"

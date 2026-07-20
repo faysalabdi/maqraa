@@ -160,6 +160,13 @@ export default function SettingsScreen() {
           {purchasesAvailable() ? (
             <Row icon="refresh" label="Restore purchases" onPress={() => router.push("/paywall")} />
           ) : null}
+          {me?.isAdmin ? (
+            <Row
+              icon="document-text"
+              label="Import PDF to catalogue"
+              onPress={() => router.push("/pdf-import")}
+            />
+          ) : null}
 
           <View style={{ height: 12 }} />
           <Button title="Sign out" variant="ghost" onPress={() => supabase.auth.signOut()} />

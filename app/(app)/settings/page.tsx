@@ -5,11 +5,13 @@ import { createClient } from "@/lib/supabase/server";
 import { db, schema } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { getPlan } from "@/lib/entitlement";
+import { isAdmin } from "@/lib/admin";
 import { billingEnabled } from "@/lib/stripe/server";
 import { ManageBillingButton } from "@/components/paywall/UpgradeButton";
 import SettingsForm from "@/components/settings/SettingsForm";
 import { ThemeSetting } from "@/components/chrome/ThemeSetting";
 import { DeleteAccount } from "@/components/settings/DeleteAccount";
+import { PdfImport } from "@/components/settings/PdfImport";
 
 export const dynamic = "force-dynamic";
 
@@ -99,6 +101,12 @@ export default async function SettingsPage() {
             : null
         }
       />
+
+      {isAdmin(user.email) && (
+        <div className="mt-8">
+          <PdfImport />
+        </div>
+      )}
 
       <div className="mt-8">
         <DeleteAccount />
