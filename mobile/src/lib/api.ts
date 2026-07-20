@@ -74,22 +74,40 @@ export async function apiUpload<T>(
 ): Promise<T> {
   const token = await accessToken();
   const form = new FormData();
-  // React Native FormData file part: { uri, name, type }.
+  const mime = fileName.toLowerCase().endsWith(".epub")
+    ? "application/epub+zip"
+    : fileName.toLowerCase().endsWith(".pdf")
+      ? "application/pdf"
+      : "text/plain";
+  // React Native FormData file part: { uri, name, type }. Send via XMLHttpRequest,
+  // not fetch: RN 0.86's global fetch is spec-compliant and rejects the { uri }
+  // file-part shape ("unsupported FormDataPart implementation"). RN's XHR still
+  // serializes it natively from the file URI.
   form.append("file", {
     uri: fileUri,
     name: fileName,
-    type: fileName.toLowerCase().endsWith(".epub") ? "application/epub+zip" : "text/plain",
+    type: mime,
   } as unknown as Blob);
   for (const [k, v] of Object.entries(fields ?? {})) form.append(k, v);
 
-  const res = await fetch(`${API_URL}${path}`, {
-    method: "POST",
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-    body: form,
+  return new Promise<T>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${API_URL}${path}`);
+    if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    xhr.onload = () => {
+      let json: (T & { error?: string }) | null = null;
+      try {
+        json = JSON.parse(xhr.responseText) as T & { error?: string };
+      } catch {
+        json = null;
+      }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(json as T);
+      } else {
+        reject(new ApiError(json?.error ?? `Upload failed (${xhr.status})`, xhr.status));
+      }
+    };
+    xhr.onerror = () => reject(new ApiError("Upload failed (network error)", 0));
+    xhr.send(form);
   });
-  const json = (await res.json().catch(() => null)) as (T & { error?: string }) | null;
-  if (!res.ok) {
-    throw new ApiError(json?.error ?? `Upload failed (${res.status})`, res.status);
-  }
-  return json as T;
 }

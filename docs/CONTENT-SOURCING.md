@@ -77,3 +77,22 @@ The chapter quiz generator (`lib/ai/chapter-quiz.ts`) reads the full text and as
 - Keep paragraph breaks meaningful (Claude uses structure to find question material).
 - Aim for chapters of 200-1500 Arabic words. Shorter chapters give weaker quizzes; longer ones cost more Anthropic tokens.
 - Add tashkeel where it disambiguates. Don't add it to common words — it's harder to read, not easier.
+
+## Importing a PDF (admins)
+
+Admins can import a whole PDF book straight into the catalogue — via the CLI
+(`pnpm import-pdf …`) or from the app itself: web → Settings → "Admin · PDF
+import", iOS → Settings → "Import PDF to catalogue". The app upload stores the
+PDF in Supabase Storage (bucket `pdf-imports`) and dispatches the
+`import-pdf` GitHub Actions workflow, which runs the exact CLI pipeline in CI.
+Status polls back into the app; closing the app never cancels an import.
+Limits: admin-only, ≤45 MB (bigger books stay on the CLI), one import at a
+time (extra dispatches queue).
+
+One-time setup: GitHub repo secrets `DATABASE_URL`, `DIRECT_URL`,
+`ANTHROPIC_API_KEY`, `ANTHROPIC_TEST_MODEL` (plus `ANTHROPIC_IMPORT_MODEL` /
+`MISTRAL_API_KEY` when used), and server envs `GITHUB_IMPORT_TOKEN` (classic
+PAT, `repo` scope) and `GITHUB_REPO=faysalabdi/arabic-xp`.
+
+The legal line above applies unchanged — public-domain / CC / properly
+licensed PDFs only (Shamela, Hindawi, archive.org).

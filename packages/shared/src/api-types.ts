@@ -9,6 +9,23 @@ export type MeResponse = {
   id: string;
   email: string | null;
   plan: "free" | "pro";
+  isAdmin: boolean;
+};
+
+export type PdfImportProgress = {
+  stage: number | null;
+  chunkDone: number | null;
+  chunkTotal: number | null;
+  lastLine: string;
+};
+
+/** GET /api/v1/admin/pdf-import/[jobId] */
+export type PdfImportStatus = {
+  status: "queued" | "running" | "done" | "failed";
+  slug?: string;
+  runUrl?: string;
+  error?: string;
+  progress?: PdfImportProgress | null;
 };
 
 export type WordLookupResponse = {
