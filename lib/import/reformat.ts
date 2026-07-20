@@ -117,7 +117,7 @@ const SUBMIT_CHAPTERS = {
 
 /** Resolve the import model from env without loading the strict env schema. */
 export function importModelFromEnv(): string {
-  const model = process.env.ANTHROPIC_IMPORT_MODEL || process.env.ANTHROPIC_TEST_MODEL;
+  const model = (process.env.ANTHROPIC_IMPORT_MODEL || process.env.ANTHROPIC_TEST_MODEL)?.trim();
   if (!model) {
     throw new Error("ANTHROPIC_IMPORT_MODEL (or ANTHROPIC_TEST_MODEL) is not set");
   }
