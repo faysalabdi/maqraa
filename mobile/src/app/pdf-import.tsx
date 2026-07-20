@@ -1,13 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as DocumentPicker from "expo-document-picker";
+import * as FileSystem from "expo-file-system/legacy";
 import { router, Stack, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { PdfImportStatus } from "@maqraa/shared";
 import { Button, Input } from "../components/ui";
-import { api, apiUpload } from "../lib/api";
+import { api } from "../lib/api";
 import { usePalette } from "../lib/use-palette";
 
 const TIERS = [
@@ -130,11 +131,25 @@ export default function PdfImportScreen() {
     setBusy(true);
     setError(null);
     try {
-      const res = await apiUpload<{ jobId: string; slug: string }>(
-        "/api/v1/admin/pdf-import",
-        picked.uri,
-        picked.name,
-        {
+      // 1. Mint a signed upload URL (tiny request).
+      const sign = await api<{ jobId: string; uploadUrl: string }>(
+        "/api/v1/admin/pdf-import/sign",
+        { body: { slug: titleEn } },
+      );
+      // 2. Upload the PDF straight to Supabase Storage. uploadAsync streams from
+      // disk (safe for a 45 MB book) and bypasses Vercel's 4.5 MB API body cap.
+      const put = await FileSystem.uploadAsync(sign.uploadUrl, picked.uri, {
+        httpMethod: "PUT",
+        uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+        headers: { "Content-Type": "application/pdf", "x-upsert": "true" },
+      });
+      if (put.status < 200 || put.status >= 300) {
+        throw new Error(`Storage upload failed (${put.status}).`);
+      }
+      // 3. Dispatch the workflow with the metadata (small JSON).
+      const res = await api<{ jobId: string; slug: string }>("/api/v1/admin/pdf-import", {
+        body: {
+          jobId: sign.jobId,
           titleAr,
           titleEn,
           authorAr,
@@ -143,7 +158,7 @@ export default function PdfImportScreen() {
           difficulty: String(difficulty),
           forceOcr: String(forceOcr),
         },
-      );
+      });
       const active: ActiveJob = { jobId: res.jobId, slug: res.slug, title: titleEn || titleAr };
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(active));
       setStatus({ status: "queued" });
