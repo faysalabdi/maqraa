@@ -49,6 +49,9 @@ export default async function UploadPage() {
       genre: schema.books.genre,
       authorAr: schema.books.authorAr,
       authorEn: schema.books.authorEn,
+      blurb: schema.books.blurb,
+      difficulty: schema.books.difficulty,
+      recommendedPages: schema.books.recommendedPages,
       ownerId: schema.books.ownerId,
       hasFullText: schema.books.hasFullText,
       chapterCount: count(schema.bookChapters.id),
@@ -108,16 +111,7 @@ async function ChaptersList({
   adminBooks,
 }: {
   bookIds: string[];
-  adminBooks: {
-    id: string;
-    slug: string;
-    titleAr: string;
-    titleEn: string;
-    level: number;
-    genre: string;
-    hasFullText: boolean;
-    chapterCount: number;
-  }[];
+  adminBooks: AdminBook[];
 }) {
   const chapters = bookIds.length
     ? await db

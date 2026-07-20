@@ -211,21 +211,90 @@ export async function updateChapter(input: {
   chapterId: string;
   titleAr: string;
   titleEn: string;
-  contentAr: string;
+  /** Omit to rename a chapter without touching its text. */
+  contentAr?: string;
 }): Promise<void> {
   await requireAdmin();
-  if (!clean(input.contentAr)) throw new Error("chapter text is required");
+  if (input.contentAr !== undefined && !clean(input.contentAr)) {
+    throw new Error("chapter text is required");
+  }
 
   await db
     .update(schema.bookChapters)
     .set({
       titleAr: clean(input.titleAr),
       titleEn: clean(input.titleEn),
-      contentAr: input.contentAr.trim(),
+      ...(input.contentAr !== undefined ? { contentAr: input.contentAr.trim() } : {}),
     })
     .where(eq(schema.bookChapters.id, input.chapterId));
 
   revalidatePath("/upload");
+}
+
+export type UpdateBookInput = CreateBookInput & { id: string };
+
+/**
+ * Edit a book's catalogue metadata. The slug is part of the public URL, so it
+ * must stay unique; moving a book to another level re-queues it at the end of
+ * that level so it doesn't collide with an existing order.
+ */
+export async function updateBook(input: UpdateBookInput): Promise<void> {
+  await requireAdmin();
+
+  const slug = slugify(input.slug);
+  if (!slug)
+    throw new Error(
+      "slug must contain Latin letters or numbers (e.g. animal-farm) — it becomes part of the book's URL",
+    );
+  if (!clean(input.titleAr) || !clean(input.titleEn)) throw new Error("title is required");
+
+  const [current] = await db
+    .select({ level: schema.books.level, slug: schema.books.slug })
+    .from(schema.books)
+    .where(eq(schema.books.id, input.id))
+    .limit(1);
+  if (!current) throw new Error("book not found");
+
+  const [clash] = await db
+    .select({ id: schema.books.id })
+    .from(schema.books)
+    .where(eq(schema.books.slug, slug))
+    .limit(1);
+  if (clash && clash.id !== input.id) {
+    throw new Error(`another book already uses the slug "${slug}"`);
+  }
+
+  let orderInLevel: number | undefined;
+  if (current.level !== input.level) {
+    const [{ nextOrder }] = await db
+      .select({ nextOrder: sql<number>`coalesce(max(${schema.books.orderInLevel}), -1) + 1` })
+      .from(schema.books)
+      .where(eq(schema.books.level, input.level));
+    orderInLevel = nextOrder;
+  }
+
+  await db
+    .update(schema.books)
+    .set({
+      slug,
+      level: input.level,
+      titleAr: clean(input.titleAr),
+      titleEn: clean(input.titleEn),
+      authorAr: input.authorAr ? clean(input.authorAr) : null,
+      authorEn: input.authorEn ? clean(input.authorEn) : null,
+      blurb: clean(input.blurb),
+      difficulty: input.difficulty,
+      genre: input.genre,
+      recommendedPages: input.recommendedPages ?? null,
+      ...(orderInLevel !== undefined ? { orderInLevel } : {}),
+    })
+    .where(eq(schema.books.id, input.id));
+
+  revalidatePath("/upload");
+  revalidatePath("/path");
+  revalidatePath("/admin/books");
+  revalidatePath(`/book/${slug}`);
+  if (current.slug !== slug) revalidatePath(`/book/${current.slug}`);
 }
 
 export async function deleteBook(bookId: string): Promise<void> {
