@@ -9,7 +9,8 @@ export async function POST(req: Request) {
   const user = await getApiUser(req);
   if (!user) return unauthorized();
   try {
-    await creditReadingActivityCore(user);
+    const body = (await req.json().catch(() => ({}))) as { chapterId?: string };
+    await creditReadingActivityCore(user, body.chapterId);
     return NextResponse.json({ ok: true });
   } catch (err) {
     return errorResponse(err);

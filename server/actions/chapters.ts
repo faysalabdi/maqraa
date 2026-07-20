@@ -53,7 +53,7 @@ export async function setBookNotReading(bookId: string): Promise<void> {
   revalidatePath("/path");
 }
 
-export async function creditReadingActivity(): Promise<void> {
+export async function creditReadingActivity(chapterId?: string): Promise<void> {
   const user = await requireUser();
-  return creditReadingActivityCore(user);
+  return creditReadingActivityCore(user, chapterId);
 }
