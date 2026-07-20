@@ -33,8 +33,7 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen name="path" options={{ title: "Read", tabBarIcon: icon("book") }} />
-      <Tabs.Screen name="talk" options={{ title: "Talk", tabBarIcon: icon("mic") }} />
-      <Tabs.Screen name="words" options={{ title: "Words", tabBarIcon: icon("book-outline") }} />
+      <Tabs.Screen name="words" options={{ title: "Words", tabBarIcon: icon("language") }} />
       <Tabs.Screen name="stats" options={{ title: "Progress", tabBarIcon: icon("stats-chart") }} />
       <Tabs.Screen name="leaderboard" options={{ title: "Ranks", tabBarIcon: icon("podium") }} />
       {/* Review, Awards, and Settings are reached from other screens, not tabs. */}
