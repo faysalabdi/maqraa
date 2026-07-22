@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -35,14 +35,19 @@ export default function ReviewScreen() {
   const [xpTotal, setXpTotal] = useState(0);
   const [doneCount, setDoneCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [grading, setGrading] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const sessionRef = useRef(0);
 
   const reload = useCallback(() => {
+    sessionRef.current += 1;
     setQueue(null);
     setRevealed(false);
     setXpTotal(0);
     setDoneCount(0);
     setError(null);
+    setPendingCount(0);
+    setSyncError(null);
     (practice ? fetchPracticeVocab() : fetchDueVocab())
       .then((deck) => setQueue(practice ? deck.slice(0, 20) : deck))
       .catch((e) => setError(e.message));
@@ -54,29 +59,44 @@ export default function ReviewScreen() {
     }, [reload]),
   );
 
-  const grade = async (quality: number) => {
-    if (!queue || queue.length === 0 || grading) return;
+  useEffect(() => {
+    if (!syncError) return;
+    const t = setTimeout(() => setSyncError(null), 4000);
+    return () => clearTimeout(t);
+  }, [syncError]);
+
+  // Optimistic: advance to the next card immediately, sync the grade in the
+  // background. A failed sync leaves the card due server-side, so it simply
+  // reappears next session.
+  const grade = (quality: number) => {
+    if (!queue || queue.length === 0) return;
     const card = queue[0];
-    setGrading(true);
-    try {
-      // Practice drills never touch the SRS schedule — separate endpoint.
-      const res = practice
-        ? await api<PracticeCardResponse>(`/api/v1/review/${card.id}/practice`, { body: {} })
-        : await api<GradeCardResponse>(`/api/v1/review/${card.id}/grade`, {
-            body: { quality },
-          });
-      Haptics.impactAsync(
-        quality < 3 ? Haptics.ImpactFeedbackStyle.Rigid : Haptics.ImpactFeedbackStyle.Light,
-      );
-      setXpTotal((x) => x + res.xpEarned);
-      setDoneCount((n) => n + 1);
-      setQueue((q) => (q ? q.slice(1) : q));
-      setRevealed(false);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't grade the card.");
-    } finally {
-      setGrading(false);
-    }
+    const session = sessionRef.current;
+    Haptics.impactAsync(
+      quality < 3 ? Haptics.ImpactFeedbackStyle.Rigid : Haptics.ImpactFeedbackStyle.Light,
+    );
+    setQueue((q) => (q ? q.slice(1) : q));
+    setRevealed(false);
+    setDoneCount((n) => n + 1);
+    setPendingCount((n) => n + 1);
+    // Practice drills never touch the SRS schedule — separate endpoint.
+    (practice
+      ? api<PracticeCardResponse>(`/api/v1/review/${card.id}/practice`, { body: {} })
+      : api<GradeCardResponse>(`/api/v1/review/${card.id}/grade`, { body: { quality } })
+    )
+      .then((res) => {
+        if (sessionRef.current !== session) return;
+        setXpTotal((x) => x + res.xpEarned);
+      })
+      .catch(() => {
+        if (sessionRef.current !== session) return;
+        setDoneCount((n) => n - 1);
+        setSyncError("Some cards didn't sync — they'll show up again next time.");
+      })
+      .finally(() => {
+        if (sessionRef.current !== session) return;
+        setPendingCount((n) => n - 1);
+      });
   };
 
   const toneColor = (tone: (typeof GRADES)[number]["tone"]) =>
@@ -117,6 +137,17 @@ export default function ReviewScreen() {
           <Text style={{ color: c.fgMuted }}>
             {doneCount > 0 ? `${doneCount} cards reviewed · +${xpTotal} XP` : "Come back later."}
           </Text>
+          {pendingCount > 0 ? (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <ActivityIndicator size="small" />
+              <Text style={{ color: c.fgMuted }}>Syncing…</Text>
+            </View>
+          ) : null}
+          {syncError ? (
+            <Text style={{ color: c.danger, textAlign: "center", paddingHorizontal: 24 }}>
+              {syncError}
+            </Text>
+          ) : null}
           {doneCount > 0 ? (
             <Button title={practice ? "Practice more" : "Review again"} onPress={reload} />
           ) : (
@@ -125,6 +156,9 @@ export default function ReviewScreen() {
         </View>
       ) : (
         <View style={styles.body}>
+          {syncError ? (
+            <Text style={{ color: c.danger, textAlign: "center" }}>{syncError}</Text>
+          ) : null}
           <Pressable
             onPress={() => setRevealed(true)}
             style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}
@@ -149,9 +183,12 @@ export default function ReviewScreen() {
               {GRADES.map((g) => (
                 <Pressable
                   key={g.label}
-                  disabled={grading}
                   onPress={() => grade(g.quality)}
-                  style={[styles.gradeButton, { backgroundColor: toneColor(g.tone) }]}
+                  style={({ pressed }) => [
+                    styles.gradeButton,
+                    { backgroundColor: toneColor(g.tone) },
+                    pressed && styles.gradeButtonPressed,
+                  ]}
                 >
                   <Text style={{ color: "#ffffff", fontWeight: "700" }}>{g.label}</Text>
                 </Pressable>
@@ -200,5 +237,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: "center",
+  },
+  gradeButtonPressed: {
+    opacity: 0.55,
+    transform: [{ scale: 0.96 }],
   },
 });
