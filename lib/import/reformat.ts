@@ -188,6 +188,13 @@ function isRetryable(e: unknown): boolean {
   return status === 429 || status >= 500;
 }
 
+/** Anthropic's safety filter rejected the output for this chunk (a 400 specific
+ *  to the chunk's content, not a config problem). */
+function isContentFiltered(e: unknown): boolean {
+  const err = e as { status?: number; message?: string };
+  return err?.status === 400 && /content filtering/i.test(err?.message ?? "");
+}
+
 async function withRetry(
   label: string,
   run: () => Promise<ReformattedChunk>,
@@ -220,6 +227,21 @@ async function withRetry(
       const sleep = opts.delayMs ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
       await sleep(wait);
     }
+  }
+  // A content-filter block is specific to this chunk's text — don't let one
+  // flagged section abort the whole book. Emit a visible placeholder chapter so
+  // the pages aren't lost silently and an admin can re-enter them, then continue.
+  if (isContentFiltered(lastErr)) {
+    opts.onLog?.(`  ${label}: blocked by the AI content filter — inserting a placeholder, continuing`);
+    return {
+      chapters: [
+        {
+          titleAr: "⚠ مقطع محظور أثناء الاستيراد — يحتاج إدخالاً يدوياً",
+          contentAr: `[This section (${label}) was blocked by the AI content filter during import and needs to be entered manually via the admin book editor.]`,
+          startsMidChapter: false,
+        },
+      ],
+    };
   }
   throw lastErr;
 }
