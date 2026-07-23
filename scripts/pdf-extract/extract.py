@@ -78,6 +78,8 @@ def mistral_ocr(path: str, api_key: str) -> list[dict]:
     markdown image refs, then NFKC/tatweel-normalize so the downstream Claude
     text-clean sees the same shape it gets from the PyMuPDF text path.
     """
+    # A stray newline pasted into the CI secret makes an invalid HTTP header value.
+    api_key = (api_key or "").strip()
     with open(path, "rb") as f:
         b64 = base64.b64encode(f.read()).decode("ascii")
     body = json.dumps(
