@@ -159,14 +159,18 @@ async function callModel(
   const fullSystem = opts.guidance?.trim()
     ? `${system}\n\nBOOK-SPECIFIC GUIDANCE (overrides the generic rules above where they conflict):\n${opts.guidance.trim()}`
     : system;
-  const response = await client.messages.create({
+  // Streamed, not create(): a dense Arabic chunk can emit well over 16k output
+  // tokens, and the SDK needs streaming at this ceiling or the request trips its
+  // HTTP timeout.
+  const stream = client.messages.stream({
     model: opts.model,
-    max_tokens: opts.maxTokens ?? 16000,
+    max_tokens: opts.maxTokens ?? 64000,
     system: [{ type: "text", text: fullSystem, cache_control: { type: "ephemeral" } }],
     tools: [SUBMIT_CHAPTERS as never],
     tool_choice: { type: "tool", name: "submit_chapters" },
     messages: [{ role: "user", content: userContent }],
   });
+  const response = await stream.finalMessage();
 
   if (response.stop_reason === "max_tokens") {
     const err = new Error(

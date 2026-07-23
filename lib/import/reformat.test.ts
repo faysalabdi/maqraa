@@ -17,23 +17,29 @@ const goodInput = {
 
 const chunk: TextChunk = { index: 0, text: "…", fromPage: 1, toPage: 4 };
 
-/** Minimal fake Anthropic client whose messages.create is scripted per call. */
+/** Minimal fake Anthropic client whose messages.stream is scripted per call. */
 function fakeClient(
   replies: Array<{ input?: unknown; stopReason?: string } | Error>,
 ): { client: Anthropic; calls: () => number } {
   let i = 0;
   const client = {
     messages: {
-      create: async () => {
+      // Mirrors the SDK: stream() returns synchronously; the reply (or the
+      // scripted error) surfaces when finalMessage() is awaited.
+      stream: () => {
         const r = replies[Math.min(i, replies.length - 1)];
         i++;
-        if (r instanceof Error) throw r;
         return {
-          stop_reason: r.stopReason ?? "tool_use",
-          content:
-            r.input === undefined
-              ? []
-              : [{ type: "tool_use", name: "submit_chapters", input: r.input }],
+          finalMessage: async () => {
+            if (r instanceof Error) throw r;
+            return {
+              stop_reason: r.stopReason ?? "tool_use",
+              content:
+                r.input === undefined
+                  ? []
+                  : [{ type: "tool_use", name: "submit_chapters", input: r.input }],
+            };
+          },
         };
       },
     },

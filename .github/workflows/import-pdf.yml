@@ -62,7 +62,9 @@ concurrency:
 jobs:
   import:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    # A long scanned book at --concurrency 1 runs a few minutes per chunk; a
+    # 500-page import needs well over the 2h default. (GitHub caps a job at 6h.)
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
 
