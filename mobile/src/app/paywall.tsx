@@ -7,7 +7,7 @@ import type { PurchasesPackage } from "react-native-purchases";
 import { ArabicText } from "../components/ArabicText";
 import { Button } from "../components/ui";
 import { useMe } from "../lib/me-context";
-import { purchasesAvailable } from "../lib/purchases";
+import { purchasesAvailable, purchasesReady } from "../lib/purchases";
 import { usePalette } from "../lib/use-palette";
 
 // Lazy so the module never crashes in Expo Go (native lives in the built app).
@@ -38,31 +38,53 @@ export default function Paywall() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [attempt, setAttempt] = useState(0);
 
+  // StoreKit can return an empty product list transiently — right after launch,
+  // before the RevenueCat SDK finishes configuring, or while the App Store is
+  // slow to answer. Wait for configuration, then retry before giving up.
   useEffect(() => {
     let alive = true;
-    const p = loadPurchases();
-    if (!purchasesAvailable() || !p) {
-      setLoading(false);
-      return;
-    }
-    p.getOfferings()
-      .then((offerings) => {
+    (async () => {
+      setLoading(true);
+      const p = loadPurchases();
+      if (!purchasesAvailable() || !p) {
+        if (alive) {
+          setPackages([]);
+          setLoading(false);
+        }
+        return;
+      }
+      await purchasesReady();
+      for (let tries = 0; tries < 3; tries++) {
         if (!alive) return;
-        const pkgs = offerings.current?.availablePackages ?? [];
-        setPackages(pkgs);
-        setSelected(pkgs.find((x) => x.packageType === "ANNUAL") ?? pkgs[0] ?? null);
-      })
-      .catch(() => {
-        if (alive) setPackages([]);
-      })
-      .finally(() => {
-        if (alive) setLoading(false);
-      });
+        try {
+          const offerings = await p.getOfferings();
+          const pkgs =
+            offerings.current?.availablePackages ??
+            Object.values(offerings.all ?? {})[0]?.availablePackages ??
+            [];
+          if (pkgs.length > 0) {
+            if (!alive) return;
+            setPackages(pkgs);
+            setSelected(pkgs.find((x) => x.packageType === "ANNUAL") ?? pkgs[0]);
+            setLoading(false);
+            return;
+          }
+        } catch {
+          // Fall through to the retry delay.
+        }
+        await new Promise((r) => setTimeout(r, 1200 * (tries + 1)));
+      }
+      if (alive) {
+        setPackages([]);
+        setLoading(false);
+      }
+    })();
     return () => {
       alive = false;
     };
-  }, []);
+  }, [attempt]);
 
   const finishAfterEntitlement = async () => {
     for (let i = 0; i < 6; i++) {
@@ -186,11 +208,13 @@ export default function Paywall() {
             ) : (
               <View style={[styles.notice, { backgroundColor: c.surface, borderColor: c.border }]}>
                 <Text style={{ color: c.fg, fontWeight: "600", textAlign: "center" }}>
-                  Plans aren't available right now
+                  Couldn't load plans
                 </Text>
                 <Text style={{ color: c.fgMuted, fontSize: 13, textAlign: "center" }}>
-                  Subscriptions are still being set up. Please check back soon.
+                  The App Store didn't return the subscription options. Check your connection and
+                  try again.
                 </Text>
+                <Button title="Try again" variant="ghost" onPress={() => setAttempt((n) => n + 1)} />
               </View>
             )}
 
