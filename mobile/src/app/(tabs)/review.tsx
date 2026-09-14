@@ -1,5 +1,4 @@
 import { Ionicons } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
@@ -19,8 +18,10 @@ import {
 } from "@maqraa/shared";
 import { ArabicText } from "../../components/ArabicText";
 import { Washed } from "../../components/Background";
+import { Confetti } from "../../components/Confetti";
 import { Button } from "../../components/ui";
 import { api } from "../../lib/api";
+import { celebrate, hasConfetti } from "../../lib/celebrate";
 import {
   fetchDueVocab,
   fetchPracticeVocab,
@@ -121,6 +122,23 @@ export default function ReviewScreen() {
     });
   }, [presentation, mode, item, pool]);
 
+  // Fire the payoff once on the transition into a finished session, not on
+  // every render while the done screen is up.
+  const finished = session !== null && isDone(session);
+  const sessionTotal = session?.total ?? 0;
+  const [burst, setBurst] = useState(0);
+  const celebratedDone = useRef(false);
+  useEffect(() => {
+    if (!finished) {
+      celebratedDone.current = false;
+      return;
+    }
+    if (celebratedDone.current || sessionTotal === 0) return;
+    celebratedDone.current = true;
+    celebrate("session-complete");
+    if (hasConfetti("session-complete")) setBurst((n) => n + 1);
+  }, [finished, sessionTotal]);
+
   const syncGrade = (cardId: string, quality: number) => {
     const run = sessionRef.current;
     setPendingCount((n) => n + 1);
@@ -149,11 +167,7 @@ export default function ReviewScreen() {
    */
   const resolve = (passed: boolean, selfGrade?: number) => {
     if (!session || !card) return;
-    Haptics.notificationAsync(
-      passed
-        ? Haptics.NotificationFeedbackType.Success
-        : Haptics.NotificationFeedbackType.Warning,
-    );
+    celebrate(passed ? "answer-correct" : "answer-missed");
     if (passed) syncGrade(card.id, qualityFor(card, selfGrade));
     setSession(answer(session, passed));
     setRevealed(false);
@@ -164,7 +178,6 @@ export default function ReviewScreen() {
     tone === "danger" ? c.danger : tone === "warn" ? c.accent : tone === "iris" ? c.iris : c.brand;
 
   const stats = session ? progress(session) : null;
-  const finished = session ? isDone(session) : false;
 
   return (
     <Washed>
@@ -307,6 +320,7 @@ export default function ReviewScreen() {
             )}
           </View>
         )}
+        {burst > 0 ? <Confetti key={burst} /> : null}
       </SafeAreaView>
     </Washed>
   );

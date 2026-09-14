@@ -2,12 +2,13 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
-import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Washed } from "../../components/Background";
 import type { MeResponse } from "@maqraa/shared";
 import { Button, Input } from "../../components/ui";
 import { api } from "../../lib/api";
+import { celebrate, isFeedbackMuted, setFeedbackMuted } from "../../lib/celebrate";
 import { fetchProfile, updateProfile } from "../../lib/data";
 import { useMe } from "../../lib/me-context";
 import { purchasesAvailable } from "../../lib/purchases";
@@ -26,6 +27,7 @@ export default function SettingsScreen() {
   const [savingProfile, setSavingProfile] = useState(false);
   const [savedTick, setSavedTick] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [feedbackOn, setFeedbackOn] = useState(!isFeedbackMuted());
 
   useFocusEffect(
     useCallback(() => {
@@ -169,12 +171,49 @@ export default function SettingsScreen() {
             />
           ) : null}
 
+          <ToggleRow
+            icon={feedbackOn ? "volume-high" : "volume-mute"}
+            label="Sound & haptics"
+            value={feedbackOn}
+            onChange={(on) => {
+              setFeedbackOn(on);
+              setFeedbackMuted(!on);
+              // Fire the cue on the way in, so the choice is felt not abstract.
+              if (on) celebrate("answer-correct");
+            }}
+          />
+
           <View style={{ height: 12 }} />
           <Button title="Sign out" variant="ghost" onPress={() => supabase.auth.signOut()} />
           <Button title="Delete account" variant="danger" loading={deleting} onPress={confirmDelete} />
         </ScrollView>
       </SafeAreaView>
     </Washed>
+  );
+}
+
+function ToggleRow({
+  icon,
+  label,
+  value,
+  onChange,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  value: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  const c = usePalette();
+  return (
+    <View style={[styles.row, { backgroundColor: c.surface, borderColor: c.border }]}>
+      <Ionicons name={icon} size={18} color={c.fgMuted} />
+      <Text style={{ color: c.fg, fontSize: 15, flex: 1 }}>{label}</Text>
+      <Switch
+        value={value}
+        onValueChange={onChange}
+        trackColor={{ true: c.brand, false: c.border }}
+      />
+    </View>
   );
 }
 

@@ -10,6 +10,7 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { SessionProvider } from "../lib/auth-context";
 import { MeProvider } from "../lib/me-context";
+import { hydrateFeedbackPrefs } from "../lib/celebrate";
 import { initPurchases } from "../lib/purchases";
 import { ThemeProvider, useTheme } from "../lib/theme-context";
 
@@ -50,6 +51,7 @@ export default function RootLayout() {
   // against an unconfigured SDK during a slow session restore.
   useEffect(() => {
     initPurchases();
+    hydrateFeedbackPrefs();
   }, []);
 
   if (!fontsLoaded) return null;
