@@ -4,6 +4,7 @@ import { and, count, eq, lte } from "drizzle-orm";
 import { getPlan } from "@/lib/entitlement";
 import { AppShell } from "@/components/chrome/AppShell";
 import { PageViewTracker } from "@/components/analytics/PageViewTracker";
+import { CelebrationProvider } from "@/components/feedback/CelebrationProvider";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -48,19 +49,21 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-screen" style={{ fontSize: `${fontScale}rem` }}>
       <PageViewTracker />
-      <AppShell
-        data={{
-          signedIn: !!user,
-          name: displayName?.split("@")[0] ?? null,
-          email: user?.email ?? null,
-          avatarLetter,
-          reviewDue,
-          canUpload: !!user,
-          isPro,
-        }}
-      >
-        {children}
-      </AppShell>
+      <CelebrationProvider>
+        <AppShell
+          data={{
+            signedIn: !!user,
+            name: displayName?.split("@")[0] ?? null,
+            email: user?.email ?? null,
+            avatarLetter,
+            reviewDue,
+            canUpload: !!user,
+            isPro,
+          }}
+        >
+          {children}
+        </AppShell>
+      </CelebrationProvider>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -26,6 +26,7 @@ import {
   type ReviewSession as Session,
 } from "@maqraa/shared";
 import { gradeCard, practiceCard } from "@/server/actions/review";
+import { useCelebration } from "@/components/feedback/CelebrationProvider";
 
 export type ReviewCard = {
   id: string;
@@ -69,6 +70,7 @@ export default function ReviewSession({
   const [totalXp, setTotalXp] = useState(0);
   const [graduated, setGraduated] = useState(0);
   const [isPending, startTransition] = useTransition();
+  const { celebrate } = useCelebration();
 
   const byId = useMemo(() => {
     const map: Record<string, ReviewCard> = {};
@@ -102,6 +104,21 @@ export default function ReviewSession({
     });
   }, [presentation, cardMode, item, choicePool]);
 
+  // Fire the payoff once on the transition into a finished session, not on
+  // every render while the done screen is up.
+  const finished = session !== null && isDone(session);
+  const total = session?.total ?? 0;
+  const celebratedDone = useRef(false);
+  useEffect(() => {
+    if (!finished) {
+      celebratedDone.current = false;
+      return;
+    }
+    if (celebratedDone.current || total === 0) return;
+    celebratedDone.current = true;
+    celebrate("session-complete");
+  }, [finished, total, celebrate]);
+
   function begin(size: number) {
     // The deck arrives sorted most-due-first, so the front slice is the right
     // batch; whatever's left over stays due for next time.
@@ -127,7 +144,7 @@ export default function ReviewSession({
 
   const stats = progress(session);
 
-  if (isDone(session)) {
+  if (finished) {
     const hasMore = limit < initialDeck.length || initialDeck.length >= 50;
     return (
       <DoneScreen
@@ -148,6 +165,7 @@ export default function ReviewSession({
    */
   function resolve(passed: boolean, selfGrade?: number) {
     if (!session || !card) return;
+    celebrate(passed ? "answer-correct" : "answer-missed");
     if (passed) {
       const cardId = card.id;
       const quality = qualityFor(card, selfGrade);
@@ -155,7 +173,10 @@ export default function ReviewSession({
         const res = mode === "practice" ? await practiceCard(cardId) : await gradeCard(cardId, quality);
         if ("error" in res) return;
         setTotalXp((x) => x + res.xpEarned);
-        if ("graduated" in res && res.graduated) setGraduated((g) => g + 1);
+        if ("graduated" in res && res.graduated) {
+          setGraduated((g) => g + 1);
+          celebrate("word-graduated");
+        }
       });
     }
     setSession(answer(session, passed));
@@ -447,7 +468,7 @@ function DoneScreen({
   return (
     <main className="mx-auto max-w-md px-4 pb-24 pt-12 text-center">
       <div className="rounded-3xl bg-surface p-10 shadow-lift ring-1 ring-border">
-        <span className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-brand text-brand-fg shadow-glow-brand">
+        <span className="animate-pop mx-auto grid h-20 w-20 place-items-center rounded-full bg-brand text-brand-fg shadow-glow-brand">
           <Sparkles className="h-10 w-10" />
         </span>
         <h1 className="mt-5 font-serif text-3xl font-semibold tracking-tight">

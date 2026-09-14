@@ -10,6 +10,7 @@ import { billingEnabled } from "@/lib/stripe/server";
 import { ManageBillingButton } from "@/components/paywall/UpgradeButton";
 import SettingsForm from "@/components/settings/SettingsForm";
 import { ThemeSetting } from "@/components/chrome/ThemeSetting";
+import { SoundSetting } from "@/components/feedback/SoundSetting";
 import { DeleteAccount } from "@/components/settings/DeleteAccount";
 import { PdfImport } from "@/components/settings/PdfImport";
 
@@ -82,8 +83,9 @@ export default async function SettingsPage() {
         )}
       </div>
 
-      <div className="mb-6">
+      <div className="mb-6 grid gap-6 sm:grid-cols-2">
         <ThemeSetting />
+        <SoundSetting />
       </div>
 
       <SettingsForm
