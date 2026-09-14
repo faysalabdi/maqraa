@@ -314,6 +314,12 @@ export default function Reader() {
   const lastPage = page === pages.length - 1;
   const pageBg = tint === "paper" ? c.readPage : TINTS[tint].bg;
   const ink = tint === "paper" ? c.fg : TINTS[tint].ink;
+  // The reader chrome sits on the page, so it has to key off the tint rather
+  // than the app theme. Sepia and mint are light whatever the theme is, so
+  // theme colours drew near-white controls on cream in dark mode.
+  const inkMuted = tint === "paper" ? c.fgMuted : `${TINTS[tint].ink}a6`;
+  const inkFaint = tint === "paper" ? c.locked : `${TINTS[tint].ink}59`;
+  const inkRule = tint === "paper" ? c.border : `${TINTS[tint].ink}26`;
   const fontSize = SIZES[sizeIdx];
 
   return (
@@ -321,7 +327,7 @@ export default function Reader() {
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.topBar}>
         <Pressable onPress={() => router.back()} hitSlop={12}>
-          <Ionicons name="close" size={24} color={c.fgMuted} />
+          <Ionicons name="close" size={24} color={inkMuted} />
         </Pressable>
         <View style={styles.tools}>
           <Pressable
@@ -329,7 +335,7 @@ export default function Reader() {
             hitSlop={8}
             disabled={sizeIdx === 0}
           >
-            <Text style={[styles.sizeBtn, { color: sizeIdx === 0 ? c.locked : c.fgMuted }]}>A−</Text>
+            <Text style={[styles.sizeBtn, { color: sizeIdx === 0 ? inkFaint : inkMuted }]}>A−</Text>
           </Pressable>
           <Pressable
             onPress={() => setPrefs(Math.min(SIZES.length - 1, sizeIdx + 1), tint)}
@@ -339,7 +345,7 @@ export default function Reader() {
             <Text
               style={[
                 styles.sizeBtn,
-                { fontSize: 20, color: sizeIdx === SIZES.length - 1 ? c.locked : c.fgMuted },
+                { fontSize: 20, color: sizeIdx === SIZES.length - 1 ? inkFaint : inkMuted },
               ]}
             >
               A+
@@ -352,7 +358,7 @@ export default function Reader() {
                   styles.tintDot,
                   {
                     backgroundColor: t === "paper" ? c.readPage : TINTS[t].bg,
-                    borderColor: tint === t ? c.brand : c.border,
+                    borderColor: tint === t ? c.brand : inkRule,
                     borderWidth: tint === t ? 2.5 : 1,
                   },
                 ]}
@@ -363,13 +369,13 @@ export default function Reader() {
         <Pressable
           onPress={() => setPicker("page")}
           hitSlop={8}
-          style={[styles.pageJump, { borderColor: c.border }]}
+          style={[styles.pageJump, { borderColor: inkRule }]}
           accessibilityLabel="Jump to page"
         >
-          <Text style={{ color: c.fgMuted, fontSize: 13, fontWeight: "600" }}>
+          <Text style={{ color: inkMuted, fontSize: 13, fontWeight: "600" }}>
             {page + 1} / {pages.length}
           </Text>
-          <Ionicons name="chevron-down" size={12} color={c.fgMuted} />
+          <Ionicons name="chevron-down" size={12} color={inkMuted} />
         </Pressable>
       </View>
 
@@ -379,7 +385,7 @@ export default function Reader() {
             onPress={() => chapters.length > 1 && setPicker("chapter")}
             style={styles.chapterHeader}
           >
-            <Text style={[styles.chapterEyebrow, { color: c.fgMuted }]}>
+            <Text style={[styles.chapterEyebrow, { color: inkMuted }]}>
               {`Chapter ${chapter.chapter_number}`}
             </Text>
             <View style={styles.chapterTitleBigRow}>
@@ -387,11 +393,11 @@ export default function Reader() {
                 {chapter.title_ar}
               </ArabicText>
               {chapters.length > 1 ? (
-                <Ionicons name="chevron-down" size={18} color={c.fgMuted} />
+                <Ionicons name="chevron-down" size={18} color={inkMuted} />
               ) : null}
             </View>
             {chapter.title_en ? (
-              <Text style={[styles.chapterTitleEn, { color: c.fgMuted }]}>{chapter.title_en}</Text>
+              <Text style={[styles.chapterTitleEn, { color: inkMuted }]}>{chapter.title_en}</Text>
             ) : null}
             <View style={styles.ornamentRow}>
               <View style={[styles.ornamentLine, { backgroundColor: ink }]} />
@@ -402,13 +408,13 @@ export default function Reader() {
         ) : (
           <Pressable
             onPress={() => chapters.length > 1 && setPicker("chapter")}
-            style={[styles.runningHead, { borderBottomColor: c.border }]}
+            style={[styles.runningHead, { borderBottomColor: inkRule }]}
           >
-            <ArabicText style={[styles.runningHeadText, { color: c.fgMuted }]} numberOfLines={1}>
+            <ArabicText style={[styles.runningHeadText, { color: inkMuted }]} numberOfLines={1}>
               {chapter.title_ar}
             </ArabicText>
             {chapters.length > 1 ? (
-              <Ionicons name="chevron-down" size={13} color={c.fgMuted} />
+              <Ionicons name="chevron-down" size={13} color={inkMuted} />
             ) : null}
           </Pressable>
         )}
@@ -451,9 +457,9 @@ export default function Reader() {
         ))}
       </ScrollView>
 
-      <View style={[styles.bottomBar, { borderTopColor: c.border }]}>
+      <View style={[styles.bottomBar, { borderTopColor: inkRule }]}>
         <Pressable onPress={() => turnPage(-1)} disabled={page === 0} hitSlop={10}>
-          <Ionicons name="chevron-back" size={26} color={page === 0 ? c.locked : c.fg} />
+          <Ionicons name="chevron-back" size={26} color={page === 0 ? inkFaint : ink} />
         </Pressable>
         {lastPage ? (
           <Pressable
@@ -466,10 +472,10 @@ export default function Reader() {
             </Text>
           </Pressable>
         ) : (
-          <Text style={{ color: c.fgMuted, fontSize: 13 }}>Tap a word to translate</Text>
+          <Text style={{ color: inkMuted, fontSize: 13 }}>Tap a word to translate</Text>
         )}
         <Pressable onPress={() => turnPage(1)} disabled={lastPage} hitSlop={10}>
-          <Ionicons name="chevron-forward" size={26} color={lastPage ? c.locked : c.fg} />
+          <Ionicons name="chevron-forward" size={26} color={lastPage ? inkFaint : ink} />
         </Pressable>
       </View>
 
