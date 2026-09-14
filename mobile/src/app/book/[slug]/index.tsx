@@ -15,7 +15,7 @@ import { ArabicText } from "../../../components/ArabicText";
 import { Washed } from "../../../components/Background";
 import { BookCover } from "../../../components/BookCover";
 import { Button } from "../../../components/ui";
-import { cardShadow } from "../../../lib/theme";
+import { cardShadow, centeredContent } from "../../../lib/theme";
 import {
   fetchBookBySlug,
   fetchChapterMetas,
@@ -98,7 +98,7 @@ export default function BookDetail() {
     <Washed>
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={[styles.content, centeredContent]}>
         <Pressable
           onPress={() => router.back()}
           hitSlop={12}

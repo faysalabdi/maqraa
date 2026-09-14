@@ -15,6 +15,7 @@ import { ArabicText } from "../../../components/ArabicText";
 import { Button, Input } from "../../../components/ui";
 import { api } from "../../../lib/api";
 import { fetchBookBySlug } from "../../../lib/data";
+import { centeredContent } from "../../../lib/theme";
 import { usePalette } from "../../../lib/use-palette";
 
 export default function BookTest() {
@@ -102,7 +103,7 @@ export default function BookTest() {
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={[styles.content, centeredContent]}>
         {test.isFallback && test.passageAr ? (
           <View style={[styles.passage, { backgroundColor: c.surface, borderColor: c.border }]}>
             <ArabicText style={{ color: c.fg, fontSize: 20, lineHeight: 36 }}>

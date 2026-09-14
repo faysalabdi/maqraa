@@ -21,7 +21,9 @@ Read `README.md` first for the public overview. This file is for AI assistants p
 - Payments: web = Stripe, iOS = Apple IAP via RevenueCat (`react-native-purchases`, entitlement `pro`, products `maqraa_pro_monthly`/`maqraa_pro_yearly`). Both webhooks upsert the single `subscriptions` row; each sync refuses to overwrite the other provider's still-live sub. `getPlan` is provider-agnostic — don't fork entitlement logic.
 - Never mention or link web/Stripe pricing inside the iOS app (App Store guideline 3.1.1).
 - Voice `/talk` is deferred to mobile v1.1; the realtime session route already accepts Bearer tokens.
-- Mobile env: `mobile/.env.local` (`EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_API_URL`, `EXPO_PUBLIC_REVENUECAT_IOS_KEY`). Before any EAS production build, mirror every `EXPO_PUBLIC_*` into EAS env vars — missing ones crash the store binary at launch.
+- Mobile env: `mobile/.env.local` (`EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_API_URL`, `EXPO_PUBLIC_REVENUECAT_IOS_KEY`). Before any EAS production build, mirror every `EXPO_PUBLIC_*` into EAS env vars — missing ones crash the store binary at launch. `mobile/scripts/check-env.mjs` runs as the `eas-build-post-install` hook and now fails a production build outright when one is missing.
+- OTA: `expo-updates` with `runtimeVersion.policy: "appVersion"` and a channel per EAS build profile. An update only reaches builds sharing its app version, so bumping `version` in `app.json` needs a new binary. Native changes (new packages, config-plugin edits) can never ship over the air.
+- iOS layout: `supportsTablet: true`, so every screen is reviewed on iPad. Cap content with `centeredContent` / `centeredReading` from `lib/theme.ts` on any new scroll container rather than letting rows run the full 11-inch width.
 
 ## Build status
 

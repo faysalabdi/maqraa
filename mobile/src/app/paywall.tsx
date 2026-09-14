@@ -7,7 +7,8 @@ import type { PurchasesPackage } from "react-native-purchases";
 import { ArabicText } from "../components/ArabicText";
 import { Button } from "../components/ui";
 import { useMe } from "../lib/me-context";
-import { purchasesAvailable, purchasesReady } from "../lib/purchases";
+import { fetchPackages, type PackagesResult } from "../lib/purchases";
+import { centeredContent } from "../lib/theme";
 import { usePalette } from "../lib/use-palette";
 
 // Lazy so the module never crashes in Expo Go (native lives in the built app).
@@ -39,46 +40,33 @@ export default function Paywall() {
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [attempt, setAttempt] = useState(0);
+  const [reason, setReason] = useState<Exclude<PackagesResult, { ok: true }>["reason"] | null>(null);
 
-  // StoreKit can return an empty product list transiently — right after launch,
-  // before the RevenueCat SDK finishes configuring, or while the App Store is
-  // slow to answer. Wait for configuration, then retry before giving up.
+  // StoreKit can answer empty transiently right after launch, so one retry is
+  // worth it — but every attempt is time-boxed inside fetchPackages, so this
+  // always reaches a terminal state rather than spinning forever.
   useEffect(() => {
     let alive = true;
     (async () => {
       setLoading(true);
-      const p = loadPurchases();
-      if (!purchasesAvailable() || !p) {
-        if (alive) {
-          setPackages([]);
-          setLoading(false);
-        }
-        return;
-      }
-      await purchasesReady();
-      for (let tries = 0; tries < 3; tries++) {
+      setReason(null);
+      for (let tries = 0; tries < 2; tries++) {
+        const res = await fetchPackages();
         if (!alive) return;
-        try {
-          const offerings = await p.getOfferings();
-          const pkgs =
-            offerings.current?.availablePackages ??
-            Object.values(offerings.all ?? {})[0]?.availablePackages ??
-            [];
-          if (pkgs.length > 0) {
-            if (!alive) return;
-            setPackages(pkgs);
-            setSelected(pkgs.find((x) => x.packageType === "ANNUAL") ?? pkgs[0]);
-            setLoading(false);
-            return;
-          }
-        } catch {
-          // Fall through to the retry delay.
+        if (res.ok) {
+          setPackages(res.packages);
+          setSelected(res.packages.find((x) => x.packageType === "ANNUAL") ?? res.packages[0]);
+          setLoading(false);
+          return;
         }
-        await new Promise((r) => setTimeout(r, 1200 * (tries + 1)));
-      }
-      if (alive) {
-        setPackages([]);
-        setLoading(false);
+        // A build with no key will never succeed — do not sit through a retry.
+        if (res.reason === "unavailable" || tries === 1) {
+          setPackages([]);
+          setReason(res.reason);
+          setLoading(false);
+          return;
+        }
+        await new Promise((r) => setTimeout(r, 1200));
       }
     })();
     return () => {
@@ -137,7 +125,7 @@ export default function Paywall() {
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={[styles.content, centeredContent]}>
         <ArabicText style={[styles.logo, { color: c.brand }]}>مقرأ</ArabicText>
         <Text style={[styles.title, { color: c.fg }]}>Maqraa Pro</Text>
 
@@ -208,13 +196,24 @@ export default function Paywall() {
             ) : (
               <View style={[styles.notice, { backgroundColor: c.surface, borderColor: c.border }]}>
                 <Text style={{ color: c.fg, fontWeight: "600", textAlign: "center" }}>
-                  Couldn't load plans
+                  {reason === "unavailable"
+                    ? "Purchases unavailable in this build"
+                    : "Couldn't load plans"}
                 </Text>
                 <Text style={{ color: c.fgMuted, fontSize: 13, textAlign: "center" }}>
-                  The App Store didn't return the subscription options. Check your connection and
-                  try again.
+                  {reason === "unavailable"
+                    ? "In-app purchases aren't set up in this build of the app."
+                    : reason === "empty"
+                      ? "The App Store returned no subscriptions for this account. If they were only just approved, it can take a little while for them to appear."
+                      : "The App Store didn't respond in time. Check your connection and try again."}
                 </Text>
-                <Button title="Try again" variant="ghost" onPress={() => setAttempt((n) => n + 1)} />
+                {reason === "unavailable" ? null : (
+                  <Button
+                    title="Try again"
+                    variant="ghost"
+                    onPress={() => setAttempt((n) => n + 1)}
+                  />
+                )}
               </View>
             )}
 

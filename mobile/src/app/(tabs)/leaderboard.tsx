@@ -8,7 +8,7 @@ import { AppHeader } from "../../components/AppHeader";
 import { Washed } from "../../components/Background";
 import { Serif } from "../../components/Serif";
 import { api } from "../../lib/api";
-import { cardShadow } from "../../lib/theme";
+import { cardShadow, centeredContent } from "../../lib/theme";
 import { usePalette } from "../../lib/use-palette";
 
 type Scope = "week" | "all";
@@ -44,7 +44,7 @@ export default function LeaderboardScreen() {
     <Washed>
       <SafeAreaView style={styles.safe} edges={["top"]}>
         <AppHeader />
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView contentContainerStyle={[styles.content, centeredContent]}>
           <Serif style={[styles.title, { color: c.fg }]}>Leaderboard</Serif>
           <View style={styles.scopeRow}>
             {(["week", "all"] as Scope[]).map((s) => (

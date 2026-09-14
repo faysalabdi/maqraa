@@ -60,3 +60,26 @@ export const softShadow = {
   shadowOffset: { width: 0, height: 4 },
   elevation: 2,
 } as const;
+
+/**
+ * Caps how wide a column of content grows. No phone is this wide, so this is
+ * inert there and only bites on iPad, where full-bleed rows would otherwise
+ * stretch to ~820pt and wreck the reading measure.
+ */
+export const CONTENT_MAX_WIDTH = 640;
+
+/** Spread into a ScrollView's contentContainerStyle to centre and cap it. */
+export const centeredContent = {
+  width: "100%",
+  maxWidth: CONTENT_MAX_WIDTH,
+  alignSelf: "center",
+} as const;
+
+/** Reading columns want a tighter measure than general UI. */
+export const READING_MAX_WIDTH = 560;
+
+export const centeredReading = {
+  width: "100%",
+  maxWidth: READING_MAX_WIDTH,
+  alignSelf: "center",
+} as const;

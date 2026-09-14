@@ -15,6 +15,7 @@ import type { ChapterQuizResponse, ChapterQuizSubmitResponse } from "@maqraa/sha
 import { ArabicText } from "../../../../components/ArabicText";
 import { Button } from "../../../../components/ui";
 import { api } from "../../../../lib/api";
+import { centeredContent } from "../../../../lib/theme";
 import { usePalette } from "../../../../lib/use-palette";
 
 export default function ChapterQuiz() {
@@ -90,7 +91,7 @@ export default function ChapterQuiz() {
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={[styles.content, centeredContent]}>
         {result ? (
           <View style={[styles.scoreCard, { backgroundColor: c.surface, borderColor: c.border }]}>
             <Text style={[styles.score, { color: result.score >= 70 ? c.brand : c.danger }]}>

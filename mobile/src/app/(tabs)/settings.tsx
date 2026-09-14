@@ -12,6 +12,7 @@ import { fetchProfile, updateProfile } from "../../lib/data";
 import { useMe } from "../../lib/me-context";
 import { purchasesAvailable } from "../../lib/purchases";
 import { supabase } from "../../lib/supabase";
+import { centeredContent } from "../../lib/theme";
 import { usePalette } from "../../lib/use-palette";
 
 const AVATARS = ["📖", "🌙", "⭐", "🦉", "🕌", "🌴", "🐫", "☕", "🖊️", "🧠", "🔥", "🏆"];
@@ -85,7 +86,7 @@ export default function SettingsScreen() {
   return (
     <Washed>
       <SafeAreaView style={styles.safe} edges={["top"]}>
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView contentContainerStyle={[styles.content, centeredContent]}>
           <View style={styles.topBar}>
             <Pressable onPress={() => router.back()} hitSlop={12} accessibilityLabel="Back">
               <Ionicons name="chevron-back" size={26} color={c.fg} />

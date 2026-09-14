@@ -7,9 +7,16 @@
     "icon": "./assets/images/icon.png",
     "scheme": "maqraa",
     "userInterfaceStyle": "automatic",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/a3cfbafb-dd19-4a77-99e2-3e0f8f7a25e2",
+      "fallbackToCacheTimeout": 0
+    },
     "ios": {
       "bundleIdentifier": "app.maqraa.ios",
-      "supportsTablet": false,
+      "supportsTablet": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSMicrophoneUsageDescription": "Maqraa uses your microphone for voice conversation practice with the Arabic tutor."

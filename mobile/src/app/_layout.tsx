@@ -10,6 +10,7 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { SessionProvider } from "../lib/auth-context";
 import { MeProvider } from "../lib/me-context";
+import { initPurchases } from "../lib/purchases";
 import { ThemeProvider, useTheme } from "../lib/theme-context";
 
 SplashScreen.preventAutoHideAsync();
@@ -44,6 +45,12 @@ export default function RootLayout() {
   useEffect(() => {
     if (fontsLoaded) SplashScreen.hideAsync();
   }, [fontsLoaded]);
+
+  // Warm the IAP SDK before any paywall can open, so prices are never queried
+  // against an unconfigured SDK during a slow session restore.
+  useEffect(() => {
+    initPurchases();
+  }, []);
 
   if (!fontsLoaded) return null;
 

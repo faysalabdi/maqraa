@@ -8,7 +8,7 @@ import { AppHeader } from "../../components/AppHeader";
 import { Washed } from "../../components/Background";
 import { Serif } from "../../components/Serif";
 import { api } from "../../lib/api";
-import { cardShadow } from "../../lib/theme";
+import { cardShadow, centeredContent } from "../../lib/theme";
 import {
   fetchAchievements,
   fetchEarnedAchievementIds,
@@ -78,7 +78,7 @@ export default function AwardsScreen() {
     <Washed>
       <SafeAreaView style={styles.safe} edges={["top"]}>
         <AppHeader />
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView contentContainerStyle={[styles.content, centeredContent]}>
           <Pressable
             onPress={() => router.back()}
             hitSlop={12}

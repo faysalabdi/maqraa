@@ -7,7 +7,7 @@ import { AppHeader } from "../../components/AppHeader";
 import { Washed } from "../../components/Background";
 import { GoalRing } from "../../components/GoalRing";
 import { Serif } from "../../components/Serif";
-import { cardShadow } from "../../lib/theme";
+import { cardShadow, centeredContent } from "../../lib/theme";
 import {
   fetchCompletedBooksCount,
   fetchLevels,
@@ -101,7 +101,7 @@ export default function ProgressScreen() {
     <Washed>
       <SafeAreaView style={styles.safe} edges={["top"]}>
         <AppHeader />
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView contentContainerStyle={[styles.content, centeredContent]}>
           <Serif style={[styles.title, { color: c.fg }]}>Progress</Serif>
           {error ? <Text style={{ color: c.danger }}>{error}</Text> : null}
 

@@ -37,6 +37,7 @@ import {
   type Chapter,
   type ChapterMeta,
 } from "../../../../lib/data";
+import { centeredReading } from "../../../../lib/theme";
 import { usePalette } from "../../../../lib/use-palette";
 
 // Reading tints mirror the web reader (Paper follows the app theme).
@@ -372,7 +373,7 @@ export default function Reader() {
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={styles.pageContent}>
+      <ScrollView contentContainerStyle={[styles.pageContent, centeredReading]}>
         {page === 0 ? (
           <Pressable
             onPress={() => chapters.length > 1 && setPicker("chapter")}

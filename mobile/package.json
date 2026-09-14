@@ -28,6 +28,7 @@
     "expo-splash-screen": "~57.0.4",
     "expo-status-bar": "~57.0.1",
     "expo-system-ui": "~57.0.1",
+    "expo-updates": "~57.0.22",
     "expo-web-browser": "~57.0.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",
@@ -51,7 +52,9 @@
     "start": "expo start",
     "ios": "expo run:ios",
     "typecheck": "tsc --noEmit",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "check-env": "node scripts/check-env.mjs",
+    "eas-build-post-install": "node scripts/check-env.mjs"
   },
   "private": true
 }

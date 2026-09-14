@@ -8,6 +8,7 @@ import { Button } from "../components/ui";
 import { apiUpload } from "../lib/api";
 import { useMe } from "../lib/me-context";
 import { purchasesAvailable } from "../lib/purchases";
+import { centeredContent } from "../lib/theme";
 import { usePalette } from "../lib/use-palette";
 
 export default function UploadScreen() {
@@ -61,7 +62,7 @@ export default function UploadScreen() {
         <View style={{ width: 26 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={[styles.content, centeredContent]}>
         <Text style={{ color: c.fgMuted, fontSize: 15, lineHeight: 22 }}>
           Import any Arabic EPUB or text file. Maqraa reads it, splits it into chapters, places it
           on your path, and gives you the same tap-to-translate reader, quizzes, and vocab saving

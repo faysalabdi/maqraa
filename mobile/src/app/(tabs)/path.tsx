@@ -17,7 +17,7 @@ import { Washed } from "../../components/Background";
 import { BookCard } from "../../components/BookCard";
 import { ContinueCard } from "../../components/ContinueCard";
 import { Serif } from "../../components/Serif";
-import { cardShadow } from "../../lib/theme";
+import { cardShadow, centeredContent } from "../../lib/theme";
 import { api } from "../../lib/api";
 import {
   fetchCatalogue,
@@ -125,7 +125,7 @@ export default function PathScreen() {
       <SafeAreaView style={styles.safe} edges={["top"]}>
         <AppHeader />
         <ScrollView
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[styles.content, centeredContent]}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}

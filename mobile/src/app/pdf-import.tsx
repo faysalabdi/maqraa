@@ -9,6 +9,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import type { PdfImportStatus } from "@maqraa/shared";
 import { Button, Input } from "../components/ui";
 import { api } from "../lib/api";
+import { centeredContent } from "../lib/theme";
 import { usePalette } from "../lib/use-palette";
 
 const TIERS = [
@@ -194,7 +195,7 @@ export default function PdfImportScreen() {
         <View style={{ width: 26 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={[styles.content, centeredContent]}>
         <Text style={{ color: c.fgMuted, fontSize: 14, lineHeight: 20 }}>
           Admin only: import a PDF into the public catalogue. Same pipeline as the CLI — it runs in
           the cloud and takes a few minutes. You can leave this screen once it starts.

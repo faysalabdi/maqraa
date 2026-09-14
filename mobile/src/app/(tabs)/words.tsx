@@ -23,7 +23,7 @@ import {
 import { ArabicText } from "../../components/ArabicText";
 import { deleteVocabItem, fetchVocab, type VocabItem } from "../../lib/data";
 import { usePalette } from "../../lib/use-palette";
-import type { Palette } from "../../lib/theme";
+import { centeredContent, type Palette } from "../../lib/theme";
 
 function strengthColor(s: Strength, c: Palette): { bg: string; fg: string } {
   switch (s) {
@@ -106,7 +106,7 @@ export default function WordsScreen() {
     <Washed>
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <AppHeader />
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={[styles.scroll, centeredContent]}>
         <View style={styles.header}>
           <Serif style={[styles.heading, { color: c.fg }]}>My words</Serif>
           {items.length > 0 ? (
