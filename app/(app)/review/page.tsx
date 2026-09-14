@@ -41,7 +41,7 @@ export default async function ReviewPage({
       .limit(100);
 
     if (rows.length === 0) return <NoWords />;
-    return <ReviewSession initialDeck={rows} mode="practice" />;
+    return <ReviewSession initialDeck={rows} pool={await distractorPool(user.id)} mode="practice" />;
   }
 
   const dueRows = await db
@@ -87,7 +87,21 @@ export default async function ReviewPage({
     return <EmptyDeck nextDueAt={next?.dueAt ?? null} hasWords={Number(n) > 0} />;
   }
 
-  return <ReviewSession initialDeck={deck} mode="due" />;
+  return <ReviewSession initialDeck={deck} pool={await distractorPool(user.id)} mode="due" />;
+}
+
+/**
+ * Glosses used as wrong answers on multiple-choice prompts. Drawn from the
+ * reader's own words so the options are things they are actually learning; a
+ * due deck alone is often too small to fill four plausible choices.
+ */
+async function distractorPool(userId: string): Promise<{ id: string; gloss: string }[]> {
+  return db
+    .select({ id: schema.vocabItems.id, gloss: schema.vocabItems.glossEn })
+    .from(schema.vocabItems)
+    .where(and(eq(schema.vocabItems.userId, userId), eq(schema.vocabItems.suspended, false)))
+    .orderBy(sql`random()`)
+    .limit(100);
 }
 
 function formatUntil(d: Date): string {

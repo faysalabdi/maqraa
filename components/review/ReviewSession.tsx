@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -12,7 +12,19 @@ import {
   Flame,
   ArrowRight,
   Layers,
+  Repeat,
 } from "lucide-react";
+import {
+  answer,
+  buildChoices,
+  createSession,
+  currentCard,
+  currentMode,
+  isDone,
+  progress,
+  qualityFor,
+  type ReviewSession as Session,
+} from "@maqraa/shared";
 import { gradeCard, practiceCard } from "@/server/actions/review";
 
 export type ReviewCard = {
@@ -23,7 +35,7 @@ export type ReviewCard = {
   intervalDays: number;
 };
 
-type Stage = "front" | "back";
+type Choice = { id: string; gloss: string };
 
 // Decks at or below this size skip the "how many?" prompt and just start.
 const QUICK_START_MAX = 12;
@@ -39,49 +51,88 @@ function shuffle<T>(arr: T[]): T[] {
 
 export default function ReviewSession({
   initialDeck,
+  pool,
   mode = "due",
 }: {
   initialDeck: ReviewCard[];
+  pool?: Choice[];
   mode?: "due" | "practice";
 }) {
   const autoStart = initialDeck.length <= QUICK_START_MAX;
-  const [started, setStarted] = useState(autoStart);
   const [limit, setLimit] = useState(autoStart ? initialDeck.length : 0);
   const [deck, setDeck] = useState<ReviewCard[]>(autoStart ? initialDeck : []);
-  const [stage, setStage] = useState<Stage>("front");
+  const [session, setSession] = useState<Session | null>(
+    autoStart ? createSession(initialDeck.map((c) => c.id)) : null,
+  );
+  const [revealed, setRevealed] = useState(false);
+  const [picked, setPicked] = useState<string | null>(null);
   const [totalXp, setTotalXp] = useState(0);
-  const [reviewed, setReviewed] = useState(0);
   const [graduated, setGraduated] = useState(0);
   const [isPending, startTransition] = useTransition();
+
+  const byId = useMemo(() => {
+    const map: Record<string, ReviewCard> = {};
+    for (const card of deck) map[card.id] = card;
+    return map;
+  }, [deck]);
+
+  const choicePool = useMemo<Choice[]>(() => {
+    const merged = new Map<string, Choice>();
+    for (const card of initialDeck) merged.set(card.id, { id: card.id, gloss: card.glossEn });
+    for (const entry of pool ?? []) merged.set(entry.id, entry);
+    return [...merged.values()];
+  }, [initialDeck, pool]);
+
+  const card = session ? currentCard(session) : null;
+  const cardMode = session ? currentMode(session) : null;
+  const item = card ? byId[card.id] : null;
+  const presentation = card ? `${card.id}:${card.attempts}` : "";
+
+  // Options stay put while the reader is looking at them: rebuilt only when a
+  // different presentation comes up.
+  const [choices, setChoices] = useState<{ key: string; options: Choice[] }>({
+    key: "",
+    options: [],
+  });
+  useEffect(() => {
+    if (!item || cardMode !== "choice") return;
+    setChoices({
+      key: presentation,
+      options: buildChoices(choicePool, { id: item.id, gloss: item.glossEn }, 4),
+    });
+  }, [presentation, cardMode, item, choicePool]);
 
   function begin(size: number) {
     // The deck arrives sorted most-due-first, so the front slice is the right
     // batch; whatever's left over stays due for next time.
+    const next = initialDeck.slice(0, size);
     setLimit(size);
-    setDeck(initialDeck.slice(0, size));
-    setStarted(true);
+    setDeck(next);
+    setSession(createSession(next.map((c) => c.id)));
   }
 
   // Practice only: re-deal a freshly reshuffled batch in place (no navigation),
   // so "Practice more" always gives a different mix instead of the same cards.
   function dealMore() {
-    setDeck(shuffle(initialDeck).slice(0, limit || initialDeck.length));
-    setReviewed(0);
-    setStage("front");
+    const next = shuffle(initialDeck).slice(0, limit || initialDeck.length);
+    setDeck(next);
+    setSession(createSession(next.map((c) => c.id)));
+    setRevealed(false);
+    setPicked(null);
   }
 
-  if (!started) {
+  if (!session) {
     return <IntroScreen total={initialDeck.length} mode={mode} onPick={begin} />;
   }
 
-  const current = deck[0];
+  const stats = progress(session);
 
-  if (!current) {
+  if (isDone(session)) {
     const hasMore = limit < initialDeck.length || initialDeck.length >= 50;
     return (
       <DoneScreen
         totalXp={totalXp}
-        reviewed={reviewed}
+        mastered={stats.total}
         graduated={graduated}
         hasMore={hasMore}
         mode={mode}
@@ -90,30 +141,33 @@ export default function ReviewSession({
     );
   }
 
-  function grade(quality: number) {
-    if (!current) return;
-    const cardId = current.id;
-    // Advance immediately so there's no pause between tapping and the next card;
-    // the grade saves in the background.
-    setReviewed((r) => r + 1);
-    setDeck((d) => d.slice(1));
-    setStage("front");
-    startTransition(async () => {
-      const res = mode === "practice" ? await practiceCard(cardId) : await gradeCard(cardId, quality);
-      if ("error" in res) return;
-      setTotalXp((x) => x + res.xpEarned);
-      if ("graduated" in res && res.graduated) setGraduated((g) => g + 1);
-    });
+  /**
+   * A pass masters the word and is the only thing reported — one quality per
+   * card per session. A miss just requeues it; nothing is sent, so abandoning
+   * the session leaves that word due exactly as it was.
+   */
+  function resolve(passed: boolean, selfGrade?: number) {
+    if (!session || !card) return;
+    if (passed) {
+      const cardId = card.id;
+      const quality = qualityFor(card, selfGrade);
+      startTransition(async () => {
+        const res = mode === "practice" ? await practiceCard(cardId) : await gradeCard(cardId, quality);
+        if ("error" in res) return;
+        setTotalXp((x) => x + res.xpEarned);
+        if ("graduated" in res && res.graduated) setGraduated((g) => g + 1);
+      });
+    }
+    setSession(answer(session, passed));
+    setRevealed(false);
+    setPicked(null);
   }
 
   return (
     <main className="mx-auto max-w-2xl px-4 pb-24 pt-6">
       {/* Top bar */}
       <div className="mb-5 flex items-center justify-between">
-        <Link
-          href="/path"
-          className="text-sm font-medium text-fg-muted transition hover:text-fg"
-        >
+        <Link href="/path" className="text-sm font-medium text-fg-muted transition hover:text-fg">
           ← Leave session
         </Link>
         <div className="flex items-center gap-3 text-sm">
@@ -123,7 +177,7 @@ export default function ReviewSession({
             </span>
           )}
           <span className="font-bold text-fg-muted">
-            {reviewed} / {reviewed + deck.length}
+            {stats.mastered} / {stats.total} mastered
           </span>
           {totalXp > 0 && (
             <span className="inline-flex items-center gap-1 rounded-full bg-accent/15 px-2.5 py-1 text-xs font-bold text-accent-fg ring-1 ring-accent/30">
@@ -134,68 +188,159 @@ export default function ReviewSession({
         </div>
       </div>
 
-      {/* Progress bar */}
-      <div className="mb-6 h-1.5 w-full overflow-hidden rounded-full bg-bg-muted">
+      {/* Progress bar — by words mastered, not cards seen */}
+      <div className="mb-2 h-1.5 w-full overflow-hidden rounded-full bg-bg-muted">
         <div
           className="h-full rounded-full bg-brand transition-all"
-          style={{
-            width: `${(reviewed / Math.max(1, reviewed + deck.length)) * 100}%`,
-          }}
+          style={{ width: `${Math.round(stats.fraction * 100)}%` }}
         />
       </div>
+      <p className="mb-6 text-[11px] font-semibold text-fg-muted">
+        {stats.remaining} left · missed words come back
+      </p>
 
-      {/* Card — tap to flip */}
-      <div className="[perspective:1400px]">
-        <motion.div
-          onClick={() => setStage((s) => (s === "front" ? "back" : "front"))}
-          animate={{ rotateY: stage === "back" ? 180 : 0 }}
-          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-          className="relative min-h-[15rem] cursor-pointer [transform-style:preserve-3d]"
-        >
-          {/* Front */}
-          <div className="absolute inset-0 grid place-items-center rounded-3xl bg-surface p-10 text-center shadow-lift ring-1 ring-border [backface-visibility:hidden]">
-            <span className="absolute right-5 top-5 rounded-full bg-bg-muted px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-fg-muted ring-1 ring-border">
-              {current.intervalDays === 0 ? "new" : current.intervalDays >= 21 ? "mature" : `${current.intervalDays}d`}
-            </span>
-            <div>
-              <p className="font-arabic text-5xl font-bold leading-snug" dir="rtl">
-                {current.lemmaAr}
-              </p>
-              {current.exampleAr && (
-                <p className="font-arabic mt-6 text-base italic text-fg-muted" dir="rtl">
-                  {current.exampleAr}
-                </p>
-              )}
-            </div>
-            <span className="absolute bottom-4 left-0 right-0 text-[11px] font-semibold uppercase tracking-widest text-fg-muted/70">
-              Tap to reveal
-            </span>
-          </div>
-          {/* Back */}
-          <div className="absolute inset-0 grid place-items-center rounded-3xl bg-surface p-10 text-center shadow-lift ring-1 ring-border [backface-visibility:hidden] [transform:rotateY(180deg)]">
-            <div>
-              <p className="font-arabic text-3xl font-bold text-fg-muted" dir="rtl">
-                {current.lemmaAr}
-              </p>
-              <div className="mx-auto my-5 h-px w-16 bg-border" />
-              <p className="text-3xl font-extrabold">{current.glossEn}</p>
-            </div>
-          </div>
-        </motion.div>
-      </div>
+      {card && card.attempts > 0 && (
+        <div className="mb-4 flex items-center justify-center gap-2 rounded-full bg-flame/12 px-4 py-2 text-xs font-bold text-flame ring-1 ring-flame/25">
+          <Repeat className="h-3.5 w-3.5" />
+          Back again — this time as multiple choice
+        </div>
+      )}
 
-      {/* Actions */}
-      <div className="mt-5">
-        {stage === "back" && (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <GradeButton onClick={() => grade(1)} disabled={isPending} tone="danger" icon={<X className="h-4 w-4" />} label="Again" />
-            <GradeButton onClick={() => grade(3)} disabled={isPending} tone="flame" icon={<CheckCircle2 className="h-4 w-4" />} label="Hard" />
-            <GradeButton onClick={() => grade(4)} disabled={isPending} tone="brand" icon={<CheckCircle2 className="h-4 w-4" />} label="Good" />
-            <GradeButton onClick={() => grade(5)} disabled={isPending} tone="iris" icon={<Star className="h-4 w-4" />} label="Easy" />
+      {item && cardMode === "choice" ? (
+        <ChoicePrompt
+          item={item}
+          options={choices.key === presentation ? choices.options : []}
+          picked={picked}
+          onPick={setPicked}
+          onNext={(correct) => resolve(correct)}
+        />
+      ) : item ? (
+        <>
+          {/* Card — tap to flip */}
+          <div className="[perspective:1400px]">
+            <motion.div
+              onClick={() => setRevealed((r) => !r)}
+              animate={{ rotateY: revealed ? 180 : 0 }}
+              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+              className="relative min-h-[15rem] cursor-pointer [transform-style:preserve-3d]"
+            >
+              {/* Front */}
+              <div className="absolute inset-0 grid place-items-center rounded-3xl bg-surface p-10 text-center shadow-lift ring-1 ring-border [backface-visibility:hidden]">
+                <span className="absolute right-5 top-5 rounded-full bg-bg-muted px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-fg-muted ring-1 ring-border">
+                  {item.intervalDays === 0 ? "new" : item.intervalDays >= 21 ? "mature" : `${item.intervalDays}d`}
+                </span>
+                <div>
+                  <p className="font-arabic text-5xl font-bold leading-snug" dir="rtl">
+                    {item.lemmaAr}
+                  </p>
+                  {item.exampleAr && (
+                    <p className="font-arabic mt-6 text-base italic text-fg-muted" dir="rtl">
+                      {item.exampleAr}
+                    </p>
+                  )}
+                </div>
+                <span className="absolute bottom-4 left-0 right-0 text-[11px] font-semibold uppercase tracking-widest text-fg-muted/70">
+                  Tap to reveal
+                </span>
+              </div>
+              {/* Back */}
+              <div className="absolute inset-0 grid place-items-center rounded-3xl bg-surface p-10 text-center shadow-lift ring-1 ring-border [backface-visibility:hidden] [transform:rotateY(180deg)]">
+                <div>
+                  <p className="font-arabic text-3xl font-bold text-fg-muted" dir="rtl">
+                    {item.lemmaAr}
+                  </p>
+                  <div className="mx-auto my-5 h-px w-16 bg-border" />
+                  <p className="text-3xl font-extrabold">{item.glossEn}</p>
+                </div>
+              </div>
+            </motion.div>
           </div>
-        )}
-      </div>
+
+          {/* Actions */}
+          <div className="mt-5">
+            {revealed && (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <GradeButton onClick={() => resolve(false, 1)} disabled={isPending} tone="danger" icon={<X className="h-4 w-4" />} label="Again" />
+                <GradeButton onClick={() => resolve(true, 3)} disabled={isPending} tone="flame" icon={<CheckCircle2 className="h-4 w-4" />} label="Hard" />
+                <GradeButton onClick={() => resolve(true, 4)} disabled={isPending} tone="brand" icon={<CheckCircle2 className="h-4 w-4" />} label="Good" />
+                <GradeButton onClick={() => resolve(true, 5)} disabled={isPending} tone="iris" icon={<Star className="h-4 w-4" />} label="Easy" />
+              </div>
+            )}
+          </div>
+        </>
+      ) : null}
     </main>
+  );
+}
+
+function ChoicePrompt({
+  item,
+  options,
+  picked,
+  onPick,
+  onNext,
+}: {
+  item: ReviewCard;
+  options: Choice[];
+  picked: string | null;
+  onPick: (id: string) => void;
+  onNext: (correct: boolean) => void;
+}) {
+  const answered = picked !== null;
+  const correct = picked === item.id;
+
+  return (
+    <div>
+      <div className="rounded-3xl bg-surface p-10 text-center shadow-lift ring-1 ring-border">
+        <p className="font-arabic text-5xl font-bold leading-snug" dir="rtl">
+          {item.lemmaAr}
+        </p>
+        {item.exampleAr && (
+          <p className="font-arabic mt-4 text-base text-fg-muted" dir="rtl">
+            {item.exampleAr}
+          </p>
+        )}
+        <div className="mx-auto mt-6 h-px w-16 bg-border" />
+        <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.14em] text-fg-muted">
+          What does this word mean?
+        </p>
+      </div>
+
+      <div className="mt-4 flex flex-col gap-2.5">
+        {options.map((option) => {
+          const isAnswer = option.id === item.id;
+          const isPicked = option.id === picked;
+          const tone = !answered
+            ? "bg-surface ring-border hover:bg-bg-muted"
+            : isAnswer
+              ? "bg-brand/8 ring-brand text-brand-dark"
+              : isPicked
+                ? "bg-danger/8 ring-danger"
+                : "bg-surface ring-border opacity-45";
+          return (
+            <button
+              key={option.id}
+              disabled={answered}
+              onClick={() => onPick(option.id)}
+              className={`flex items-center justify-between gap-3 rounded-2xl px-5 py-4 text-left text-[15px] font-semibold ring-1 transition ${tone}`}
+            >
+              <span>{option.gloss}</span>
+              {answered && isAnswer && <CheckCircle2 className="h-5 w-5 shrink-0 text-brand" />}
+              {answered && isPicked && !isAnswer && <X className="h-5 w-5 shrink-0 text-danger" />}
+            </button>
+          );
+        })}
+      </div>
+
+      {answered && (
+        <button
+          onClick={() => onNext(correct)}
+          className="mt-5 w-full rounded-2xl bg-brand py-3.5 text-[15px] font-extrabold text-brand-fg shadow-glow-brand transition hover:bg-brand-dark"
+        >
+          {correct ? "Next" : "Got it — keep going"}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -286,14 +431,14 @@ function GradeButton({
 
 function DoneScreen({
   totalXp,
-  reviewed,
+  mastered,
   graduated,
   hasMore,
   mode,
   onMore,
 }: {
   totalXp: number;
-  reviewed: number;
+  mastered: number;
   graduated: number;
   hasMore?: boolean;
   mode: "due" | "practice";
@@ -309,11 +454,9 @@ function DoneScreen({
           {mode === "practice" ? "Nice practice!" : "Done for today!"}
         </h1>
         <p className="mt-2 text-fg-muted">
-          {mode === "practice"
-            ? `Practiced ${reviewed} word${reviewed === 1 ? "" : "s"}.`
-            : reviewed === 0
-              ? "No cards due. Come back tomorrow."
-              : `Reviewed ${reviewed} card${reviewed === 1 ? "" : "s"}.`}
+          {mastered === 0
+            ? "No cards due. Come back tomorrow."
+            : `${mastered} word${mastered === 1 ? "" : "s"} mastered.`}
         </p>
 
         {(totalXp > 0 || graduated > 0) && (
