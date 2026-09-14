@@ -5,4 +5,5 @@ export * from "./common-words";
 export * from "./tiers";
 export * from "./strength";
 export * from "./sections";
+export * from "./review-queue";
 export * from "./api-types";
