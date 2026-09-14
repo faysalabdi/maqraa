@@ -1,4 +1,8 @@
-import Purchases, { LOG_LEVEL, type PurchasesPackage } from "react-native-purchases";
+import Purchases, {
+  LOG_LEVEL,
+  type PurchasesPackage,
+  type PurchasesStoreProduct,
+} from "react-native-purchases";
 
 const apiKey = process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY;
 
@@ -93,29 +97,121 @@ export async function logOutPurchases(): Promise<void> {
   }
 }
 
+/**
+ * The subscriptions as they are defined in App Store Connect. Only used for
+ * the direct fallback below — the offering is still the preferred source,
+ * because it is the one the RevenueCat dashboard can re-price and re-package
+ * without an app release.
+ */
+const PRODUCT_IDS = ["maqraa_pro_yearly", "maqraa_pro_monthly"];
+
+/** One thing the paywall can sell, whichever source it came from. */
+export type Buyable = {
+  id: string;
+  label: string;
+  priceString: string;
+  /** "/ year", "/ month", or empty when the period is not a plain one. */
+  suffix: string;
+  pkg: PurchasesPackage | null;
+  product: PurchasesStoreProduct | null;
+};
+
 export type PackagesResult =
-  | { ok: true; packages: PurchasesPackage[] }
+  | { ok: true; buyables: Buyable[]; source: "offering" | "product" }
   /** No key in this build — IAP was compiled out. */
   | { ok: false; reason: "unavailable" }
-  /** The store answered, with nothing for sale on this account or storefront. */
+  /** Both the offering and a direct product lookup came back empty. */
   | { ok: false; reason: "empty" }
   | { ok: false; reason: "timeout" }
   | { ok: false; reason: "error" };
 
-/** One bounded attempt at the current offering's packages. Never hangs. */
+function suffixForPeriod(period: string | null): string {
+  if (period === "P1Y") return " / year";
+  if (period === "P1M") return " / month";
+  return "";
+}
+
+function fromPackage(pkg: PurchasesPackage): Buyable {
+  const annual = pkg.packageType === "ANNUAL";
+  const monthly = pkg.packageType === "MONTHLY";
+  return {
+    id: pkg.identifier,
+    label: annual ? "Yearly" : monthly ? "Monthly" : pkg.product.title,
+    priceString: pkg.product.priceString,
+    suffix: annual ? " / year" : monthly ? " / month" : suffixForPeriod(pkg.product.subscriptionPeriod),
+    pkg,
+    product: null,
+  };
+}
+
+function fromProduct(product: PurchasesStoreProduct): Buyable {
+  const period = product.subscriptionPeriod;
+  return {
+    id: product.identifier,
+    label: period === "P1Y" ? "Yearly" : period === "P1M" ? "Monthly" : product.title,
+    priceString: product.priceString,
+    suffix: suffixForPeriod(period),
+    pkg: null,
+    product,
+  };
+}
+
+/**
+ * What the paywall can sell right now. Never hangs.
+ *
+ * Offerings are tried first, then the products are looked up directly by id.
+ * That fallback matters: an offering is a RevenueCat dashboard construct, so a
+ * missing or empty "current" offering leaves getOfferings returning nothing
+ * even when the subscriptions are live and purchasable on the App Store. Going
+ * straight to StoreKit keeps the paywall sellable through that misconfiguration
+ * — and if this comes back empty too, the problem is on the App Store side.
+ */
 export async function fetchPackages(): Promise<PackagesResult> {
   if (!apiKey) return { ok: false, reason: "unavailable" };
   if (!(await purchasesReady())) return { ok: false, reason: "unavailable" };
+
+  let sawError = false;
+
   try {
     const offerings = await withTimeout(Purchases.getOfferings(), OFFERINGS_TIMEOUT_MS);
     const packages =
       offerings.current?.availablePackages ??
       Object.values(offerings.all ?? {})[0]?.availablePackages ??
       [];
-    return packages.length > 0 ? { ok: true, packages } : { ok: false, reason: "empty" };
+    if (packages.length > 0) {
+      return { ok: true, buyables: packages.map(fromPackage), source: "offering" };
+    }
+    console.warn("[purchases] no offering packages — falling back to direct product lookup");
   } catch (e) {
     if (e instanceof TimeoutError) return { ok: false, reason: "timeout" };
     console.warn("[purchases] getOfferings failed", e);
-    return { ok: false, reason: "error" };
+    sawError = true;
   }
+
+  try {
+    const products = await withTimeout(Purchases.getProducts(PRODUCT_IDS), OFFERINGS_TIMEOUT_MS);
+    if (products.length > 0) {
+      return { ok: true, buyables: products.map(fromProduct), source: "product" };
+    }
+    return { ok: false, reason: "empty" };
+  } catch (e) {
+    if (e instanceof TimeoutError) return { ok: false, reason: "timeout" };
+    console.warn("[purchases] getProducts failed", e);
+    return { ok: false, reason: sawError ? "error" : "empty" };
+  }
+}
+
+export type PurchaseOutcome = "entitled" | "not-entitled" | "cancelled";
+
+/** Buy whichever shape the paywall ended up with. */
+export async function purchase(buyable: Buyable): Promise<PurchaseOutcome> {
+  const { customerInfo } = buyable.pkg
+    ? await Purchases.purchasePackage(buyable.pkg)
+    : await Purchases.purchaseStoreProduct(buyable.product!);
+  return customerInfo.entitlements.active["pro"] ? "entitled" : "not-entitled";
+}
+
+export async function restore(): Promise<boolean> {
+  const customerInfo = await Purchases.restorePurchases();
+  return !!customerInfo.entitlements.active["pro"];
 }

@@ -3,26 +3,18 @@ import { router, Stack } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import type { PurchasesPackage } from "react-native-purchases";
 import { ArabicText } from "../components/ArabicText";
 import { Button } from "../components/ui";
 import { useMe } from "../lib/me-context";
-import { fetchPackages, type PackagesResult } from "../lib/purchases";
+import {
+  fetchPackages,
+  purchase,
+  restore as restorePurchases,
+  type Buyable,
+  type PackagesResult,
+} from "../lib/purchases";
 import { centeredContent } from "../lib/theme";
 import { usePalette } from "../lib/use-palette";
-
-// Lazy so the module never crashes in Expo Go (native lives in the built app).
-type Purchases = typeof import("react-native-purchases").default;
-let rc: Purchases | null = null;
-function loadPurchases(): Purchases | null {
-  if (rc) return rc;
-  try {
-    rc = (require("react-native-purchases") as { default: Purchases }).default;
-    return rc;
-  } catch {
-    return null;
-  }
-}
 
 const PERKS = [
   "Intermediate and Advanced books",
@@ -34,8 +26,8 @@ const PERKS = [
 export default function Paywall() {
   const c = usePalette();
   const { plan, refresh } = useMe();
-  const [packages, setPackages] = useState<PurchasesPackage[] | null>(null);
-  const [selected, setSelected] = useState<PurchasesPackage | null>(null);
+  const [packages, setPackages] = useState<Buyable[] | null>(null);
+  const [selected, setSelected] = useState<Buyable | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -54,8 +46,8 @@ export default function Paywall() {
         const res = await fetchPackages();
         if (!alive) return;
         if (res.ok) {
-          setPackages(res.packages);
-          setSelected(res.packages.find((x) => x.packageType === "ANNUAL") ?? res.packages[0]);
+          setPackages(res.buyables);
+          setSelected(res.buyables.find((x) => x.label === "Yearly") ?? res.buyables[0]);
           setLoading(false);
           return;
         }
@@ -83,13 +75,11 @@ export default function Paywall() {
   };
 
   const buy = async () => {
-    const p = loadPurchases();
-    if (!selected || !p) return;
+    if (!selected) return;
     setBusy(true);
     setError(null);
     try {
-      const { customerInfo } = await p.purchasePackage(selected);
-      if (customerInfo.entitlements.active["pro"]) await finishAfterEntitlement();
+      if ((await purchase(selected)) === "entitled") await finishAfterEntitlement();
     } catch (e) {
       const err = e as { userCancelled?: boolean; message?: string };
       if (!err.userCancelled) setError(err.message ?? "Purchase failed.");
@@ -99,13 +89,10 @@ export default function Paywall() {
   };
 
   const restore = async () => {
-    const p = loadPurchases();
-    if (!p) return;
     setBusy(true);
     setError(null);
     try {
-      const customerInfo = await p.restorePurchases();
-      if (customerInfo.entitlements.active["pro"]) await finishAfterEntitlement();
+      if (await restorePurchases()) await finishAfterEntitlement();
       else setError("No previous purchase found for this Apple ID.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Restore failed.");
@@ -155,12 +142,12 @@ export default function Paywall() {
               <ActivityIndicator style={{ marginVertical: 20 }} />
             ) : packages && packages.length > 0 ? (
               <View style={{ gap: 10 }}>
-                {packages.map((pkg) => {
-                  const isSelected = selected?.identifier === pkg.identifier;
+                {packages.map((buyable) => {
+                  const isSelected = selected?.id === buyable.id;
                   return (
                     <Pressable
-                      key={pkg.identifier}
-                      onPress={() => setSelected(pkg)}
+                      key={buyable.id}
+                      onPress={() => setSelected(buyable)}
                       style={[
                         styles.pkg,
                         {
@@ -171,19 +158,11 @@ export default function Paywall() {
                     >
                       <View style={{ flex: 1 }}>
                         <Text style={{ color: c.fg, fontWeight: "700", fontSize: 16 }}>
-                          {pkg.packageType === "ANNUAL"
-                            ? "Yearly"
-                            : pkg.packageType === "MONTHLY"
-                              ? "Monthly"
-                              : pkg.product.title}
+                          {buyable.label}
                         </Text>
                         <Text style={{ color: c.fgMuted, fontSize: 13 }}>
-                          {pkg.product.priceString}
-                          {pkg.packageType === "ANNUAL"
-                            ? " / year"
-                            : pkg.packageType === "MONTHLY"
-                              ? " / month"
-                              : ""}
+                          {buyable.priceString}
+                          {buyable.suffix}
                         </Text>
                       </View>
                       {isSelected ? (
