@@ -1,21 +1,32 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import type { GradeCardResponse, PracticeCardResponse } from "@maqraa/shared";
+import {
+  answer,
+  buildChoices,
+  createSession,
+  currentCard,
+  currentMode,
+  isDone,
+  progress,
+  qualityFor,
+  type GradeCardResponse,
+  type PracticeCardResponse,
+  type ReviewSession,
+} from "@maqraa/shared";
 import { ArabicText } from "../../components/ArabicText";
 import { Washed } from "../../components/Background";
 import { Button } from "../../components/ui";
 import { api } from "../../lib/api";
-import { fetchDueVocab, fetchPracticeVocab, type VocabItem } from "../../lib/data";
+import {
+  fetchDueVocab,
+  fetchPracticeVocab,
+  type VocabItem,
+} from "../../lib/data";
+import { centeredContent } from "../../lib/theme";
 import { usePalette } from "../../lib/use-palette";
 
 // UI grades → SM-2 quality (same mapping as the web review page).
@@ -26,14 +37,19 @@ const GRADES = [
   { label: "Easy", quality: 5, tone: "iris" },
 ] as const;
 
+type Choice = { id: string; gloss: string };
+
 export default function ReviewScreen() {
   const c = usePalette();
-  const { mode } = useLocalSearchParams<{ mode?: string }>();
-  const practice = mode === "practice";
-  const [queue, setQueue] = useState<VocabItem[] | null>(null);
+  const { mode: routeMode } = useLocalSearchParams<{ mode?: string }>();
+  const practice = routeMode === "practice";
+
+  const [deck, setDeck] = useState<VocabItem[] | null>(null);
+  const [pool, setPool] = useState<Choice[]>([]);
+  const [session, setSession] = useState<ReviewSession | null>(null);
   const [revealed, setRevealed] = useState(false);
+  const [picked, setPicked] = useState<string | null>(null);
   const [xpTotal, setXpTotal] = useState(0);
-  const [doneCount, setDoneCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -41,15 +57,30 @@ export default function ReviewScreen() {
 
   const reload = useCallback(() => {
     sessionRef.current += 1;
-    setQueue(null);
+    setDeck(null);
+    setSession(null);
     setRevealed(false);
+    setPicked(null);
     setXpTotal(0);
-    setDoneCount(0);
     setError(null);
     setPendingCount(0);
     setSyncError(null);
-    (practice ? fetchPracticeVocab() : fetchDueVocab())
-      .then((deck) => setQueue(practice ? deck.slice(0, 20) : deck))
+    // The wider set is only ever used for wrong answers, so a failure there
+    // must not take the session down with it.
+    Promise.all([
+      practice ? fetchPracticeVocab() : fetchDueVocab(),
+      fetchPracticeVocab().catch(() => [] as VocabItem[]),
+    ])
+      .then(([due, wider]) => {
+        const cards = practice ? due.slice(0, 20) : due;
+        setDeck(cards);
+        setSession(createSession(cards.map((x) => x.id)));
+        const merged = new Map<string, Choice>();
+        for (const item of [...cards, ...wider]) {
+          merged.set(item.id, { id: item.id, gloss: item.gloss_en });
+        }
+        setPool([...merged.values()]);
+      })
       .catch((e) => setError(e.message));
   }, [practice]);
 
@@ -65,144 +96,302 @@ export default function ReviewScreen() {
     return () => clearTimeout(t);
   }, [syncError]);
 
-  // Optimistic: advance to the next card immediately, sync the grade in the
-  // background. A failed sync leaves the card due server-side, so it simply
-  // reappears next session.
-  const grade = (quality: number) => {
-    if (!queue || queue.length === 0) return;
-    const card = queue[0];
-    const session = sessionRef.current;
-    Haptics.impactAsync(
-      quality < 3 ? Haptics.ImpactFeedbackStyle.Rigid : Haptics.ImpactFeedbackStyle.Light,
-    );
-    setQueue((q) => (q ? q.slice(1) : q));
-    setRevealed(false);
-    setDoneCount((n) => n + 1);
+  const byId = useMemo(() => {
+    const map: Record<string, VocabItem> = {};
+    for (const item of deck ?? []) map[item.id] = item;
+    return map;
+  }, [deck]);
+
+  const card = session ? currentCard(session) : null;
+  const mode = session ? currentMode(session) : null;
+  const item = card ? byId[card.id] : null;
+  // Options must stay put while the reader is looking at them, so they are
+  // rebuilt only when a different presentation comes up.
+  const presentation = card ? `${card.id}:${card.attempts}` : "";
+  const [choices, setChoices] = useState<{ key: string; options: Choice[] }>({
+    key: "",
+    options: [],
+  });
+
+  useEffect(() => {
+    if (!item || mode !== "choice") return;
+    setChoices({
+      key: presentation,
+      options: buildChoices(pool, { id: item.id, gloss: item.gloss_en }, 4),
+    });
+  }, [presentation, mode, item, pool]);
+
+  const syncGrade = (cardId: string, quality: number) => {
+    const run = sessionRef.current;
     setPendingCount((n) => n + 1);
-    // Practice drills never touch the SRS schedule — separate endpoint.
     (practice
-      ? api<PracticeCardResponse>(`/api/v1/review/${card.id}/practice`, { body: {} })
-      : api<GradeCardResponse>(`/api/v1/review/${card.id}/grade`, { body: { quality } })
+      ? api<PracticeCardResponse>(`/api/v1/review/${cardId}/practice`, { body: {} })
+      : api<GradeCardResponse>(`/api/v1/review/${cardId}/grade`, { body: { quality } })
     )
       .then((res) => {
-        if (sessionRef.current !== session) return;
+        if (sessionRef.current !== run) return;
         setXpTotal((x) => x + res.xpEarned);
       })
       .catch(() => {
-        if (sessionRef.current !== session) return;
-        setDoneCount((n) => n - 1);
+        if (sessionRef.current !== run) return;
         setSyncError("Some cards didn't sync — they'll show up again next time.");
       })
       .finally(() => {
-        if (sessionRef.current !== session) return;
+        if (sessionRef.current !== run) return;
         setPendingCount((n) => n - 1);
       });
+  };
+
+  /**
+   * A pass masters the word and is the only thing reported to the server —
+   * one quality per card per session. A miss just puts it back in the queue;
+   * nothing is sent, so an abandoned session leaves it due as it was.
+   */
+  const resolve = (passed: boolean, selfGrade?: number) => {
+    if (!session || !card) return;
+    Haptics.notificationAsync(
+      passed
+        ? Haptics.NotificationFeedbackType.Success
+        : Haptics.NotificationFeedbackType.Warning,
+    );
+    if (passed) syncGrade(card.id, qualityFor(card, selfGrade));
+    setSession(answer(session, passed));
+    setRevealed(false);
+    setPicked(null);
   };
 
   const toneColor = (tone: (typeof GRADES)[number]["tone"]) =>
     tone === "danger" ? c.danger : tone === "warn" ? c.accent : tone === "iris" ? c.iris : c.brand;
 
+  const stats = session ? progress(session) : null;
+  const finished = session ? isDone(session) : false;
+
   return (
     <Washed>
-    <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
-      <View style={styles.topBar}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Pressable onPress={() => router.back()} hitSlop={12} accessibilityLabel="Back">
-            <Ionicons name="chevron-back" size={26} color={c.fg} />
-          </Pressable>
-          <Text style={[styles.headerTitle, { color: c.fg }]}>
-            {practice ? "Practice" : "Review"}
+      <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
+        <View style={[styles.topBar, centeredContent]}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Pressable onPress={() => router.back()} hitSlop={12} accessibilityLabel="Back">
+              <Ionicons name="chevron-back" size={26} color={c.fg} />
+            </Pressable>
+            <Text style={[styles.headerTitle, { color: c.fg }]}>
+              {practice ? "Practice" : "Review"}
+            </Text>
+          </View>
+          <Text style={{ color: c.fgMuted }}>
+            {stats ? `${stats.mastered} / ${stats.total}` : ""}
+            {xpTotal > 0 ? ` · +${xpTotal} XP` : ""}
           </Text>
         </View>
-        <Text style={{ color: c.fgMuted }}>
-          {doneCount} done{xpTotal > 0 ? ` · +${xpTotal} XP` : ""}
+
+        {stats && !finished ? (
+          <View style={[styles.progressWrap, centeredContent]}>
+            <View style={[styles.progressTrack, { backgroundColor: c.bgMuted }]}>
+              <View
+                style={[
+                  styles.progressFill,
+                  { backgroundColor: c.brand, width: `${Math.round(stats.fraction * 100)}%` },
+                ]}
+              />
+            </View>
+            <Text style={[styles.progressHint, { color: c.fgMuted }]}>
+              {stats.remaining} left · missed words come back
+            </Text>
+          </View>
+        ) : null}
+
+        {error ? (
+          <View style={styles.center}>
+            <Text style={{ color: c.danger, textAlign: "center", padding: 24 }}>{error}</Text>
+            <Button title="Try again" variant="ghost" onPress={reload} />
+          </View>
+        ) : !session || !deck ? (
+          <View style={styles.center}>
+            <ActivityIndicator />
+          </View>
+        ) : finished ? (
+          <View style={styles.center}>
+            <Ionicons name="checkmark-circle" size={48} color={c.brand} />
+            <Text style={[styles.doneTitle, { color: c.fg }]}>
+              {stats && stats.total > 0 ? "Session complete" : "Nothing due"}
+            </Text>
+            <Text style={{ color: c.fgMuted, textAlign: "center", paddingHorizontal: 24 }}>
+              {stats && stats.total > 0
+                ? `${stats.total} word${stats.total === 1 ? "" : "s"} mastered · +${xpTotal} XP`
+                : "Come back later."}
+            </Text>
+            {pendingCount > 0 ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <ActivityIndicator size="small" />
+                <Text style={{ color: c.fgMuted }}>Syncing…</Text>
+              </View>
+            ) : null}
+            {syncError ? (
+              <Text style={{ color: c.danger, textAlign: "center", paddingHorizontal: 24 }}>
+                {syncError}
+              </Text>
+            ) : null}
+            {stats && stats.total > 0 ? (
+              <Button title={practice ? "Practice more" : "Review again"} onPress={reload} />
+            ) : (
+              <Button title="Back to books" variant="ghost" onPress={() => router.push("/path")} />
+            )}
+          </View>
+        ) : !item ? (
+          <View style={styles.center}>
+            <ActivityIndicator />
+          </View>
+        ) : (
+          <View style={[styles.body, centeredContent]}>
+            {syncError ? (
+              <Text style={{ color: c.danger, textAlign: "center" }}>{syncError}</Text>
+            ) : null}
+
+            {card && card.attempts > 0 ? (
+              <View style={[styles.retryChip, { backgroundColor: `${c.accent}22` }]}>
+                <Ionicons name="repeat" size={13} color={c.accentFg} />
+                <Text style={{ color: c.accentFg, fontSize: 12, fontWeight: "700" }}>
+                  Back again — this time as multiple choice
+                </Text>
+              </View>
+            ) : null}
+
+            {mode === "choice" ? (
+              <ChoicePrompt
+                item={item}
+                options={choices.key === presentation ? choices.options : []}
+                picked={picked}
+                onPick={setPicked}
+                onNext={(correct) => resolve(correct)}
+                palette={c}
+              />
+            ) : (
+              <>
+                <Pressable
+                  onPress={() => setRevealed(true)}
+                  style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}
+                >
+                  <ArabicText style={[styles.lemma, { color: c.fg }]}>{item.lemma_ar}</ArabicText>
+                  {revealed ? (
+                    <>
+                      <Text style={[styles.gloss, { color: c.fg }]}>{item.gloss_en}</Text>
+                      {item.example_ar ? (
+                        <ArabicText style={[styles.example, { color: c.fgMuted }]}>
+                          {item.example_ar}
+                        </ArabicText>
+                      ) : null}
+                    </>
+                  ) : (
+                    <Text style={{ color: c.fgMuted }}>Tap to reveal</Text>
+                  )}
+                </Pressable>
+
+                {revealed ? (
+                  <View style={styles.gradeRow}>
+                    {GRADES.map((g) => (
+                      <Pressable
+                        key={g.label}
+                        onPress={() => resolve(g.quality >= 3, g.quality)}
+                        style={({ pressed }) => [
+                          styles.gradeButton,
+                          { backgroundColor: toneColor(g.tone) },
+                          pressed && styles.gradeButtonPressed,
+                        ]}
+                      >
+                        <Text style={{ color: "#ffffff", fontWeight: "700" }}>{g.label}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                ) : null}
+              </>
+            )}
+          </View>
+        )}
+      </SafeAreaView>
+    </Washed>
+  );
+}
+
+function ChoicePrompt({
+  item,
+  options,
+  picked,
+  onPick,
+  onNext,
+  palette: c,
+}: {
+  item: VocabItem;
+  options: Choice[];
+  picked: string | null;
+  onPick: (id: string) => void;
+  onNext: (correct: boolean) => void;
+  palette: ReturnType<typeof usePalette>;
+}) {
+  const answered = picked !== null;
+  const correct = picked === item.id;
+
+  return (
+    <>
+      <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
+        <ArabicText style={[styles.lemma, { color: c.fg }]}>{item.lemma_ar}</ArabicText>
+        {item.example_ar ? (
+          <ArabicText style={[styles.example, { color: c.fgMuted, fontSize: 17, lineHeight: 30 }]}>
+            {item.example_ar}
+          </ArabicText>
+        ) : null}
+        <Text style={{ color: c.fgMuted, fontSize: 12, fontWeight: "700", letterSpacing: 1 }}>
+          WHAT DOES THIS MEAN?
         </Text>
       </View>
 
-      {error ? (
-        <View style={styles.center}>
-          <Text style={{ color: c.danger, textAlign: "center", padding: 24 }}>{error}</Text>
-          <Button title="Try again" variant="ghost" onPress={reload} />
-        </View>
-      ) : !queue ? (
-        <View style={styles.center}>
-          <ActivityIndicator />
-        </View>
-      ) : queue.length === 0 ? (
-        <View style={styles.center}>
-          <Ionicons name="checkmark-circle" size={48} color={c.brand} />
-          <Text style={[styles.doneTitle, { color: c.fg }]}>
-            {doneCount > 0 ? "Session complete" : "Nothing due"}
-          </Text>
-          <Text style={{ color: c.fgMuted }}>
-            {doneCount > 0 ? `${doneCount} cards reviewed · +${xpTotal} XP` : "Come back later."}
-          </Text>
-          {pendingCount > 0 ? (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <ActivityIndicator size="small" />
-              <Text style={{ color: c.fgMuted }}>Syncing…</Text>
-            </View>
-          ) : null}
-          {syncError ? (
-            <Text style={{ color: c.danger, textAlign: "center", paddingHorizontal: 24 }}>
-              {syncError}
-            </Text>
-          ) : null}
-          {doneCount > 0 ? (
-            <Button title={practice ? "Practice more" : "Review again"} onPress={reload} />
-          ) : (
-            <Button title="Back to books" variant="ghost" onPress={() => router.push("/path")} />
-          )}
-        </View>
-      ) : (
-        <View style={styles.body}>
-          {syncError ? (
-            <Text style={{ color: c.danger, textAlign: "center" }}>{syncError}</Text>
-          ) : null}
-          <Pressable
-            onPress={() => setRevealed(true)}
-            style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}
-          >
-            <ArabicText style={[styles.lemma, { color: c.fg }]}>{queue[0].lemma_ar}</ArabicText>
-            {revealed ? (
-              <>
-                <Text style={[styles.gloss, { color: c.fg }]}>{queue[0].gloss_en}</Text>
-                {queue[0].example_ar ? (
-                  <ArabicText style={[styles.example, { color: c.fgMuted }]}>
-                    {queue[0].example_ar}
-                  </ArabicText>
-                ) : null}
-              </>
-            ) : (
-              <Text style={{ color: c.fgMuted }}>Tap to reveal</Text>
-            )}
-          </Pressable>
+      <View style={{ gap: 10 }}>
+        {options.map((option) => {
+          const isAnswer = option.id === item.id;
+          const isPicked = option.id === picked;
+          const background = !answered
+            ? c.surface
+            : isAnswer
+              ? `${c.brand}1f`
+              : isPicked
+                ? `${c.danger}1f`
+                : c.surface;
+          const border = !answered
+            ? c.border
+            : isAnswer
+              ? c.brand
+              : isPicked
+                ? c.danger
+                : c.border;
+          return (
+            <Pressable
+              key={option.id}
+              disabled={answered}
+              onPress={() => onPick(option.id)}
+              style={[
+                styles.option,
+                { backgroundColor: background, borderColor: border, opacity: answered && !isAnswer && !isPicked ? 0.5 : 1 },
+              ]}
+            >
+              <Text style={{ color: c.fg, fontSize: 16, fontWeight: "600", flex: 1 }}>
+                {option.gloss}
+              </Text>
+              {answered && isAnswer ? (
+                <Ionicons name="checkmark-circle" size={20} color={c.brand} />
+              ) : answered && isPicked ? (
+                <Ionicons name="close-circle" size={20} color={c.danger} />
+              ) : null}
+            </Pressable>
+          );
+        })}
+      </View>
 
-          {revealed ? (
-            <View style={styles.gradeRow}>
-              {GRADES.map((g) => (
-                <Pressable
-                  key={g.label}
-                  onPress={() => grade(g.quality)}
-                  style={({ pressed }) => [
-                    styles.gradeButton,
-                    { backgroundColor: toneColor(g.tone) },
-                    pressed && styles.gradeButtonPressed,
-                  ]}
-                >
-                  <Text style={{ color: "#ffffff", fontWeight: "700" }}>{g.label}</Text>
-                </Pressable>
-              ))}
-            </View>
-          ) : (
-            <Text style={{ color: c.fgMuted, textAlign: "center" }}>
-              {queue.length} card{queue.length === 1 ? "" : "s"} remaining
-            </Text>
-          )}
-        </View>
-      )}
-    </SafeAreaView>
-    </Washed>
+      {answered ? (
+        <Button
+          title={correct ? "Next" : "Got it — keep going"}
+          onPress={() => onNext(correct)}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -216,27 +405,50 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   headerTitle: { fontSize: 30, fontWeight: "700" },
+  progressWrap: { paddingHorizontal: 20, paddingBottom: 4, gap: 6 },
+  progressTrack: { height: 6, borderRadius: 3, overflow: "hidden" },
+  progressFill: { height: "100%", borderRadius: 3 },
+  progressHint: { fontSize: 12 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10 },
   doneTitle: { fontSize: 22, fontWeight: "700" },
-  body: { flex: 1, padding: 20, gap: 20, justifyContent: "center" },
+  body: { flex: 1, padding: 20, gap: 16, justifyContent: "center" },
+  retryChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "center",
+    gap: 6,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
   card: {
     borderWidth: 1,
     borderRadius: 20,
     padding: 28,
     alignItems: "center",
     gap: 14,
-    minHeight: 260,
+    minHeight: 220,
     justifyContent: "center",
   },
   lemma: { fontSize: 40, textAlign: "center" },
   gloss: { fontSize: 20, fontWeight: "600", textAlign: "center" },
   example: { fontSize: 20, lineHeight: 34, textAlign: "center" },
+  option: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderWidth: 1.5,
+    borderRadius: 14,
+    paddingHorizontal: 18,
+    minHeight: 56,
+  },
   gradeRow: { flexDirection: "row", gap: 10 },
   gradeButton: {
     flex: 1,
     borderRadius: 12,
-    paddingVertical: 14,
+    minHeight: 48,
     alignItems: "center",
+    justifyContent: "center",
   },
   gradeButtonPressed: {
     opacity: 0.55,
