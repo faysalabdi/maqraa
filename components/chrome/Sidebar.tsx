@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, BookOpen, Library, Brain, Repeat, Sparkles, Trophy } from "lucide-react";
+import { BarChart3, BookOpen, Library, Brain, Medal, Repeat, Sparkles, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/brand/Logo";
 import { ThemeToggle } from "./ThemeToggle";
@@ -36,6 +36,7 @@ export function Sidebar({
     { href: "/review", label: "Review", Icon: Repeat, badge: reviewDue },
     { href: "/stats", label: "Stats", Icon: BarChart3 },
     { href: "/achievements", label: "Achievements", Icon: Trophy },
+    { href: "/leaderboard", label: "Leaderboard", Icon: Medal },
     ...(canUpload ? [{ href: "/upload", label: "Library", Icon: Library } as Item] : []),
   ];
 

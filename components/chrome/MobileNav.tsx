@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, BookOpen, Brain, Repeat, Trophy } from "lucide-react";
+import { BarChart3, BookOpen, Brain, Medal, Repeat, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const TABS = [
@@ -11,6 +11,7 @@ const TABS = [
   { href: "/review", label: "Review", Icon: Repeat },
   { href: "/stats", label: "Stats", Icon: BarChart3 },
   { href: "/achievements", label: "Awards", Icon: Trophy },
+  { href: "/leaderboard", label: "Ranks", Icon: Medal },
 ];
 
 export function MobileNav() {
