@@ -20,8 +20,13 @@ run-name: "iOS ${{ inputs.profile }}${{ inputs.submit && ' + submit' || '' }}"
 on:
   workflow_dispatch:
     inputs:
+      # preview is distribution: internal, which needs an ad-hoc provisioning
+      # profile built from registered device UDIDs — EAS cannot create that
+      # without being asked which devices, so it fails in non-interactive mode
+      # until `eas device:create` has been run. To test on a real phone without
+      # that, build production-ci and take it through TestFlight instead.
       profile:
-        description: EAS build profile
+        description: EAS build profile (preview needs registered devices first)
         type: choice
         options:
           - production-ci
