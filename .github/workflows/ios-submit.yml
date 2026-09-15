@@ -1,0 +1,67 @@
+name: ios-submit
+run-name: "Submit iOS build to App Store Connect"
+
+# Hands a build that already exists on EAS to App Store Connect, without
+# rebuilding it. ios-release can do this in the same run via its submit input,
+# but only for the build it just made — once that run is over, this is the way
+# to submit it, and a rebuild would only burn EAS minutes to produce the same
+# binary with a higher build number.
+#
+# Needs the App Store Connect API key registered with EAS (account settings >
+# Credentials), which is also what eas.json's production-ci submit profile
+# expects. It carries no ascApiKey* paths of its own, unlike the laptop-only
+# "production" profile.
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_id:
+        description: EAS build ID (blank submits the latest iOS build)
+        type: string
+        required: false
+
+concurrency:
+  group: ios-submit
+  cancel-in-progress: false
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Fail early if EXPO_TOKEN is missing
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "EXPO_TOKEN is not set on this repository."
+            exit 1
+          fi
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Submit to App Store Connect
+        working-directory: mobile
+        env:
+          BUILD_ID: ${{ inputs.build_id }}
+        run: |
+          if [ -n "$BUILD_ID" ]; then
+            eas submit --platform ios --profile production-ci --id "$BUILD_ID" --non-interactive
+          else
+            eas submit --platform ios --profile production-ci --latest --non-interactive
+          fi
