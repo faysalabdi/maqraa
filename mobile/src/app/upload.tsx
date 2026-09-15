@@ -64,9 +64,9 @@ export default function UploadScreen() {
 
       <ScrollView contentContainerStyle={[styles.content, centeredContent]}>
         <Text style={{ color: c.fgMuted, fontSize: 15, lineHeight: 22 }}>
-          Import any Arabic EPUB or text file. Maqraa reads it, splits it into chapters, places it
-          on your path, and gives you the same tap-to-translate reader, quizzes, and vocab saving
-          as the curated library. Imports are private to you.
+          Import any Arabic EPUB or text file. Maqraa reads it, splits it into chapters, adds it to
+          your library, and gives you the same tap-to-translate reader, quizzes, and vocab saving
+          as the curated books. Imports are private to you.
         </Text>
 
         {plan !== "pro" ? (
@@ -110,7 +110,7 @@ export default function UploadScreen() {
             />
             {busy ? (
               <Text style={{ color: c.fgMuted, fontSize: 13, textAlign: "center" }}>
-                Parsing chapters and placing the book on your path — this can take up to a minute.
+                Parsing chapters and adding the book to your library — this can take up to a minute.
               </Text>
             ) : null}
           </>

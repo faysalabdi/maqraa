@@ -348,7 +348,7 @@ function ResultScreen({
               href="/path"
               className="rounded-xl bg-brand px-5 py-3 font-semibold text-brand-fg shadow-glow-brand transition hover:bg-brand-dark"
             >
-              Back to path
+              Back to books
             </Link>
             <Link
               href={`/book/${bookSlug}`}

@@ -56,9 +56,9 @@ export default async function WordsPage() {
 
       {words.length === 0 && (
         <p className="text-center text-fg-muted">
-          No words yet. Open a readable book on{" "}
+          No words yet. Open a{" "}
           <Link href="/path" className="font-semibold text-brand underline">
-            your path
+            book
           </Link>{" "}
           and tap any word to save it.
         </p>

@@ -141,7 +141,7 @@ function EmptyDeck({ nextDueAt, hasWords }: { nextDueAt: Date | null; hasWords: 
             href={hasWords ? "/words" : "/path"}
             className="text-sm font-medium text-fg-muted transition hover:text-fg"
           >
-            {hasWords ? "See my words" : "Back to path"}
+            {hasWords ? "See my words" : "Back to books"}
           </Link>
         </div>
       </div>
@@ -158,14 +158,13 @@ function NoWords() {
         </span>
         <h1 className="mt-3 text-2xl font-extrabold">No words yet</h1>
         <p className="mt-2 text-sm text-fg-muted">
-          Open a readable book on your path and tap any word to save it — then you can practice it
-          here anytime.
+          Open a book and tap any word to save it — then you can practice it here anytime.
         </p>
         <Link
           href="/path"
           className="mt-6 inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-3 font-semibold text-brand-fg transition hover:bg-brand-dark"
         >
-          Back to path
+          Back to books
         </Link>
       </div>
     </main>

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   Sparkles,
@@ -59,8 +60,12 @@ export default function ReviewSession({
   pool?: Choice[];
   mode?: "due" | "practice";
 }) {
+  const router = useRouter();
   const autoStart = initialDeck.length <= QUICK_START_MAX;
   const [limit, setLimit] = useState(autoStart ? initialDeck.length : 0);
+  // How far into initialDeck the batches have got, so "Review more" can hand
+  // out the next slice instead of replaying the one just finished.
+  const [offset, setOffset] = useState(0);
   const [deck, setDeck] = useState<ReviewCard[]>(autoStart ? initialDeck : []);
   const [session, setSession] = useState<Session | null>(
     autoStart ? createSession(initialDeck.map((c) => c.id)) : null,
@@ -120,6 +125,23 @@ export default function ReviewSession({
     celebrate("session-complete");
   }, [finished, total, celebrate]);
 
+  // A refresh brings a new due deck from the server; start over on it rather
+  // than leaving the finished session on screen.
+  const deckSignature = initialDeck.map((c) => c.id).join(",");
+  const seenSignature = useRef(deckSignature);
+  useEffect(() => {
+    if (seenSignature.current === deckSignature) return;
+    seenSignature.current = deckSignature;
+    const auto = initialDeck.length <= QUICK_START_MAX;
+    setOffset(0);
+    setLimit(auto ? initialDeck.length : 0);
+    setDeck(auto ? initialDeck : []);
+    setSession(auto ? createSession(initialDeck.map((c) => c.id)) : null);
+    setRevealed(false);
+    setPicked(null);
+    setChecked(false);
+  }, [deckSignature, initialDeck]);
+
   function begin(size: number) {
     // The deck arrives sorted most-due-first, so the front slice is the right
     // batch; whatever's left over stays due for next time.
@@ -129,14 +151,32 @@ export default function ReviewSession({
     setSession(createSession(next.map((c) => c.id)));
   }
 
-  // Practice only: re-deal a freshly reshuffled batch in place (no navigation),
-  // so "Practice more" always gives a different mix instead of the same cards.
-  function dealMore() {
-    const next = shuffle(initialDeck).slice(0, limit || initialDeck.length);
+  function startBatch(next: ReviewCard[], from: number) {
+    setOffset(from);
     setDeck(next);
     setSession(createSession(next.map((c) => c.id)));
     setRevealed(false);
     setPicked(null);
+    setChecked(false);
+  }
+
+  // Practice only: re-deal a freshly reshuffled batch in place (no navigation),
+  // so "Practice more" always gives a different mix instead of the same cards.
+  function dealMore() {
+    startBatch(shuffle(initialDeck).slice(0, limit || initialDeck.length), 0);
+  }
+
+  /**
+   * Continue after a finished batch. Linking to /review did nothing, because
+   * that is the page already open. Hand out the next slice of the deck already
+   * loaded; only when that runs out ask the server what else is due — which
+   * lands on the all-caught-up screen when the answer is nothing.
+   */
+  function reviewMore() {
+    const from = offset + deck.length;
+    const next = initialDeck.slice(from, from + (limit || initialDeck.length));
+    if (next.length > 0) startBatch(next, from);
+    else router.refresh();
   }
 
   if (!session) {
@@ -146,7 +186,7 @@ export default function ReviewSession({
   const stats = progress(session);
 
   if (finished) {
-    const hasMore = limit < initialDeck.length || initialDeck.length >= 50;
+    const hasMore = offset + deck.length < initialDeck.length || initialDeck.length >= 50;
     return (
       <DoneScreen
         totalXp={totalXp}
@@ -154,7 +194,7 @@ export default function ReviewSession({
         graduated={graduated}
         hasMore={hasMore}
         mode={mode}
-        onMore={dealMore}
+        onMore={mode === "practice" ? dealMore : reviewMore}
       />
     );
   }
@@ -535,19 +575,19 @@ function DoneScreen({
                 Practice more <ArrowRight className="h-4 w-4" />
               </button>
               <Link href="/path" className="text-sm font-medium text-fg-muted transition hover:text-fg">
-                Back to path
+                Back to books
               </Link>
             </>
           ) : hasMore ? (
             <>
-              <Link
-                href="/review"
+              <button
+                onClick={onMore}
                 className="inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-3 font-semibold text-brand-fg transition hover:bg-brand-dark"
               >
                 Review more <ArrowRight className="h-4 w-4" />
-              </Link>
+              </button>
               <Link href="/path" className="text-sm font-medium text-fg-muted transition hover:text-fg">
-                Back to path
+                Back to books
               </Link>
             </>
           ) : (
@@ -555,7 +595,7 @@ function DoneScreen({
               href="/path"
               className="inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-3 font-semibold text-brand-fg transition hover:bg-brand-dark"
             >
-              Back to path <ArrowRight className="h-4 w-4" />
+              Back to books <ArrowRight className="h-4 w-4" />
             </Link>
           )}
         </div>
