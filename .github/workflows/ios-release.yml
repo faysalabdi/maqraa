@@ -17,8 +17,10 @@ run-name: "iOS ${{ inputs.profile }}${{ inputs.submit && ' + submit' || '' }}"
 #      Store provisioning profile. Every run after that is headless. The
 #      laptop's "production" profile still reads local credentials and is
 #      untouched.
-#   3. An App Store Connect API key registered with EAS, for submit and for
-#      letting EAS generate credentials without an interactive Apple login.
+#   3. An App Store Connect API key assigned to this project for EAS Submit -
+#      account-level registration alone is not enough, and --non-interactive
+#      will not make the association. Same credentials command, under
+#      "App Store Connect: Manage your API Key".
 #   4. Every EXPO_PUBLIC_* var set as an EAS environment variable — these are
 #      inlined at build time on EAS servers, NOT taken from GitHub secrets.
 #      mobile/scripts/check-env.mjs fails the build if any is missing.

@@ -7,10 +7,14 @@ run-name: "Submit iOS build to App Store Connect"
 # to submit it, and a rebuild would only burn EAS minutes to produce the same
 # binary with a higher build number.
 #
-# Needs the App Store Connect API key registered with EAS (account settings >
-# Credentials), which is also what eas.json's production-ci submit profile
-# expects. It carries no ascApiKey* paths of its own, unlike the laptop-only
-# "production" profile.
+# Needs an App Store Connect API key ASSIGNED TO THIS PROJECT for EAS Submit,
+# which is not the same as having one on the account: submitting resolves a
+# per-app association, and --non-interactive refuses to create it. Assign it
+# once from any shell with `npx eas-cli credentials` > iOS > "App Store
+# Connect: Manage your API Key" > "Use an existing API Key for EAS Submit".
+# eas.json's production-ci submit profile carries no ascApiKey* paths of its
+# own, unlike the laptop-only "production" profile, so it relies on that
+# association.
 
 on:
   workflow_dispatch:
