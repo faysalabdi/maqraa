@@ -149,7 +149,10 @@ export default function Reader() {
     pageRestored.current = true;
     AsyncStorage.getItem(pageStoreKey)
       .then((saved) => {
-        if (saved != null) setPage(Math.max(0, Math.min(pages.length - 1, Number(saved))));
+        const n = Number(saved);
+        if (saved != null && Number.isFinite(n)) {
+          setPage(Math.max(0, Math.min(pages.length - 1, n)));
+        }
       })
       .catch(() => {});
   }, [pageStoreKey, pages.length]);
@@ -296,28 +299,6 @@ export default function Reader() {
     }
   }, [chapter, book]);
 
-  if (error) {
-    return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
-        <Stack.Screen options={{ headerShown: false }} />
-        <View style={styles.center}>
-          <Text style={{ color: c.danger }}>{error}</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (!chapter || pages.length === 0) {
-    return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
-        <Stack.Screen options={{ headerShown: false }} />
-        <View style={styles.center}>
-          <ActivityIndicator />
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   const paras = pages[page];
 
   // Translate the visible page whenever the toggle is on and something on it
@@ -357,6 +338,29 @@ export default function Reader() {
       alive = false;
     };
   }, [showTranslation, paras]);
+
+  if (error) {
+    return (
+      <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={styles.center}>
+          <Text style={{ color: c.danger }}>{error}</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!chapter || pages.length === 0) {
+    return (
+      <SafeAreaView style={[styles.safe, { backgroundColor: c.bg }]}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={styles.center}>
+          <ActivityIndicator />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   const lastPage = page === pages.length - 1;
   const pageBg = tint === "paper" ? c.readPage : TINTS[tint].bg;
   const ink = tint === "paper" ? c.fg : TINTS[tint].ink;
@@ -479,7 +483,7 @@ export default function Reader() {
             ) : null}
           </Pressable>
         )}
-        {paras.map((para, pi) => (
+        {(paras ?? []).map((para, pi) => (
           <View key={pi}>
           <View style={styles.paragraph}>
             {para.split(/\s+/).map((token, ti) => {
