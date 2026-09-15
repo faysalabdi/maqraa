@@ -39,8 +39,13 @@ export default async function LeaderboardPage({
   const scope = raw === "all" ? "all" : "week";
   const { rows, you } = await getLeaderboard({ id: user.id, email: user.email ?? null }, scope);
 
-  const podium = rows.slice(0, 3);
-  const rest = rows.slice(3);
+  // The podium needs three people to read as a podium. Below that — a quiet
+  // week, a new install — everyone goes in the list instead, or the page
+  // renders nothing at all.
+  const hasPodium = rows.length >= 3;
+  const podium = hasPodium ? rows.slice(0, 3) : [];
+  const listed = hasPodium ? rows.slice(3) : rows;
+  const youListed = rows.some((r) => r.isYou);
   const weekly = scope === "week";
 
   return (
@@ -83,7 +88,7 @@ export default async function LeaderboardPage({
         </section>
       ) : (
         <>
-          {podium.length === 3 && (
+          {hasPodium && (
             <section className="rounded-3xl bg-surface px-6 pt-7 shadow-card ring-1 ring-border">
               <div className="grid grid-cols-3 items-end gap-4">
                 {[podium[1], podium[0], podium[2]].map((row, slot) => (
@@ -93,17 +98,22 @@ export default async function LeaderboardPage({
             </section>
           )}
 
-          {rest.length > 0 && (
-            <section className="mt-4 overflow-hidden rounded-3xl bg-surface shadow-card ring-1 ring-border">
-              {rest.map((row, i) => (
-                <Row key={row.userId} row={row} rank={i + 4} />
+          {listed.length > 0 && (
+            <section
+              className={cn(
+                "overflow-hidden rounded-3xl bg-surface shadow-card ring-1 ring-border",
+                hasPodium && "mt-4",
+              )}
+            >
+              {listed.map((row, i) => (
+                <Row key={row.userId} row={row} rank={hasPodium ? i + 4 : i + 1} />
               ))}
             </section>
           )}
 
           {/* Their own standing, always visible even when they are outside the
               rows above — getLeaderboard resolves it separately for that case. */}
-          {you && !podium.some((p) => p.isYou) && (
+          {you && !youListed && (
             <section className="mt-4 rounded-3xl bg-surface shadow-card ring-2 ring-brand">
               <Row row={you} rank={you.rank} emphasis />
             </section>

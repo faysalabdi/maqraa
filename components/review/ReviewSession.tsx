@@ -67,6 +67,7 @@ export default function ReviewSession({
   );
   const [revealed, setRevealed] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
+  const [checked, setChecked] = useState(false);
   const [totalXp, setTotalXp] = useState(0);
   const [graduated, setGraduated] = useState(0);
   const [isPending, startTransition] = useTransition();
@@ -165,7 +166,6 @@ export default function ReviewSession({
    */
   function resolve(passed: boolean, selfGrade?: number) {
     if (!session || !card) return;
-    celebrate(passed ? "answer-correct" : "answer-missed");
     if (passed) {
       const cardId = card.id;
       const quality = qualityFor(card, selfGrade);
@@ -182,6 +182,25 @@ export default function ReviewSession({
     setSession(answer(session, passed));
     setRevealed(false);
     setPicked(null);
+    setChecked(false);
+  }
+
+  /** Recall reveals and commits in one press, so the cue fires here. */
+  function gradeRecall(quality: number) {
+    const passed = quality >= 3;
+    celebrate(passed ? "answer-correct" : "answer-missed");
+    resolve(passed, quality);
+  }
+
+  /**
+   * Choice splits the two: picking an option only selects it, and this is
+   * where the answer is committed and revealed — so the cue belongs here, not
+   * on the tap and not on the Next that follows.
+   */
+  function checkChoice() {
+    if (!item || !picked || checked) return;
+    setChecked(true);
+    celebrate(picked === item.id ? "answer-correct" : "answer-missed");
   }
 
   return (
@@ -232,7 +251,9 @@ export default function ReviewSession({
           item={item}
           options={choices.key === presentation ? choices.options : []}
           picked={picked}
+          checked={checked}
           onPick={setPicked}
+          onCheck={checkChoice}
           onNext={(correct) => resolve(correct)}
         />
       ) : item ? (
@@ -281,10 +302,10 @@ export default function ReviewSession({
           <div className="mt-5">
             {revealed && (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <GradeButton onClick={() => resolve(false, 1)} disabled={isPending} tone="danger" icon={<X className="h-4 w-4" />} label="Again" />
-                <GradeButton onClick={() => resolve(true, 3)} disabled={isPending} tone="flame" icon={<CheckCircle2 className="h-4 w-4" />} label="Hard" />
-                <GradeButton onClick={() => resolve(true, 4)} disabled={isPending} tone="brand" icon={<CheckCircle2 className="h-4 w-4" />} label="Good" />
-                <GradeButton onClick={() => resolve(true, 5)} disabled={isPending} tone="iris" icon={<Star className="h-4 w-4" />} label="Easy" />
+                <GradeButton onClick={() => gradeRecall(1)} disabled={isPending} tone="danger" icon={<X className="h-4 w-4" />} label="Again" />
+                <GradeButton onClick={() => gradeRecall(3)} disabled={isPending} tone="flame" icon={<CheckCircle2 className="h-4 w-4" />} label="Hard" />
+                <GradeButton onClick={() => gradeRecall(4)} disabled={isPending} tone="brand" icon={<CheckCircle2 className="h-4 w-4" />} label="Good" />
+                <GradeButton onClick={() => gradeRecall(5)} disabled={isPending} tone="iris" icon={<Star className="h-4 w-4" />} label="Easy" />
               </div>
             )}
           </div>
@@ -298,16 +319,19 @@ function ChoicePrompt({
   item,
   options,
   picked,
+  checked,
   onPick,
+  onCheck,
   onNext,
 }: {
   item: ReviewCard;
   options: Choice[];
   picked: string | null;
+  checked: boolean;
   onPick: (id: string) => void;
+  onCheck: () => void;
   onNext: (correct: boolean) => void;
 }) {
-  const answered = picked !== null;
   const correct = picked === item.id;
 
   return (
@@ -331,8 +355,12 @@ function ChoicePrompt({
         {options.map((option) => {
           const isAnswer = option.id === item.id;
           const isPicked = option.id === picked;
-          const tone = !answered
-            ? "bg-surface ring-border hover:bg-bg-muted"
+          // Before Check a pick is only a selection — it must not leak whether
+          // it happens to be right.
+          const tone = !checked
+            ? isPicked
+              ? "bg-brand/8 ring-2 ring-brand"
+              : "bg-surface ring-border hover:bg-bg-muted"
             : isAnswer
               ? "bg-brand/8 ring-brand text-brand-dark"
               : isPicked
@@ -341,26 +369,25 @@ function ChoicePrompt({
           return (
             <button
               key={option.id}
-              disabled={answered}
+              disabled={checked}
               onClick={() => onPick(option.id)}
               className={`flex items-center justify-between gap-3 rounded-2xl px-5 py-4 text-left text-[15px] font-semibold ring-1 transition ${tone}`}
             >
               <span>{option.gloss}</span>
-              {answered && isAnswer && <CheckCircle2 className="h-5 w-5 shrink-0 text-brand" />}
-              {answered && isPicked && !isAnswer && <X className="h-5 w-5 shrink-0 text-danger" />}
+              {checked && isAnswer && <CheckCircle2 className="h-5 w-5 shrink-0 text-brand" />}
+              {checked && isPicked && !isAnswer && <X className="h-5 w-5 shrink-0 text-danger" />}
             </button>
           );
         })}
       </div>
 
-      {answered && (
-        <button
-          onClick={() => onNext(correct)}
-          className="mt-5 w-full rounded-2xl bg-brand py-3.5 text-[15px] font-extrabold text-brand-fg shadow-glow-brand transition hover:bg-brand-dark"
-        >
-          {correct ? "Next" : "Got it — keep going"}
-        </button>
-      )}
+      <button
+        onClick={checked ? () => onNext(correct) : onCheck}
+        disabled={!picked}
+        className="mt-5 w-full rounded-2xl bg-brand py-3.5 text-[15px] font-extrabold text-brand-fg shadow-glow-brand transition hover:bg-brand-dark disabled:bg-bg-muted disabled:text-fg-muted disabled:shadow-none"
+      >
+        {!checked ? "Check" : correct ? "Next" : "Got it — keep going"}
+      </button>
     </div>
   );
 }

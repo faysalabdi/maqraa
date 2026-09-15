@@ -31,10 +31,12 @@ const RECIPES: Record<CelebrationEvent, Partial[]> = {
     { freq: E5, at: 0, dur: 0.11, type: "triangle", peak: 0.15 },
     { freq: B5, at: 0.065, dur: 0.16, type: "triangle", peak: 0.13 },
   ],
-  // Low and soft on purpose: this marks a requeue, it is not a buzzer.
+  // A definite "no": pitched down rather than sitting on one note, with a
+  // triangle on top for enough harmonic content to cut through. Still not a
+  // buzzer — it marks the requeue, it does not scold.
   "answer-missed": [
-    { freq: 165, at: 0, dur: 0.19, type: "sine", peak: 0.19 },
-    { freq: 116, at: 0.035, dur: 0.22, type: "sine", peak: 0.14 },
+    { freq: 300, at: 0, dur: 0.22, type: "triangle", peak: 0.3, sweepTo: 130 },
+    { freq: 150, at: 0, dur: 0.24, type: "sine", peak: 0.26, sweepTo: 80 },
   ],
   "word-graduated": [
     { freq: C5, at: 0, dur: 0.24, type: "triangle", peak: 0.13 },

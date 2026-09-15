@@ -50,6 +50,7 @@ export default function ReviewScreen() {
   const [session, setSession] = useState<ReviewSession | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
+  const [checked, setChecked] = useState(false);
   const [xpTotal, setXpTotal] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
@@ -167,11 +168,29 @@ export default function ReviewScreen() {
    */
   const resolve = (passed: boolean, selfGrade?: number) => {
     if (!session || !card) return;
-    celebrate(passed ? "answer-correct" : "answer-missed");
     if (passed) syncGrade(card.id, qualityFor(card, selfGrade));
     setSession(answer(session, passed));
     setRevealed(false);
     setPicked(null);
+    setChecked(false);
+  };
+
+  /** Recall reveals and commits in one press, so the cue fires here. */
+  const gradeRecall = (quality: number) => {
+    const passed = quality >= 3;
+    celebrate(passed ? "answer-correct" : "answer-missed");
+    resolve(passed, quality);
+  };
+
+  /**
+   * Choice splits the two: tapping an option only selects it, and this is
+   * where the answer is committed and revealed — so the cue belongs here,
+   * not on the tap and not on the Next that follows.
+   */
+  const checkChoice = () => {
+    if (!item || !picked || checked) return;
+    setChecked(true);
+    celebrate(picked === item.id ? "answer-correct" : "answer-missed");
   };
 
   const toneColor = (tone: (typeof GRADES)[number]["tone"]) =>
@@ -274,7 +293,9 @@ export default function ReviewScreen() {
                 item={item}
                 options={choices.key === presentation ? choices.options : []}
                 picked={picked}
+                checked={checked}
                 onPick={setPicked}
+                onCheck={checkChoice}
                 onNext={(correct) => resolve(correct)}
                 palette={c}
               />
@@ -304,7 +325,7 @@ export default function ReviewScreen() {
                     {GRADES.map((g) => (
                       <Pressable
                         key={g.label}
-                        onPress={() => resolve(g.quality >= 3, g.quality)}
+                        onPress={() => gradeRecall(g.quality)}
                         style={({ pressed }) => [
                           styles.gradeButton,
                           { backgroundColor: toneColor(g.tone) },
@@ -330,18 +351,21 @@ function ChoicePrompt({
   item,
   options,
   picked,
+  checked,
   onPick,
+  onCheck,
   onNext,
   palette: c,
 }: {
   item: VocabItem;
   options: Choice[];
   picked: string | null;
+  checked: boolean;
   onPick: (id: string) => void;
+  onCheck: () => void;
   onNext: (correct: boolean) => void;
   palette: ReturnType<typeof usePalette>;
 }) {
-  const answered = picked !== null;
   const correct = picked === item.id;
 
   return (
@@ -362,15 +386,21 @@ function ChoicePrompt({
         {options.map((option) => {
           const isAnswer = option.id === item.id;
           const isPicked = option.id === picked;
-          const background = !answered
-            ? c.surface
+          // Before Check a pick is only a selection — it must not leak whether
+          // it happens to be right.
+          const background = !checked
+            ? isPicked
+              ? `${c.brand}1f`
+              : c.surface
             : isAnswer
               ? `${c.brand}1f`
               : isPicked
                 ? `${c.danger}1f`
                 : c.surface;
-          const border = !answered
-            ? c.border
+          const border = !checked
+            ? isPicked
+              ? c.brand
+              : c.border
             : isAnswer
               ? c.brand
               : isPicked
@@ -379,19 +409,23 @@ function ChoicePrompt({
           return (
             <Pressable
               key={option.id}
-              disabled={answered}
+              disabled={checked}
               onPress={() => onPick(option.id)}
               style={[
                 styles.option,
-                { backgroundColor: background, borderColor: border, opacity: answered && !isAnswer && !isPicked ? 0.5 : 1 },
+                {
+                  backgroundColor: background,
+                  borderColor: border,
+                  opacity: checked && !isAnswer && !isPicked ? 0.5 : 1,
+                },
               ]}
             >
               <Text style={{ color: c.fg, fontSize: 16, fontWeight: "600", flex: 1 }}>
                 {option.gloss}
               </Text>
-              {answered && isAnswer ? (
+              {checked && isAnswer ? (
                 <Ionicons name="checkmark-circle" size={20} color={c.brand} />
-              ) : answered && isPicked ? (
+              ) : checked && isPicked ? (
                 <Ionicons name="close-circle" size={20} color={c.danger} />
               ) : null}
             </Pressable>
@@ -399,12 +433,11 @@ function ChoicePrompt({
         })}
       </View>
 
-      {answered ? (
-        <Button
-          title={correct ? "Next" : "Got it — keep going"}
-          onPress={() => onNext(correct)}
-        />
-      ) : null}
+      <Button
+        title={!checked ? "Check" : correct ? "Next" : "Got it — keep going"}
+        disabled={!picked}
+        onPress={checked ? () => onNext(correct) : onCheck}
+      />
     </>
   );
 }
