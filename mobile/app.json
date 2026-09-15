@@ -3,6 +3,9 @@
     "name": "Maqraa",
     "slug": "maqraa",
     "version": "1.0.0",
+    "platforms": [
+      "ios"
+    ],
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "maqraa",

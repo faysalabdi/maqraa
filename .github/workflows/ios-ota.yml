@@ -9,6 +9,10 @@ run-name: "OTA to ${{ inputs.channel }}: ${{ inputs.message }}"
 # An update only reaches builds with the same runtimeVersion, which is the app
 # version (policy "appVersion" in app.json). Bump `version` and existing
 # installs stop receiving updates until they take a new build.
+#
+# --platform ios matters: eas update defaults to every platform, which makes
+# expo export bundle a web target this app has no react-native-web for, and
+# the whole export fails on it.
 
 on:
   workflow_dispatch:
@@ -76,4 +80,4 @@ jobs:
         working-directory: mobile
         env:
           MESSAGE: ${{ inputs.message }}
-        run: eas update --channel ${{ inputs.channel }} --message "$MESSAGE" --non-interactive
+        run: eas update --platform ios --channel ${{ inputs.channel }} --message "$MESSAGE" --non-interactive
