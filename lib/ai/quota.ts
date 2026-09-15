@@ -12,6 +12,7 @@ const PRO_LIMITS: Record<string, number> = {
   test: 80, // whole-book test generations
   grade: 120, // open-ended test submissions graded by AI
   analyze: 50, // EPUB upload analyses
+  translate: 300, // reader page translations (one unit per page, not per paragraph)
   conversation: 25, // realtime voice conversation sessions (OpenAI, priced per minute)
 };
 
@@ -22,6 +23,7 @@ const FREE_LIMITS: Record<string, number> = {
   test: 5,
   grade: 8,
   analyze: 0, // uploads are Pro-only; free never analyses
+  translate: 12, // enough to lean on it through a chapter, not a whole book
   conversation: 1, // one short taste per day; Pro unlocks real practice
 };
 

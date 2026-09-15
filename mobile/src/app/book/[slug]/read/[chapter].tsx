@@ -21,6 +21,7 @@ import {
   paginate,
   type SaveWordRequest,
   type SaveWordResponse,
+  type TranslatePageResponse,
   type WordLookupResponse,
 } from "@maqraa/shared";
 import { ArabicText } from "../../../../components/ArabicText";
@@ -68,6 +69,13 @@ export default function Reader() {
   const [wordError, setWordError] = useState<string | null>(null);
   const [savedLemmas, setSavedLemmas] = useState<Set<string>>(new Set());
   const [savedKeys, setSavedKeys] = useState<Set<string>>(new Set());
+  const [showTranslation, setShowTranslation] = useState(false);
+  const [translations, setTranslations] = useState<Record<string, string>>({});
+  const [translating, setTranslating] = useState(false);
+  const [translateError, setTranslateError] = useState<string | null>(null);
+  // Paragraphs already asked for, so turning pages back and forth with the
+  // toggle on does not re-request what is already on screen.
+  const requestedTranslations = useRef<Set<string>>(new Set());
   const [selectedToken, setSelectedToken] = useState<string | null>(null);
   const [sizeIdx, setSizeIdx] = useState(2);
   const [tint, setTint] = useState<Tint>("paper");
@@ -311,6 +319,44 @@ export default function Reader() {
   }
 
   const paras = pages[page];
+
+  // Translate the visible page whenever the toggle is on and something on it
+  // has not been fetched yet — including after turning to a new page.
+  useEffect(() => {
+    if (!showTranslation || !paras) return;
+    const missing = paras.filter((p) => !requestedTranslations.current.has(p));
+    if (missing.length === 0) return;
+    for (const p of missing) requestedTranslations.current.add(p);
+
+    let alive = true;
+    setTranslating(true);
+    setTranslateError(null);
+    api<TranslatePageResponse>("/api/v1/translate", { body: { paragraphs: missing } })
+      .then((res) => {
+        if (!alive) return;
+        setTranslations((prev) => {
+          const next = { ...prev };
+          missing.forEach((p, i) => {
+            next[p] = res.translations[i] ?? "";
+          });
+          return next;
+        });
+      })
+      .catch((e: unknown) => {
+        if (!alive) return;
+        // Let a retry through: a quota message or a network blip should not
+        // permanently mark these paragraphs as already asked for.
+        for (const p of missing) requestedTranslations.current.delete(p);
+        setTranslateError(e instanceof Error ? e.message : "Couldn't load the translation.");
+      })
+      .finally(() => {
+        if (alive) setTranslating(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [showTranslation, paras]);
   const lastPage = page === pages.length - 1;
   const pageBg = tint === "paper" ? c.readPage : TINTS[tint].bg;
   const ink = tint === "paper" ? c.fg : TINTS[tint].ink;
@@ -365,6 +411,21 @@ export default function Reader() {
               />
             </Pressable>
           ))}
+          <Pressable
+            onPress={() => setShowTranslation((v) => !v)}
+            hitSlop={8}
+            accessibilityLabel="Show English translation"
+          >
+            {translating ? (
+              <ActivityIndicator size="small" color={inkMuted} />
+            ) : (
+              <Ionicons
+                name="language"
+                size={20}
+                color={showTranslation ? c.brand : inkMuted}
+              />
+            )}
+          </Pressable>
         </View>
         <Pressable
           onPress={() => setPicker("page")}
@@ -419,7 +480,8 @@ export default function Reader() {
           </Pressable>
         )}
         {paras.map((para, pi) => (
-          <View key={pi} style={styles.paragraph}>
+          <View key={pi}>
+          <View style={styles.paragraph}>
             {para.split(/\s+/).map((token, ti) => {
               const id = `${pi}-${ti}`;
               const key = matchKey(token);
@@ -456,7 +518,16 @@ export default function Reader() {
               );
             })}
           </View>
+          {showTranslation ? (
+            <Text style={[styles.translation, { color: inkMuted }]}>
+              {translations[para] ?? (translating ? "Translating…" : "")}
+            </Text>
+          ) : null}
+          </View>
         ))}
+        {showTranslation && translateError ? (
+          <Text style={[styles.translateError, { color: c.danger }]}>{translateError}</Text>
+        ) : null}
       </ScrollView>
 
       <View style={[styles.bottomBar, { borderTopColor: inkRule }]}>
@@ -576,6 +647,8 @@ const styles = StyleSheet.create({
   tools: { flexDirection: "row", alignItems: "center", gap: 12 },
   sizeBtn: { fontSize: 15, fontWeight: "700" },
   tintDot: { width: 22, height: 22, borderRadius: 11 },
+  translation: { marginTop: 8, marginBottom: 4, fontSize: 15, lineHeight: 23, fontStyle: "italic" },
+  translateError: { marginTop: 16, fontSize: 14, fontWeight: "600", textAlign: "center" },
   bottomBar: {
     flexDirection: "row",
     alignItems: "center",

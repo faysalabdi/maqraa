@@ -351,6 +351,21 @@ export const wordLookups = pgTable("word_lookups", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * Global cache of paragraph translations, keyed on a hash of the source text.
+ * Everyone reading the same book shares the same rows, so a given paragraph is
+ * only ever paid for once. Public-read like word_lookups.
+ */
+export const paragraphTranslations = pgTable("paragraph_translations", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  key: text("key").notNull().unique(),
+  ar: text("ar").notNull(),
+  en: text("en").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const streaks = pgTable("streaks", {
   userId: uuid("user_id").primaryKey(),
   currentDays: integer("current_days").notNull().default(0),

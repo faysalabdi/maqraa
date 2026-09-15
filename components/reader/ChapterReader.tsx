@@ -12,6 +12,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Languages,
   Loader2,
   Minus,
   PartyPopper,
@@ -24,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { isArabicWord, paragraphs, tokenizeParagraph, lookupKey, matchKey, vocalizedKey } from "@/lib/arabic";
 import { COMMON_WORDS } from "@/lib/arabic/common-words";
 import { lookupWord, saveWord, unsaveWord, cachedLookups, prewarmLookups, type CachedLookup } from "@/server/actions/vocab";
+import { translatePage } from "@/server/actions/translate";
 import {
   getChapterQuiz,
   submitChapterQuiz,
@@ -71,6 +73,13 @@ export function ChapterReader(props: Props) {
   const [selected, setSelected] = useState<{ surface: string; context: string } | null>(null);
   const [lookup, setLookup] = useState<WordLookup | null>(null);
   const [savedKeys, setSavedKeys] = useState<Set<string>>(new Set(props.initialSavedKeys));
+  const [showTranslation, setShowTranslation] = useState(false);
+  const [translations, setTranslations] = useState<Record<string, string>>({});
+  const [translating, setTranslating] = useState(false);
+  const [translateError, setTranslateError] = useState<string | null>(null);
+  // Paragraphs already asked for, so flipping pages back and forth with the
+  // toggle on does not re-request what is already on screen.
+  const requestedTranslations = useRef<Set<string>>(new Set());
   const [sessionSaved, setSessionSaved] = useState(0);
   const [quiz, setQuiz] = useState<ClientQuiz | null>(null);
   const [answers, setAnswers] = useState<Record<string, number>>({});
@@ -329,6 +338,50 @@ export function ChapterReader(props: Props) {
   const isLookupSaved = lookup ? savedKeys.has(matchKey(lookup.lemma_ar)) : false;
   const t = TINTS[tint];
   const bodySize = SIZES[sizeIdx];
+
+  // Translate the visible page whenever the toggle is on and something on it
+  // has not been fetched yet — including after turning to a new page.
+  const pageParagraphs = pages[pageIdx];
+  useEffect(() => {
+    if (!showTranslation || !pageParagraphs) return;
+    const missing = pageParagraphs.filter((p) => !requestedTranslations.current.has(p));
+    if (missing.length === 0) return;
+    for (const p of missing) requestedTranslations.current.add(p);
+
+    let alive = true;
+    setTranslating(true);
+    setTranslateError(null);
+    translatePage(missing)
+      .then((res) => {
+        if (!alive) return;
+        if ("error" in res) {
+          // Let a retry through: the quota message or a network blip should not
+          // permanently mark these paragraphs as already asked for.
+          for (const p of missing) requestedTranslations.current.delete(p);
+          setTranslateError(res.error);
+          return;
+        }
+        setTranslations((prev) => {
+          const next = { ...prev };
+          missing.forEach((p, i) => {
+            next[p] = res.translations[i] ?? "";
+          });
+          return next;
+        });
+      })
+      .catch(() => {
+        if (!alive) return;
+        for (const p of missing) requestedTranslations.current.delete(p);
+        setTranslateError("Couldn't load the translation. Try again.");
+      })
+      .finally(() => {
+        if (alive) setTranslating(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [showTranslation, pageParagraphs]);
   const pageProgress = Math.round(((pageIdx + 1) / pages.length) * 100);
 
   return (
@@ -378,6 +431,24 @@ export function ChapterReader(props: Props) {
               </div>
             )}
           </div>
+          <button
+            onClick={() => setShowTranslation((v) => !v)}
+            aria-label="Show English translation"
+            aria-pressed={showTranslation}
+            title="English translation"
+            className={cn(
+              "grid h-9 w-9 place-items-center rounded-full transition",
+              showTranslation
+                ? "bg-brand text-brand-fg"
+                : "text-fg-muted hover:bg-bg-muted hover:text-fg",
+            )}
+          >
+            {translating ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Languages className="h-4 w-4" />
+            )}
+          </button>
           <div className="relative">
             <button
               onClick={() => setPrefsOpen((o) => !o)}
@@ -480,7 +551,8 @@ export function ChapterReader(props: Props) {
 
                 <div className="space-y-6">
                   {pages[pageIdx].map((p, pi) => (
-                    <p key={pi} dir="rtl" className="font-arabic" style={{ fontSize: `${bodySize}rem`, lineHeight: 2.1 }}>
+                    <div key={pi}>
+                    <p dir="rtl" className="font-arabic" style={{ fontSize: `${bodySize}rem`, lineHeight: 2.1 }}>
                       {tokenizeParagraph(p).map((w, wi) => {
                         const known = savedKeys.has(matchKey(w));
                         const isSel = selected?.surface === w;
@@ -505,8 +577,19 @@ export function ChapterReader(props: Props) {
                         );
                       })}
                     </p>
+                    {showTranslation && (
+                      <p dir="ltr" className="mt-2 text-[0.95rem] italic leading-relaxed text-fg-muted">
+                        {translations[p] ?? (translating ? "Translating…" : "")}
+                      </p>
+                    )}
+                    </div>
                   ))}
                 </div>
+                {showTranslation && translateError && (
+                  <p className="mt-4 rounded-xl bg-danger/10 px-4 py-3 text-sm font-semibold text-danger">
+                    {translateError}
+                  </p>
+                )}
               </article>
 
               {/* Page navigation */}

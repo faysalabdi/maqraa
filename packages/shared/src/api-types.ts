@@ -136,3 +136,7 @@ export type LeaderboardResponse = {
   rows: LeaderRow[];
   you: (LeaderRow & { rank: number }) | null;
 };
+
+export type TranslatePageRequest = { paragraphs: string[] };
+
+export type TranslatePageResponse = { translations: string[] };
