@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { BookmarkPlus, Check, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { cleanWord, isArabicWord, lookupKey, tokenizeParagraph } from "@/lib/arabic";
+import { isArabicWord, matchKey, tokenizeParagraph } from "@/lib/arabic";
 import { lookupWord, saveWord } from "@/server/actions/vocab";
 import type { WordLookup } from "@/lib/ai/word-lookup";
 
@@ -38,8 +38,8 @@ export function useWordTap(initialSavedKeys: string[], sourceRef?: { source: str
 
   function save() {
     if (!lookup) return;
-    const key = lookupKey(lookup.lemma_ar);
-    setSavedKeys((prev) => new Set(prev).add(key).add(lookupKey(lookup.surface)));
+    const key = matchKey(lookup.lemma_ar);
+    setSavedKeys((prev) => new Set(prev).add(key).add(matchKey(lookup.surface)));
     setSessionSaved((n) => n + 1);
     startTransition(async () => {
       await saveWord({
@@ -61,7 +61,7 @@ export function useWordTap(initialSavedKeys: string[], sourceRef?: { source: str
     tap,
     save,
     close: () => setSelected(null),
-    isLookupSaved: lookup ? savedKeys.has(lookupKey(lookup.lemma_ar)) : false,
+    isLookupSaved: lookup ? savedKeys.has(matchKey(lookup.lemma_ar)) : false,
   };
 }
 
@@ -78,16 +78,16 @@ export function TapWords({
   return (
     <p dir="rtl" className={cn("font-arabic text-2xl leading-loose text-fg", className)}>
       {tokenizeParagraph(text).map((w, wi) => {
-        const known = state.savedKeys.has(cleanWord(w));
+        const known = state.savedKeys.has(matchKey(w));
         const isSelected = state.selected?.surface === w;
         return (
           <span key={wi}>
             <span
               onClick={() => state.tap(w, text)}
               className={cn(
-                "cursor-pointer rounded-md px-0.5 transition hover:bg-amber-100",
-                known && "underline decoration-emerald-400 decoration-2 underline-offset-4",
-                isSelected && "bg-amber-200",
+                "cursor-pointer rounded-md px-1 transition [box-decoration-break:clone] hover:bg-black/10",
+                known && "bg-brand/15 ring-1 ring-brand/30",
+                isSelected && "bg-accent/40 ring-2 ring-accent",
               )}
             >
               {w}

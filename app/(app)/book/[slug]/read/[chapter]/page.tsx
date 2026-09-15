@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { db, schema } from "@/lib/db";
 import { getBookBySlug } from "@/lib/db/queries/path";
 import { getPlan, canReadTier } from "@/lib/entitlement";
-import { lookupKey } from "@/lib/arabic";
+import { matchKey } from "@/lib/arabic";
 import { ChapterReader } from "@/components/reader/ChapterReader";
 
 export const dynamic = "force-dynamic";
@@ -53,12 +53,13 @@ export default async function ReadChapterPage({
     .select({ lemmaAr: schema.vocabItems.lemmaAr, sourceRef: schema.vocabItems.sourceRef })
     .from(schema.vocabItems)
     .where(eq(schema.vocabItems.userId, user.id));
-  // Underline both the lemma key and the exact tapped surface (an inflected
-  // form rarely equals its lemma, so the lemma key alone misses it in the text).
+  // Both the lemma and the exact tapped surface, under the looser match key —
+  // an inflected form rarely equals its lemma, and the same word turns up
+  // carrying a different article or conjunction a page later.
   const savedKeys = saved.flatMap((s) => {
-    const keys = [lookupKey(s.lemmaAr)];
+    const keys = [matchKey(s.lemmaAr)];
     const surfaceKey = (s.sourceRef as { surfaceKey?: string } | null)?.surfaceKey;
-    if (surfaceKey) keys.push(surfaceKey);
+    if (surfaceKey) keys.push(matchKey(surfaceKey));
     return keys;
   });
 

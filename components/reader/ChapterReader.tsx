@@ -21,7 +21,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { cleanWord, isArabicWord, paragraphs, tokenizeParagraph, lookupKey, vocalizedKey } from "@/lib/arabic";
+import { isArabicWord, paragraphs, tokenizeParagraph, lookupKey, matchKey, vocalizedKey } from "@/lib/arabic";
 import { COMMON_WORDS } from "@/lib/arabic/common-words";
 import { lookupWord, saveWord, unsaveWord, cachedLookups, prewarmLookups, type CachedLookup } from "@/server/actions/vocab";
 import {
@@ -250,10 +250,12 @@ export function ChapterReader(props: Props) {
 
   function handleSave() {
     if (!lookup) return;
-    const key = lookupKey(lookup.lemma_ar);
+    // sKey is what gets stored; the match keys are what the page highlights on.
     const sKey = lookupKey(lookup.surface);
+    const key = matchKey(lookup.lemma_ar);
+    const sMatch = matchKey(lookup.surface);
     setSaveError(false);
-    setSavedKeys((prev) => new Set(prev).add(key).add(sKey));
+    setSavedKeys((prev) => new Set(prev).add(key).add(sMatch));
     setSessionSaved((n) => n + 1);
     startTransition(async () => {
       try {
@@ -271,7 +273,7 @@ export function ChapterReader(props: Props) {
         setSavedKeys((prev) => {
           const next = new Set(prev);
           next.delete(key);
-          next.delete(sKey);
+          next.delete(sMatch);
           return next;
         });
         setSessionSaved((n) => Math.max(0, n - 1));
@@ -282,12 +284,12 @@ export function ChapterReader(props: Props) {
 
   function handleUnsave() {
     if (!lookup) return;
-    const key = lookupKey(lookup.lemma_ar);
-    const sKey = lookupKey(lookup.surface);
+    const key = matchKey(lookup.lemma_ar);
+    const sMatch = matchKey(lookup.surface);
     setSavedKeys((prev) => {
       const next = new Set(prev);
       next.delete(key);
-      next.delete(sKey);
+      next.delete(sMatch);
       return next;
     });
     setSessionSaved((n) => Math.max(0, n - 1));
@@ -324,7 +326,7 @@ export function ChapterReader(props: Props) {
       .finally(() => router.push(`/book/${props.bookSlug}`));
   }
 
-  const isLookupSaved = lookup ? savedKeys.has(lookupKey(lookup.lemma_ar)) : false;
+  const isLookupSaved = lookup ? savedKeys.has(matchKey(lookup.lemma_ar)) : false;
   const t = TINTS[tint];
   const bodySize = SIZES[sizeIdx];
   const pageProgress = Math.round(((pageIdx + 1) / pages.length) * 100);
@@ -480,7 +482,7 @@ export function ChapterReader(props: Props) {
                   {pages[pageIdx].map((p, pi) => (
                     <p key={pi} dir="rtl" className="font-arabic" style={{ fontSize: `${bodySize}rem`, lineHeight: 2.1 }}>
                       {tokenizeParagraph(p).map((w, wi) => {
-                        const known = savedKeys.has(cleanWord(w));
+                        const known = savedKeys.has(matchKey(w));
                         const isSel = selected?.surface === w;
                         return (
                           <span key={wi}>
@@ -490,9 +492,11 @@ export function ChapterReader(props: Props) {
                                 handleWordClick(w, p);
                               }}
                               className={cn(
-                                "cursor-pointer rounded px-0.5 transition hover:bg-black/10",
-                                known && "underline decoration-brand decoration-2 underline-offset-[6px]",
-                                isSel && "outline outline-2 outline-offset-1 outline-brand",
+                                "cursor-pointer rounded-md px-1 transition [box-decoration-break:clone] hover:bg-black/10",
+                                // Saved reads as a quiet emerald chip; selection
+                                // is amber so the two are never confused.
+                                known && "bg-brand/15 ring-1 ring-brand/30",
+                                isSel && "bg-accent/40 ring-2 ring-accent",
                               )}
                             >
                               {w}

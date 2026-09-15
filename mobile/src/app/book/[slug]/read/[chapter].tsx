@@ -15,9 +15,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   COMMON_WORDS,
-  cleanWord,
   isArabicWord,
   lookupKey,
+  matchKey,
   paginate,
   type SaveWordRequest,
   type SaveWordResponse,
@@ -90,7 +90,7 @@ export default function Reader() {
       })
       .catch(() => {});
     fetchSavedWordKeys()
-      .then((keys) => setSavedKeys(new Set(keys.map((k) => cleanWord(k)).filter(Boolean))))
+      .then((keys) => setSavedKeys(new Set(keys.map((k) => matchKey(k)).filter(Boolean))))
       .catch(() => {});
   }, []);
 
@@ -242,8 +242,8 @@ export default function Reader() {
     // Underline both the lemma and the tapped surface form, like the web reader.
     setSavedKeys((prev) => {
       const next = new Set(prev);
-      next.add(cleanWord(word.lemma_ar));
-      next.add(word.surfaceKey);
+      next.add(matchKey(word.lemma_ar));
+      next.add(matchKey(word.surfaceKey));
       return next;
     });
   }, [word, book, chapter]);
@@ -422,7 +422,7 @@ export default function Reader() {
           <View key={pi} style={styles.paragraph}>
             {para.split(/\s+/).map((token, ti) => {
               const id = `${pi}-${ti}`;
-              const key = cleanWord(token);
+              const key = matchKey(token);
               const isSaved = !!key && savedKeys.has(key);
               const isSelected = selectedToken === id;
               return (
@@ -437,14 +437,16 @@ export default function Reader() {
                     style={[
                       styles.token,
                       { color: ink, fontSize, lineHeight: fontSize * 2 },
+                      // Saved reads as a quiet emerald chip; selection is amber
+                      // so the two are never confused.
                       isSaved && {
-                        textDecorationLine: "underline",
-                        textDecorationColor: c.brand,
+                        backgroundColor: `${c.brand}26`,
+                        borderRadius: 6,
                       },
                       isSelected && {
-                        backgroundColor: `${c.brand}2e`,
+                        backgroundColor: `${c.accent}59`,
                         borderRadius: 6,
-                        color: c.brandDark,
+                        color: c.fg,
                       },
                     ]}
                   >
