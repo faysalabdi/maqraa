@@ -12,9 +12,10 @@ run-name: "iOS ${{ inputs.profile }}${{ inputs.submit && ' + submit' || '' }}"
 #      a Mac. So bootstrap them from any shell with network access (a GitHub
 #      Codespace works, no laptop needed):
 #          cd mobile && npx eas-cli credentials
-#      Pick iOS > production-ci and let it generate the distribution
-#      certificate and provisioning profile. Every run after that is headless.
-#      The laptop's "production" profile still reads local credentials and is
+#      Pick iOS, then "Build Credentials > All". It reuses an existing Apple
+#      distribution certificate if the account has one and creates the App
+#      Store provisioning profile. Every run after that is headless. The
+#      laptop's "production" profile still reads local credentials and is
 #      untouched.
 #   3. An App Store Connect API key registered with EAS, for submit and for
 #      letting EAS generate credentials without an interactive Apple login.
