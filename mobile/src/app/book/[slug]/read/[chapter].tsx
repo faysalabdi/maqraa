@@ -87,7 +87,7 @@ export default function Reader() {
 
   const pageStoreKey = book && chapter ? `page:${book.slug}:${chapter.chapter_number}` : null;
 
-  // Reader prefs + already-saved words (underlined in the text).
+  // Reader prefs + already-saved words (highlighted in the text).
   useEffect(() => {
     AsyncStorage.getItem(PREFS_KEY)
       .then((raw) => {
