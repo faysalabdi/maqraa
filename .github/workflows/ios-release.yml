@@ -6,10 +6,15 @@ run-name: "iOS ${{ inputs.profile }}${{ inputs.submit && ' + submit' || '' }}"
 #
 # One-time setup, all doable from a browser:
 #   1. EXPO_TOKEN repo secret — expo.dev > account settings > access tokens.
-#   2. Signing credentials on EAS — expo.dev > this project > credentials.
-#      The production-ci build profile uses credentialsSource "remote", so EAS
-#      needs the distribution cert and provisioning profile stored there. The
-#      laptop's "production" profile still reads local credentials and is
+#   2. Signing credentials on EAS — and this part needs ONE interactive run,
+#      once. --non-interactive uses existing credentials but refuses to create
+#      them, and the website wizard only offers uploading a .p12 exported from
+#      a Mac. So bootstrap them from any shell with network access (a GitHub
+#      Codespace works, no laptop needed):
+#          cd mobile && npx eas-cli credentials
+#      Pick iOS > production-ci and let it generate the distribution
+#      certificate and provisioning profile. Every run after that is headless.
+#      The laptop's "production" profile still reads local credentials and is
 #      untouched.
 #   3. An App Store Connect API key registered with EAS, for submit and for
 #      letting EAS generate credentials without an interactive Apple login.
