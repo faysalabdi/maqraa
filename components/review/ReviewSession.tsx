@@ -125,13 +125,18 @@ export default function ReviewSession({
     celebrate("session-complete");
   }, [finished, total, celebrate]);
 
-  // A refresh brings a new due deck from the server; start over on it rather
-  // than leaving the finished session on screen.
-  const deckSignature = initialDeck.map((c) => c.id).join(",");
-  const seenSignature = useRef(deckSignature);
+  /**
+   * Start over on a deck we deliberately asked the server for.
+   *
+   * Strictly gated on that one path. Grading a card runs a server action, which
+   * re-renders this force-dynamic page and hands back a due list one card
+   * shorter — so reacting to initialDeck changing on its own threw the reader
+   * back to the picker mid-session.
+   */
+  const awaitingRefresh = useRef(false);
   useEffect(() => {
-    if (seenSignature.current === deckSignature) return;
-    seenSignature.current = deckSignature;
+    if (!awaitingRefresh.current) return;
+    awaitingRefresh.current = false;
     const auto = initialDeck.length <= QUICK_START_MAX;
     setOffset(0);
     setLimit(auto ? initialDeck.length : 0);
@@ -140,7 +145,7 @@ export default function ReviewSession({
     setRevealed(false);
     setPicked(null);
     setChecked(false);
-  }, [deckSignature, initialDeck]);
+  }, [initialDeck]);
 
   function begin(size: number) {
     // The deck arrives sorted most-due-first, so the front slice is the right
@@ -175,8 +180,12 @@ export default function ReviewSession({
   function reviewMore() {
     const from = offset + deck.length;
     const next = initialDeck.slice(from, from + (limit || initialDeck.length));
-    if (next.length > 0) startBatch(next, from);
-    else router.refresh();
+    if (next.length > 0) {
+      startBatch(next, from);
+    } else {
+      awaitingRefresh.current = true;
+      router.refresh();
+    }
   }
 
   if (!session) {
