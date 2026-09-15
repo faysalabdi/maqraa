@@ -1,4 +1,4 @@
-import type { CelebrationEvent } from "@maqraa/shared";
+import { CUE_RECIPES, type CelebrationEvent } from "@maqraa/shared";
 
 /**
  * The cue sounds, synthesised in the browser rather than loaded as files.
@@ -6,58 +6,10 @@ import type { CelebrationEvent } from "@maqraa/shared";
  * Nothing to download, nothing to license, and no request on the critical
  * path — at these lengths (a handful of enveloped oscillators) a recording
  * would buy nothing a few sine and triangle partials do not already give.
+ *
+ * The recipes live in @maqraa/shared because mobile cannot synthesise: it
+ * plays files rendered from the same table.
  */
-
-type Partial = {
-  freq: number;
-  /** Offset from the start of the cue, in seconds. */
-  at: number;
-  dur: number;
-  type: OscillatorType;
-  peak: number;
-  /** Glide to this frequency across the partial's life. */
-  sweepTo?: number;
-};
-
-const C5 = 523.25;
-const E5 = 659.25;
-const G5 = 783.99;
-const B5 = 987.77;
-const C6 = 1046.5;
-
-const RECIPES: Record<CelebrationEvent, Partial[]> = {
-  // Two rising notes. Short enough to fire on consecutive answers.
-  "answer-correct": [
-    { freq: E5, at: 0, dur: 0.11, type: "triangle", peak: 0.15 },
-    { freq: B5, at: 0.065, dur: 0.16, type: "triangle", peak: 0.13 },
-  ],
-  // A definite "no": pitched down rather than sitting on one note, with a
-  // triangle on top for enough harmonic content to cut through. Still not a
-  // buzzer — it marks the requeue, it does not scold.
-  "answer-missed": [
-    { freq: 300, at: 0, dur: 0.22, type: "triangle", peak: 0.3, sweepTo: 130 },
-    { freq: 150, at: 0, dur: 0.24, type: "sine", peak: 0.26, sweepTo: 80 },
-  ],
-  "word-graduated": [
-    { freq: C5, at: 0, dur: 0.24, type: "triangle", peak: 0.13 },
-    { freq: E5, at: 0.06, dur: 0.24, type: "triangle", peak: 0.13 },
-    { freq: G5, at: 0.12, dur: 0.26, type: "triangle", peak: 0.13 },
-  ],
-  "session-complete": [
-    { freq: C5, at: 0, dur: 0.6, type: "triangle", peak: 0.13 },
-    { freq: E5, at: 0.08, dur: 0.6, type: "triangle", peak: 0.13 },
-    { freq: G5, at: 0.16, dur: 0.6, type: "triangle", peak: 0.13 },
-    { freq: C6, at: 0.24, dur: 0.6, type: "triangle", peak: 0.13 },
-  ],
-  "streak-extended": [
-    { freq: 740, at: 0, dur: 0.32, type: "sine", peak: 0.14, sweepTo: 1760 },
-    { freq: 370, at: 0, dur: 0.3, type: "triangle", peak: 0.07, sweepTo: 880 },
-  ],
-  "achievement-unlocked": [
-    { freq: 880, at: 0, dur: 0.9, type: "sine", peak: 0.13 },
-    { freq: 1320, at: 0.01, dur: 0.85, type: "sine", peak: 0.07 },
-  ],
-};
 
 let ctx: AudioContext | null = null;
 
@@ -85,7 +37,7 @@ export function playCue(event: CelebrationEvent): void {
   if (context.state === "suspended") void context.resume();
 
   const now = context.currentTime;
-  for (const partial of RECIPES[event]) {
+  for (const partial of CUE_RECIPES[event]) {
     const osc = context.createOscillator();
     const gain = context.createGain();
     osc.type = partial.type;

@@ -1,0 +1,29 @@
+{
+  "answer-correct": [
+    { "freq": 659.25, "at": 0, "dur": 0.11, "type": "triangle", "peak": 0.15 },
+    { "freq": 987.77, "at": 0.065, "dur": 0.16, "type": "triangle", "peak": 0.13 }
+  ],
+  "answer-missed": [
+    { "freq": 300, "at": 0, "dur": 0.22, "type": "triangle", "peak": 0.3, "sweepTo": 130 },
+    { "freq": 150, "at": 0, "dur": 0.24, "type": "sine", "peak": 0.26, "sweepTo": 80 }
+  ],
+  "word-graduated": [
+    { "freq": 523.25, "at": 0, "dur": 0.24, "type": "triangle", "peak": 0.13 },
+    { "freq": 659.25, "at": 0.06, "dur": 0.24, "type": "triangle", "peak": 0.13 },
+    { "freq": 783.99, "at": 0.12, "dur": 0.26, "type": "triangle", "peak": 0.13 }
+  ],
+  "session-complete": [
+    { "freq": 523.25, "at": 0, "dur": 0.6, "type": "triangle", "peak": 0.13 },
+    { "freq": 659.25, "at": 0.08, "dur": 0.6, "type": "triangle", "peak": 0.13 },
+    { "freq": 783.99, "at": 0.16, "dur": 0.6, "type": "triangle", "peak": 0.13 },
+    { "freq": 1046.5, "at": 0.24, "dur": 0.6, "type": "triangle", "peak": 0.13 }
+  ],
+  "streak-extended": [
+    { "freq": 740, "at": 0, "dur": 0.32, "type": "sine", "peak": 0.14, "sweepTo": 1760 },
+    { "freq": 370, "at": 0, "dur": 0.3, "type": "triangle", "peak": 0.07, "sweepTo": 880 }
+  ],
+  "achievement-unlocked": [
+    { "freq": 880, "at": 0, "dur": 0.9, "type": "sine", "peak": 0.13 },
+    { "freq": 1320, "at": 0.01, "dur": 0.85, "type": "sine", "peak": 0.07 }
+  ]
+}
