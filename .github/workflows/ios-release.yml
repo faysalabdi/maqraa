@@ -1,0 +1,94 @@
+name: ios-release
+run-name: "iOS ${{ inputs.profile }}${{ inputs.submit && ' + submit' || '' }}"
+
+# Builds the iOS app on EAS and optionally hands it to App Store Connect, so
+# releasing never depends on having a laptop to hand.
+#
+# One-time setup, all doable from a browser:
+#   1. EXPO_TOKEN repo secret — expo.dev > account settings > access tokens.
+#   2. Signing credentials on EAS — expo.dev > this project > credentials.
+#      The production-ci build profile uses credentialsSource "remote", so EAS
+#      needs the distribution cert and provisioning profile stored there. The
+#      laptop's "production" profile still reads local credentials and is
+#      untouched.
+#   3. An App Store Connect API key registered with EAS, for submit and for
+#      letting EAS generate credentials without an interactive Apple login.
+#   4. Every EXPO_PUBLIC_* var set as an EAS environment variable — these are
+#      inlined at build time on EAS servers, NOT taken from GitHub secrets.
+#      mobile/scripts/check-env.mjs fails the build if any is missing.
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: EAS build profile
+        type: choice
+        options:
+          - production-ci
+          - preview
+        default: production-ci
+      submit:
+        description: Submit to App Store Connect when the build succeeds
+        type: boolean
+        default: false
+
+# Two builds of the same app at once would race the auto-incremented build
+# number, so extra dispatches queue.
+concurrency:
+  group: ios-release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # EAS does the building; this job mostly waits on it.
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: pnpm install --frozen-lockfile
+
+      # Cheap guards first: a type error or a broken test should not cost
+      # half an hour of EAS build time to discover.
+      - name: Typecheck the mobile app
+        run: pnpm typecheck
+        working-directory: mobile
+
+      - name: Test the shared logic
+        run: pnpm test
+
+      # The secrets context is not readable from an `if:`, so this is a shell
+      # test — otherwise a missing token surfaces as a confusing EAS auth error
+      # several minutes in.
+      - name: Fail early if EXPO_TOKEN is missing
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "EXPO_TOKEN is not set on this repository."
+            echo "Create one at expo.dev > account settings > access tokens,"
+            echo "then add it under Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Build on EAS
+        working-directory: mobile
+        run: eas build --platform ios --profile ${{ inputs.profile }} --non-interactive --wait
+
+      - name: Submit to App Store Connect
+        if: ${{ inputs.submit }}
+        working-directory: mobile
+        run: eas submit --platform ios --profile production-ci --latest --non-interactive
