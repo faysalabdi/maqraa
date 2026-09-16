@@ -10,6 +10,7 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { SessionProvider } from "../lib/auth-context";
 import { MeProvider } from "../lib/me-context";
+import { ErrorBoundary } from "../components/ErrorBoundary";
 import { hydrateFeedbackPrefs } from "../lib/celebrate";
 import { initPurchases } from "../lib/purchases";
 import { ThemeProvider, useTheme } from "../lib/theme-context";
@@ -57,8 +58,10 @@ export default function RootLayout() {
   if (!fontsLoaded) return null;
 
   return (
-    <ThemeProvider>
-      <Root />
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <Root />
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }

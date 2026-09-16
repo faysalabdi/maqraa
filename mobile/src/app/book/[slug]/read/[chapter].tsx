@@ -92,9 +92,15 @@ export default function Reader() {
     AsyncStorage.getItem(PREFS_KEY)
       .then((raw) => {
         if (!raw) return;
-        const prefs = JSON.parse(raw) as { sizeIdx?: number; tint?: Tint };
-        if (typeof prefs.sizeIdx === "number") setSizeIdx(Math.min(SIZES.length - 1, Math.max(0, prefs.sizeIdx)));
-        if (prefs.tint) setTint(prefs.tint);
+        const prefs = JSON.parse(raw) as { sizeIdx?: number; tint?: string };
+        // Both come back from storage as whatever was last written, which may
+        // predate a change to these tables. An unknown tint would make
+        // TINTS[tint] undefined and take the whole screen down on render.
+        if (Number.isFinite(prefs.sizeIdx)) {
+          setSizeIdx(Math.min(SIZES.length - 1, Math.max(0, Number(prefs.sizeIdx))));
+        }
+        const t = prefs.tint;
+        if (t === "paper" || (typeof t === "string" && t in TINTS)) setTint(t as Tint);
       })
       .catch(() => {});
     fetchSavedWordKeys()
