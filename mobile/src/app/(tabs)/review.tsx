@@ -5,13 +5,16 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-nati
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   answer,
+  batchPresets,
   buildChoices,
   createSession,
   currentCard,
   currentMode,
   isDone,
+  hasMoreAfter,
   progress,
   qualityFor,
+  QUICK_START_MAX,
   type GradeCardResponse,
   type PracticeCardResponse,
   type ReviewSession,
@@ -45,7 +48,11 @@ export default function ReviewScreen() {
   const { mode: routeMode } = useLocalSearchParams<{ mode?: string }>();
   const practice = routeMode === "practice";
 
+  // full is everything due; deck is the batch this session is working through.
+  const [full, setFull] = useState<VocabItem[] | null>(null);
   const [deck, setDeck] = useState<VocabItem[] | null>(null);
+  const [offset, setOffset] = useState(0);
+  const [limit, setLimit] = useState(0);
   const [pool, setPool] = useState<Choice[]>([]);
   const [session, setSession] = useState<ReviewSession | null>(null);
   const [revealed, setRevealed] = useState(false);
@@ -59,7 +66,10 @@ export default function ReviewScreen() {
 
   const reload = useCallback(() => {
     sessionRef.current += 1;
+    setFull(null);
     setDeck(null);
+    setOffset(0);
+    setLimit(0);
     setSession(null);
     setRevealed(false);
     setPicked(null);
@@ -74,11 +84,17 @@ export default function ReviewScreen() {
       fetchPracticeVocab().catch(() => [] as VocabItem[]),
     ])
       .then(([due, wider]) => {
-        const cards = practice ? due.slice(0, 20) : due;
-        setDeck(cards);
-        setSession(createSession(cards.map((x) => x.id)));
+        const all = practice ? due.slice(0, 20) : due;
+        setFull(all);
+        // A short deck is not worth a question; anything longer gets the same
+        // picker the web app shows, so the rest stays due for next time.
+        if (all.length <= QUICK_START_MAX) {
+          setLimit(all.length);
+          setDeck(all);
+          setSession(createSession(all.map((x) => x.id)));
+        }
         const merged = new Map<string, Choice>();
-        for (const item of [...cards, ...wider]) {
+        for (const item of [...all, ...wider]) {
           merged.set(item.id, { id: item.id, gloss: item.gloss_en });
         }
         setPool([...merged.values()]);
@@ -91,6 +107,36 @@ export default function ReviewScreen() {
       reload();
     }, [reload]),
   );
+
+  const startBatch = useCallback((next: VocabItem[], from: number) => {
+    setOffset(from);
+    setDeck(next);
+    setSession(createSession(next.map((x) => x.id)));
+    setRevealed(false);
+    setPicked(null);
+    setChecked(false);
+  }, []);
+
+  const begin = useCallback(
+    (size: number) => {
+      if (!full) return;
+      setLimit(size);
+      startBatch(full.slice(0, size), 0);
+    },
+    [full, startBatch],
+  );
+
+  /**
+   * Continue after a finished batch: hand out the next slice of the deck
+   * already loaded, and only ask the server again once it runs out.
+   */
+  const reviewMore = useCallback(() => {
+    if (!full || !deck) return;
+    const from = offset + deck.length;
+    const next = full.slice(from, from + (limit || full.length));
+    if (next.length > 0) startBatch(next, from);
+    else reload();
+  }, [full, deck, offset, limit, startBatch, reload]);
 
   useEffect(() => {
     if (!syncError) return;
@@ -237,6 +283,24 @@ export default function ReviewScreen() {
             <Text style={{ color: c.danger, textAlign: "center", padding: 24 }}>{error}</Text>
             <Button title="Try again" variant="ghost" onPress={reload} />
           </View>
+        ) : full && !session ? (
+          <View style={[styles.center, centeredContent]}>
+            <Ionicons name="layers-outline" size={44} color={c.brand} />
+            <Text style={[styles.doneTitle, { color: c.fg }]}>
+              {full.length} word{full.length === 1 ? "" : "s"} {practice ? "to practice" : "due"}
+            </Text>
+            <Text style={{ color: c.fgMuted, textAlign: "center", paddingHorizontal: 24 }}>
+              {practice
+                ? "How many now? This won't change your schedule."
+                : "How many now? The rest stay due for next time."}
+            </Text>
+            <View style={{ alignSelf: "stretch", gap: 10, paddingHorizontal: 24, paddingTop: 8 }}>
+              {batchPresets(full.length).map((n) => (
+                <Button key={n} title={`${n} words`} variant="ghost" onPress={() => begin(n)} />
+              ))}
+              <Button title={`All ${full.length}`} onPress={() => begin(full.length)} />
+            </View>
+          </View>
         ) : !session || !deck ? (
           <View style={styles.center}>
             <ActivityIndicator />
@@ -263,7 +327,12 @@ export default function ReviewScreen() {
                 {syncError}
               </Text>
             ) : null}
-            {stats && stats.total > 0 ? (
+            {stats && stats.total > 0 && full && deck && hasMoreAfter(offset, deck.length, full.length) ? (
+              <Button
+                title={`Review more (${full.length - offset - deck.length} left)`}
+                onPress={reviewMore}
+              />
+            ) : stats && stats.total > 0 ? (
               <Button title={practice ? "Practice more" : "Review again"} onPress={reload} />
             ) : (
               <Button title="Back to books" variant="ghost" onPress={() => router.push("/path")} />

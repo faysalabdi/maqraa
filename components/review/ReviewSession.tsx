@@ -16,7 +16,9 @@ import {
   Repeat,
 } from "lucide-react";
 import {
+  QUICK_START_MAX,
   answer,
+  batchPresets,
   buildChoices,
   createSession,
   currentCard,
@@ -40,7 +42,6 @@ export type ReviewCard = {
 type Choice = { id: string; gloss: string };
 
 // Decks at or below this size skip the "how many?" prompt and just start.
-const QUICK_START_MAX = 12;
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -450,7 +451,7 @@ function IntroScreen({
   mode: "due" | "practice";
   onPick: (n: number) => void;
 }) {
-  const presets = [10, 20, 30].filter((n) => n < total);
+  const presets = batchPresets(total);
   return (
     <main className="mx-auto max-w-md px-4 pb-24 pt-12 text-center">
       <div className="rounded-3xl bg-surface p-10 shadow-lift ring-1 ring-border">

@@ -33,7 +33,7 @@ import {
   fetchCachedLookups,
   fetchChapter,
   fetchChapterMetas,
-  fetchSavedWordKeys,
+  fetchSavedWords,
   type Book,
   type Chapter,
   type ChapterMeta,
@@ -80,6 +80,9 @@ export default function Reader() {
   const [sizeIdx, setSizeIdx] = useState(2);
   const [tint, setTint] = useState<Tint>("paper");
   const cacheRef = useRef<Map<string, WordInfo>>(new Map());
+  // Keyed by matchKey rather than lookupKey, so it answers for exactly the
+  // surfaces the text highlights - the strict key misses inflected forms.
+  const looseRef = useRef<Map<string, WordInfo>>(new Map());
   const [finishing, setFinishing] = useState(false);
   const [chapters, setChapters] = useState<ChapterMeta[]>([]);
   const [picker, setPicker] = useState<null | "page" | "chapter">(null);
@@ -103,8 +106,27 @@ export default function Reader() {
         if (t === "paper" || (typeof t === "string" && t in TINTS)) setTint(t as Tint);
       })
       .catch(() => {});
-    fetchSavedWordKeys()
-      .then((keys) => setSavedKeys(new Set(keys.map((k) => matchKey(k)).filter(Boolean))))
+    fetchSavedWords()
+      .then((saved) => {
+        const keys = new Set<string>();
+        for (const word of saved) {
+          const info: WordInfo = {
+            surface: word.lemma_ar,
+            surfaceKey: word.lemma_ar,
+            lemma_ar: word.lemma_ar,
+            gloss_en: word.gloss_en,
+            pos: null,
+            example_ar: word.example_ar,
+          };
+          for (const raw of word.keys) {
+            const k = matchKey(raw);
+            if (!k) continue;
+            keys.add(k);
+            looseRef.current.set(k, info);
+          }
+        }
+        setSavedKeys(keys);
+      })
       .catch(() => {});
   }, []);
 
@@ -182,14 +204,17 @@ export default function Reader() {
     fetchCachedLookups(keys)
       .then((rows) => {
         for (const [key, row] of Object.entries(rows)) {
-          cacheRef.current.set(key, {
+          const info: WordInfo = {
             surface: row.key,
             surfaceKey: key,
             lemma_ar: row.lemma_ar,
             gloss_en: row.gloss_en,
             pos: row.pos,
             example_ar: row.example_ar,
-          });
+          };
+          cacheRef.current.set(key, info);
+          const loose = matchKey(row.key) || matchKey(row.lemma_ar);
+          if (loose) looseRef.current.set(loose, info);
         }
       })
       .catch(() => {});
@@ -216,6 +241,12 @@ export default function Reader() {
       const cached = cacheRef.current.get(key);
       if (cached) {
         setWord({ ...cached, surface, surfaceKey: key });
+        return;
+      }
+      // Already saved, or already looked up by someone: no call needed.
+      const known = looseRef.current.get(matchKey(surface));
+      if (known) {
+        setWord({ ...known, surface, surfaceKey: key });
         return;
       }
 
@@ -261,6 +292,9 @@ export default function Reader() {
       const next = new Set(prev);
       next.add(matchKey(word.lemma_ar));
       next.add(matchKey(word.surfaceKey));
+      for (const k of [matchKey(word.lemma_ar), matchKey(word.surfaceKey)]) {
+        if (k) looseRef.current.set(k, word);
+      }
       return next;
     });
   }, [word, book, chapter]);

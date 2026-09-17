@@ -140,15 +140,38 @@ export async function fetchChapterProgress(chapterIds: string[]): Promise<Chapte
  * word plus the surface form the user originally tapped (source_ref.surfaceKey),
  * so inflected forms still match. Mirrors the web reader's savedKeys seeding.
  */
-export async function fetchSavedWordKeys(): Promise<string[]> {
-  const { data, error } = await supabase.from("vocab_items").select("lemma_ar, source_ref");
+export type SavedWord = {
+  /** Every surface this word is known by, for highlighting and for matching. */
+  keys: string[];
+  lemma_ar: string;
+  gloss_en: string;
+  example_ar: string | null;
+};
+
+/**
+ * The reader's own saved words, with their meanings.
+ *
+ * The gloss matters: a word already highlighted as saved should open instantly
+ * from what is stored rather than spending an AI lookup re-deriving a meaning
+ * the reader already owns.
+ */
+export async function fetchSavedWords(): Promise<SavedWord[]> {
+  const { data, error } = await supabase
+    .from("vocab_items")
+    .select("lemma_ar, gloss_en, example_ar, source_ref");
   throwIf(error);
-  const keys: string[] = [];
-  for (const row of (data ?? []) as { lemma_ar: string; source_ref: { surfaceKey?: string } | null }[]) {
-    keys.push(row.lemma_ar);
-    if (row.source_ref?.surfaceKey) keys.push(row.source_ref.surfaceKey);
-  }
-  return keys;
+  const rows = (data ?? []) as {
+    lemma_ar: string;
+    gloss_en: string;
+    example_ar: string | null;
+    source_ref: { surfaceKey?: string } | null;
+  }[];
+  return rows.map((row) => ({
+    keys: row.source_ref?.surfaceKey ? [row.lemma_ar, row.source_ref.surfaceKey] : [row.lemma_ar],
+    lemma_ar: row.lemma_ar,
+    gloss_en: row.gloss_en,
+    example_ar: row.example_ar,
+  }));
 }
 
 /** Practice deck: weakest band first, shuffled within — never touches the schedule. */
