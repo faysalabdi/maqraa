@@ -352,6 +352,22 @@ export const wordLookups = pgTable("word_lookups", {
 });
 
 /**
+ * Global cache of root/pattern analysis, keyed on the normalised lemma. A root
+ * is a fact about the language rather than about a reader, so one row serves
+ * everyone - same economics as word_lookups.
+ */
+export const wordRoots = pgTable("word_roots", {
+  id: uuid("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  key: text("key").notNull().unique(),
+  lemmaAr: text("lemma_ar").notNull(),
+  root: text("root"),
+  pattern: text("pattern"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
  * Global cache of paragraph translations, keyed on a hash of the source text.
  * Everyone reading the same book shares the same rows, so a given paragraph is
  * only ever paid for once. Public-read like word_lookups.

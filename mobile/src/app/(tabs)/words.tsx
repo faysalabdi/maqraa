@@ -149,6 +149,14 @@ export default function WordsScreen() {
               >
                 <Text style={{ color: c.fg, fontWeight: "600" }}>Practice</Text>
               </Pressable>
+              <Pressable
+                onPress={() => router.push("/roots")}
+                style={[styles.practiceCta, { borderColor: c.border }]}
+                accessibilityRole="button"
+                accessibilityLabel="Root families"
+              >
+                <Ionicons name="git-network-outline" size={18} color={c.fg} />
+              </Pressable>
             </View>
 
             <View style={styles.summary}>

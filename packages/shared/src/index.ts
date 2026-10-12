@@ -10,3 +10,4 @@ export * from "./celebration";
 export * from "./api-types";
 export * from "./cue-recipes";
 export * from "./review-batch";
+export * from "./roots";

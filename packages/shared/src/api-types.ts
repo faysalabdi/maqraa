@@ -140,3 +140,11 @@ export type LeaderboardResponse = {
 export type TranslatePageRequest = { paragraphs: string[] };
 
 export type TranslatePageResponse = { translations: string[] };
+
+/** GET/POST /api/v1/roots */
+export type RootsResponse = {
+  families: { root: string; words: { id: string; lemma_ar: string; gloss_en: string; pattern: string | null }[] }[];
+  singles: number;
+  coverage: { families: number; words: number };
+  pending: boolean;
+};
