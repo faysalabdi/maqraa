@@ -375,15 +375,16 @@ export default function ReviewScreen() {
                   style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}
                 >
                   <ArabicText style={[styles.lemma, { color: c.fg }]}>{item.lemma_ar}</ArabicText>
+                  {/* The sentence is context, not the answer: it is Arabic, so
+                      it helps recall without giving the gloss away. The choice
+                      card and the web card both show it up front. */}
+                  {item.example_ar ? (
+                    <ArabicText style={[styles.example, { color: c.fgMuted }]}>
+                      {item.example_ar}
+                    </ArabicText>
+                  ) : null}
                   {revealed ? (
-                    <>
-                      <Text style={[styles.gloss, { color: c.fg }]}>{item.gloss_en}</Text>
-                      {item.example_ar ? (
-                        <ArabicText style={[styles.example, { color: c.fgMuted }]}>
-                          {item.example_ar}
-                        </ArabicText>
-                      ) : null}
-                    </>
+                    <Text style={[styles.gloss, { color: c.fg }]}>{item.gloss_en}</Text>
                   ) : (
                     <Text style={{ color: c.fgMuted }}>Tap to reveal</Text>
                   )}
